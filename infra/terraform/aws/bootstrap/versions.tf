@@ -9,13 +9,12 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket       = "shared-dressme-terraform-state-bucket"
-    key          = "bootstrap/terraform.tfstate"
-    region       = "eu-north-1"
-    use_lockfile = true
-    encrypt      = true
-    # No profile: local use AWS_PROFILE=7oas7er; CI uses OIDC default chain.
+  # Local backend on purpose: this root *creates* the S3 state bucket used by
+  # every other root. An S3 backend here cannot init until that bucket exists,
+  # and `terraform init -backend=false` still blocks plan/apply on modern TF.
+  # Keep bootstrap state on the operator machine (gitignored); rarely changes.
+  backend "local" {
+    path = "terraform.tfstate"
   }
 }
 

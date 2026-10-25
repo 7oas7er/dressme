@@ -50,7 +50,7 @@ output "high_score_function_url" {
 
 output "github_oidc_provider_arn" {
   description = "Account-wide GitHub OIDC provider ARN (referenced by prod)."
-  value       = aws_iam_openid_connect_provider.github.arn
+  value       = data.aws_iam_openid_connect_provider.github.arn
 }
 
 output "github_terraform_plan_role_arn" {
