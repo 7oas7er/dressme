@@ -14,7 +14,7 @@ Scaffold creates the isolated app repo. These steps are **not** done by the firs
 - [ ] `infra/terraform/aws/bootstrap` (state bucket `shared-dressme-terraform-state-bucket`)
 - [ ] Fresh gitignored `terraform.tfvars` per root (never copy Block Drop secrets)
 - [ ] `aws/envs/stg` (ACM cert in `us-east-1`, origin-verify secret, OIDC subjects)
-- [ ] Prefer immutable OIDC subjects: `repo:7oas7er@2952810/dressme@<repo_database_id>:environment:…`
+- [ ] Prefer immutable OIDC subjects: `repo:7oas7er@2952810/dressme@1433682888:environment:…` (repo id confirmed)
 - [ ] Cloudflare DNS root (app hosts only)
 - [ ] Grafana app root (folder, dual dashboards, synthetics, CW scrape, GitHub DS)
 - [ ] `aws/envs/prod` after stg is proven
@@ -23,7 +23,7 @@ Scaffold creates the isolated app repo. These steps are **not** done by the firs
 
 - [ ] Environments `staging`, `production`, `terraform` with distinct roles/buckets/hosts
 - [ ] Security floor API-verified (`docs/github-branch-protection.md`)
-- [ ] Cursor GitHub App installed on this repo (for cloud agents)
+- [x] Cursor GitHub App installed on this repo (for cloud agents) — Contents R/W verified 2026-10-25
 
 ## Product (next tasks)
 
