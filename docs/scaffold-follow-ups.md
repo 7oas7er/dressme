@@ -21,9 +21,13 @@ Scaffold creates the isolated app repo. These steps are **not** done by the firs
 
 ## GitHub
 
-- [ ] Environments `staging`, `production`, `terraform` with distinct roles/buckets/hosts
-- [ ] Security floor API-verified (`docs/github-branch-protection.md`)
-- [x] Cursor GitHub App installed on this repo (for cloud agents) — Contents R/W verified 2026-10-25
+- [x] Environments `staging`, `production`, `terraform` created (wire distinct roles/buckets/hosts after local Terraform)
+- [x] Ruleset `default` active on `main`+`staging` (`Required CI` only; no force-push/delete; PR required)
+- [x] Issues / Wiki / Projects off
+- [ ] Dependabot alerts + secret scanning + push protection — confirm in Settings (this App token lacks `administration=read`, cannot API-verify)
+- [ ] Actions `GITHUB_TOKEN` read-only + cannot approve PRs — same (UI confirm)
+- [ ] CodeQL **default** setup off — same (in-repo advanced workflow only)
+- [x] Cursor GitHub App installed on this repo (for cloud agents) — Contents R/W verified 2026-10-25; Administration still Read
 
 ## Product (next tasks)
 
