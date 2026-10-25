@@ -32,7 +32,7 @@ variable "site_certificate_arn" {
 variable "github_actions_subject" {
   description = "Immutable GitHub Actions OIDC subject for the production GitHub Environment (jobs with environment: production)."
   type        = string
-  default     = "repo:7oas7er/dressme:environment:production"
+  default     = "repo:7oas7er@2952810/dressme@1433682888:environment:production"
 }
 
 variable "origin_verify_secret" {

@@ -9,8 +9,10 @@ variable "zone_id" {
 }
 
 variable "prod_cloudfront_domain_name" {
-  description = "CloudFront domain name for production (dressme.7oas7er.com), such as d111111abcdef8.cloudfront.net."
+  description = "CloudFront domain name for production (dressme.7oas7er.com), such as d111111abcdef8.cloudfront.net. Omit (null) until aws/envs/prod is applied."
   type        = string
+  default     = null
+  nullable    = true
 }
 
 variable "stg_cloudfront_domain_name" {
