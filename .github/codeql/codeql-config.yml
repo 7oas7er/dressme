@@ -1,0 +1,15 @@
+# Path scope for DressMe SAST. Full query suite comes from the workflow
+# (`security-extended`). Document triage in docs/codeql.md.
+name: dressme-codeql
+
+paths:
+  - dressme
+  - infra/lambda
+  - .github/workflows
+
+paths-ignore:
+  - "**/*.md"
+  - "**/package-lock.json"
+  - "infra/terraform/**"
+  - "tests/node_modules/**"
+  - "infra/lambda/node_modules/**"

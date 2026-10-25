@@ -1,0 +1,79 @@
+name: Required CI
+
+# Always runs on PRs to staging/main so branch rules can require one stable check.
+# Path-filtered workflows (Deploy, Terraform plan, Dependency audit, CodeQL) still
+# enforce their own jobs when those paths change — see docs/github-branch-protection.md.
+on:
+  pull_request:
+    branches:
+      - staging
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: required-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  required:
+    name: Required CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Require SHA-pinned Actions
+        run: .github/scripts/check-github-action-pins.sh
+
+      - name: Summarize path-filtered gates
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            site:
+              - 'dressme/**'
+              - 'tests/**'
+              - '.github/workflows/deploy-dressme.yml'
+            infra:
+              - 'infra/terraform/**'
+              - 'infra/lambda/**'
+              - '.github/workflows/terraform-plan.yml'
+            deps:
+              - 'tests/package.json'
+              - 'tests/package-lock.json'
+              - 'infra/lambda/package.json'
+              - 'infra/lambda/package-lock.json'
+              - '.github/workflows/dependency-audit.yml'
+            codeql:
+              - 'dressme/**'
+              - 'infra/lambda/**'
+              - '.github/workflows/**'
+              - '.github/codeql/**'
+
+      - name: Gate map
+        run: |
+          set -euo pipefail
+          echo "Expect these workflows when the matching paths change:"
+          if [ "${{ steps.filter.outputs.site }}" = "true" ]; then
+            echo "- Deploy DressMe → App tests"
+          fi
+          if [ "${{ steps.filter.outputs.infra }}" = "true" ]; then
+            echo "- Terraform plan → Format, IaC policy (Checkov), Validate/Plan"
+          fi
+          if [ "${{ steps.filter.outputs.deps }}" = "true" ]; then
+            echo "- Dependency audit → npm audit (tests / lambda)"
+          fi
+          if [ "${{ steps.filter.outputs.codeql }}" = "true" ]; then
+            echo "- CodeQL → Analyze (javascript-typescript / actions)"
+          fi
+          if [ "${{ steps.filter.outputs.site }}" != "true" ] \
+            && [ "${{ steps.filter.outputs.infra }}" != "true" ] \
+            && [ "${{ steps.filter.outputs.deps }}" != "true" ] \
+            && [ "${{ steps.filter.outputs.codeql }}" != "true" ]; then
+            echo "- Docs/meta-only PR: path-filtered suites intentionally skipped"
+          fi

@@ -1,0 +1,14 @@
+---
+description: DressMe SPA coding standards
+globs: dressme/**/*
+alwaysApply: false
+---
+
+# DressMe — frontend
+
+- Small SPA/bundler OK (catalog + camera UX). Block Drop’s zero-build game rule does **not** apply.
+- Prefer one app namespace / entry; keep phone-browser UX workable (capture, browse, collage).
+- Same-origin API under `/api/*`; do not assume a separate API hostname.
+- Photos stay client-side for collage; do not send wardrobe photos to the LLM in v1 (attrs + item IDs only).
+- Version hashed/bundled assets or bump cache-bust query params on HTML references when shipping static builds.
+- Imprint / legal pages stay lightweight static HTML if present.

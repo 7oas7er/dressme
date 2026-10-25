@@ -1,0 +1,20 @@
+---
+description: Platform core — public web app in one AWS account (Terraform, Cloudflare, Grafana)
+alwaysApply: true
+---
+
+# App platform — core
+
+For a **public web app in one AWS account** (this repo’s template pattern):
+
+- **Repo isolation (fundamental)**: each app is its **own GitHub repository**. Shared zone/Grafana Free objects live in [`7oas7er/platform`](https://github.com/7oas7er/platform). Dependency is **app → platform** only — **never app → app**. See `docs/architecture.md` and ADR 0007.
+- **Hosting**: AWS **one account**, two environments (`stg` / `prod`). Terraform is the source of truth. Do **not** reintroduce CDK or manage app resources with CloudFormation. Tag taggable resources `Project=<app-slug>`.
+- **GitHub env separation**: feature work → **`staging`** (AWS stg only). Promote via **`staging` → `main`** (AWS prod). GitHub Environments `staging` / `production` must use **distinct** roles, buckets, and distributions.
+- **GitHub security floor (mandatory)**: for every **new or migrated** app repo, apply and **API-verify** the DressMe floor in `docs/github-branch-protection.md` — Dependabot alerts, secret scanning + push protection, ruleset on `main`/`staging` (`Required CI`), default branch `main`, Actions `GITHUB_TOKEN` read-only (cannot approve PRs), CodeQL default setup off. Copying workflows/docs does **not** configure Settings; never assume create-time defaults or sibling-repo state.
+- **GitHub Actions pins**: all workflow `uses:` must be full commit SHAs (`docs/github-actions-pinning.md`); Required CI runs the pin check. Dependabot `github-actions` keeps SHAs current on `staging`.
+- **DNS**: Cloudflare app Terraform root is **DNS only**. Zone rulesets (origin-verify, cache, redirects, rate-limit, SSL) live in [`7oas7er/platform`](https://github.com/7oas7er/platform) `shared-edge` — never recreate them in an app root (one ruleset per phase).
+- **Observability**: Grafana Cloud Free only — see `app-observability`. Shared Infinity DS + GitHub **plugin** live in platform `shared-obs`; app grafana roots own dashboards/synthetics/CloudWatch/per-app GitHub DS only.
+- **Cloudflare-only traffic**: accept only traffic that came through Cloudflare; reject direct origin (CloudFront URL, ALB DNS, etc.). Mechanism may vary; principle matters.
+- **Secrets**: never commit `.tfstate`, `terraform.tfvars`, API tokens, or AWS keys. Local AWS profile `7oas7er`; GitHub Actions uses OIDC. See `SECURITY.md` for leak response.
+- **Prefer small diffs**; match existing patterns.
+- **Agents**: `AGENTS.md`, `README.md`, `docs/adr/`, `SECURITY.md`. New irreversible choice → short ADR under `docs/adr/`.

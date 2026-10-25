@@ -1,0 +1,15 @@
+---
+description: DressMe deploy workflow and cache/purge details
+globs: .github/workflows/**
+alwaysApply: false
+---
+
+# DressMe — deploy overlay
+
+Platform promote/OIDC: `app-deploy`.
+
+- Site workflow: `.github/workflows/deploy-dressme.yml`.
+- Deploy when `dressme/**` or that workflow changes (or `workflow_dispatch`); `tests/**`-only pushes skip S3/CDN.
+- Sync `dressme/`: HTML `max-age=60`; JS/CSS `max-age=31536000, immutable` (bump `?v=` or hashed assets on change). Then CloudFront `/*` + Cloudflare URL purge for `SITE_HOST`.
+- Playwright cache under `~/.cache/ms-playwright` keyed by `@playwright/test` version.
+- Dependabot groups: Actions; Playwright under `tests/`; `@aws-sdk/*` under `infra/lambda`.

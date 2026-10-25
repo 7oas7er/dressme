@@ -1,0 +1,418 @@
+name: Terraform plan
+
+# Separate from game deploy. Only runs when infra/terraform, infra/lambda, or this workflow change.
+# Validate/plan are further scoped per Terraform root via paths-filter.
+on:
+  push:
+    branches:
+      - staging
+      - main
+    paths:
+      - "infra/terraform/**"
+      - "infra/lambda/**"
+      - ".github/workflows/terraform-plan.yml"
+  pull_request:
+    branches:
+      - staging
+      - main
+    paths:
+      - "infra/terraform/**"
+      - "infra/lambda/**"
+      - ".github/workflows/terraform-plan.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: terraform-plan-${{ github.workflow }}-${{ github.ref_name }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  TF_IN_AUTOMATION: "true"
+  AWS_REGION: eu-north-1
+
+jobs:
+  changes:
+    name: Detect Terraform changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      any: ${{ steps.flags.outputs.any }}
+      validate_matrix: ${{ steps.flags.outputs.validate_matrix }}
+      plan_aws_matrix: ${{ steps.flags.outputs.plan_aws_matrix }}
+      plan_cloudflare: ${{ steps.flags.outputs.plan_cloudflare }}
+      plan_grafana: ${{ steps.flags.outputs.plan_grafana }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            workflow:
+              - '.github/workflows/terraform-plan.yml'
+            aws_bootstrap:
+              - 'infra/terraform/aws/bootstrap/**'
+            aws_stg:
+              - 'infra/terraform/aws/envs/stg/**'
+              - 'infra/terraform/aws/modules/**'
+              - 'infra/lambda/**'
+            aws_prod:
+              - 'infra/terraform/aws/envs/prod/**'
+              - 'infra/terraform/aws/modules/**'
+              - 'infra/lambda/**'
+            cloudflare:
+              - 'infra/terraform/cloudflare/**'
+            grafana:
+              - 'infra/terraform/grafana/**'
+            any:
+              - 'infra/terraform/**'
+              - 'infra/lambda/**'
+              - '.github/workflows/terraform-plan.yml'
+
+      - name: Build job matrices
+        id: flags
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Manual runs and workflow-file edits exercise every root.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.filter.outputs.workflow }}" = "true" ]; then
+            aws_bootstrap=true
+            aws_stg=true
+            aws_prod=true
+            cloudflare=true
+            grafana=true
+            any=true
+          else
+            aws_bootstrap=${{ steps.filter.outputs.aws_bootstrap }}
+            aws_stg=${{ steps.filter.outputs.aws_stg }}
+            aws_prod=${{ steps.filter.outputs.aws_prod }}
+            cloudflare=${{ steps.filter.outputs.cloudflare }}
+            grafana=${{ steps.filter.outputs.grafana }}
+            any=${{ steps.filter.outputs.any }}
+          fi
+
+          validate='[]'
+          plan_aws='[]'
+          append() {
+            local -n arr=$1
+            local item=$2
+            arr=$(jq -c --argjson item "$item" '. + [$item]' <<<"$arr")
+          }
+
+          if [ "$aws_bootstrap" = "true" ]; then
+            append validate '{"root":"aws/bootstrap","path":"infra/terraform/aws/bootstrap"}'
+            append plan_aws '{"root":"bootstrap","path":"infra/terraform/aws/bootstrap"}'
+          fi
+          if [ "$aws_stg" = "true" ]; then
+            append validate '{"root":"aws/stg","path":"infra/terraform/aws/envs/stg"}'
+            append plan_aws '{"root":"stg","path":"infra/terraform/aws/envs/stg"}'
+          fi
+          if [ "$aws_prod" = "true" ]; then
+            append validate '{"root":"aws/prod","path":"infra/terraform/aws/envs/prod"}'
+            append plan_aws '{"root":"prod","path":"infra/terraform/aws/envs/prod"}'
+          fi
+          if [ "$cloudflare" = "true" ]; then
+            append validate '{"root":"cloudflare","path":"infra/terraform/cloudflare"}'
+          fi
+          if [ "$grafana" = "true" ]; then
+            append validate '{"root":"grafana","path":"infra/terraform/grafana"}'
+          fi
+
+          {
+            echo "any=${any}"
+            echo "validate_matrix=${validate}"
+            echo "plan_aws_matrix=${plan_aws}"
+            echo "plan_cloudflare=${cloudflare}"
+            echo "plan_grafana=${grafana}"
+          } >> "$GITHUB_OUTPUT"
+
+  fmt:
+    name: Format
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.11.4"
+          terraform_wrapper: false
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive infra/terraform
+
+  # Policy scan is independent of fmt so a format nit does not hide IaC findings.
+  policy:
+    name: IaC policy (Checkov)
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Checkov
+        # Pin to full commit SHA (mutable tags are a supply-chain risk; CodeQL actions/unpinned-tag).
+        uses: bridgecrewio/checkov-action@6f26dc90000b74feb589a906cdfae540f5119895 # v12.3134.0
+        with:
+          directory: infra/terraform
+          config_file: infra/terraform/.checkov.yaml
+          framework: terraform
+          soft_fail: false
+          download_external_modules: false
+          output_format: cli
+
+  validate:
+    name: Validate (${{ matrix.root }})
+    needs:
+      - changes
+      - fmt
+    if: needs.changes.outputs.validate_matrix != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.changes.outputs.validate_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.11.4"
+          terraform_wrapper: false
+
+      - name: Setup Node.js (Lambda package check)
+        if: matrix.root == 'aws/stg' || matrix.root == 'aws/prod'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: infra/lambda/package-lock.json
+
+      - name: Install Lambda dependencies
+        if: matrix.root == 'aws/stg' || matrix.root == 'aws/prod'
+        working-directory: infra/lambda
+        run: npm ci --omit=dev
+
+      - name: terraform init (-backend=false)
+        working-directory: ${{ matrix.path }}
+        run: terraform init -backend=false -input=false
+
+      - name: terraform validate
+        working-directory: ${{ matrix.path }}
+        run: terraform validate -no-color
+
+  plan-aws:
+    name: Plan AWS (${{ matrix.root }})
+    needs:
+      - changes
+      - fmt
+      - validate
+    if: |
+      always()
+      && needs.changes.outputs.plan_aws_matrix != '[]'
+      && needs.fmt.result == 'success'
+      && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: terraform
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.changes.outputs.plan_aws_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.11.4"
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (plan role)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-plan-${{ matrix.root }}-${{ github.run_id }}
+
+      - name: Setup Node.js
+        if: matrix.root == 'stg' || matrix.root == 'prod'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: infra/lambda/package-lock.json
+
+      - name: Install Lambda dependencies
+        if: matrix.root == 'stg' || matrix.root == 'prod'
+        working-directory: infra/lambda
+        run: npm ci --omit=dev
+
+      - name: terraform init
+        working-directory: ${{ matrix.path }}
+        run: terraform init -input=false
+
+      - name: terraform plan (bootstrap)
+        if: matrix.root == 'bootstrap'
+        working-directory: ${{ matrix.path }}
+        run: |
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode
+          code=$?
+          # 0 = no changes, 2 = changes present; both OK for CI. 1 = error.
+          if [ "$code" -eq 1 ]; then
+            exit 1
+          fi
+          exit 0
+
+      - name: terraform plan (stg)
+        if: matrix.root == 'stg'
+        working-directory: ${{ matrix.path }}
+        env:
+          TF_VAR_site_certificate_arn: ${{ vars.STG_SITE_CERTIFICATE_ARN }}
+          TF_VAR_origin_verify_secret: ${{ secrets.STG_ORIGIN_VERIFY_SECRET }}
+        run: |
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode
+          code=$?
+          if [ "$code" -eq 1 ]; then
+            exit 1
+          fi
+          exit 0
+
+      - name: terraform plan (prod)
+        if: matrix.root == 'prod'
+        working-directory: ${{ matrix.path }}
+        env:
+          # site_certificate_arn has a prod default in variables.tf; override via var if set.
+          TF_VAR_site_certificate_arn: ${{ vars.PROD_SITE_CERTIFICATE_ARN }}
+          TF_VAR_origin_verify_secret: ${{ secrets.PROD_ORIGIN_VERIFY_SECRET }}
+        run: |
+          if [ -z "${TF_VAR_site_certificate_arn}" ]; then
+            unset TF_VAR_site_certificate_arn
+          fi
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode
+          code=$?
+          if [ "$code" -eq 1 ]; then
+            exit 1
+          fi
+          exit 0
+
+  plan-cloudflare:
+    name: Plan Cloudflare
+    needs:
+      - changes
+      - fmt
+      - validate
+    if: |
+      always()
+      && needs.changes.outputs.plan_cloudflare == 'true'
+      && needs.fmt.result == 'success'
+      && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.11.4"
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (state access)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-plan-cloudflare-${{ github.run_id }}
+
+      - name: terraform init
+        working-directory: infra/terraform/cloudflare
+        run: terraform init -input=false
+
+      - name: terraform plan
+        working-directory: infra/terraform/cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_stg_cloudfront_domain_name: ${{ vars.STG_CLOUDFRONT_DOMAIN_NAME }}
+          TF_VAR_prod_cloudfront_domain_name: ${{ vars.PROD_CLOUDFRONT_DOMAIN_NAME }}
+          # Origin-verify secrets live in 7oas7er/platform shared-edge (not this DNS-only root).
+        run: |
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode
+          code=$?
+          if [ "$code" -eq 1 ]; then
+            exit 1
+          fi
+          exit 0
+
+  plan-grafana:
+    name: Plan Grafana
+    needs:
+      - changes
+      - fmt
+      - validate
+    if: |
+      always()
+      && needs.changes.outputs.plan_grafana == 'true'
+      && needs.fmt.result == 'success'
+      && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.11.4"
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (state + IAM read)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-plan-grafana-${{ github.run_id }}
+
+      - name: terraform init
+        working-directory: infra/terraform/grafana
+        run: terraform init -input=false
+
+      - name: terraform plan
+        working-directory: infra/terraform/grafana
+        env:
+          TF_VAR_stack_slug: ${{ vars.GRAFANA_STACK_SLUG }}
+          TF_VAR_cloud_access_policy_token: ${{ secrets.GRAFANA_CLOUD_ACCESS_POLICY_TOKEN }}
+          TF_VAR_cloud_provider_access_token: ${{ secrets.GRAFANA_CLOUD_PROVIDER_ACCESS_TOKEN }}
+          TF_VAR_sm_access_token: ${{ secrets.GRAFANA_SM_ACCESS_TOKEN }}
+        run: |
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode
+          code=$?
+          if [ "$code" -eq 1 ]; then
+            exit 1
+          fi
+          exit 0

@@ -1,0 +1,13 @@
+# State backend uses env AWS_PROFILE / default chain (export AWS_PROFILE=7oas7er locally).
+
+# Zone id for 7oas7er.com (also stored as GitHub Environment CLOUDFLARE_ZONE_ID).
+# zone_id = "701810fff825f90c0eea671970a0cc9e"
+
+# CloudFront distribution domain names (from envs/*/ terraform output distribution_domain_name).
+prod_cloudfront_domain_name = "d111111abcdef8.cloudfront.net"
+stg_cloudfront_domain_name  = "d222222abcdef8.cloudfront.net"
+
+# This root is DNS only. Origin-verify, cache, redirects, rate-limit, and SSL
+# live in https://github.com/7oas7er/platform (infra/terraform/shared-edge).
+#
+# Deploy still needs CLOUDFLARE_ZONE_ID + CLOUDFLARE_API_TOKEN (Zone.Cache Purge + Zone.Read).

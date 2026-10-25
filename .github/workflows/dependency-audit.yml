@@ -1,0 +1,118 @@
+name: Dependency audit
+
+# Fail PRs (and pushes) that introduce high/critical npm advisories in test or Lambda deps.
+# Dependabot still opens weekly update PRs to staging (see .github/dependabot.yml).
+on:
+  push:
+    branches:
+      - staging
+      - main
+    paths:
+      - "tests/package.json"
+      - "tests/package-lock.json"
+      - "infra/lambda/package.json"
+      - "infra/lambda/package-lock.json"
+      - ".github/workflows/dependency-audit.yml"
+  pull_request:
+    branches:
+      - staging
+      - main
+    paths:
+      - "tests/package.json"
+      - "tests/package-lock.json"
+      - "infra/lambda/package.json"
+      - "infra/lambda/package-lock.json"
+      - ".github/workflows/dependency-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-audit-${{ github.workflow }}-${{ github.ref_name }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: Detect package changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tests: ${{ steps.filter.outputs.tests }}
+      lambda: ${{ steps.filter.outputs.lambda }}
+      workflow: ${{ steps.filter.outputs.workflow }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            tests:
+              - 'tests/package.json'
+              - 'tests/package-lock.json'
+            lambda:
+              - 'infra/lambda/package.json'
+              - 'infra/lambda/package-lock.json'
+            workflow:
+              - '.github/workflows/dependency-audit.yml'
+
+  audit-tests:
+    name: npm audit (tests)
+    needs: changes
+    if: >
+      github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.tests == 'true'
+      || needs.changes.outputs.workflow == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+
+  audit-lambda:
+    name: npm audit (lambda)
+    needs: changes
+    if: >
+      github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.lambda == 'true'
+      || needs.changes.outputs.workflow == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: infra/lambda
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: infra/lambda/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --omit=dev
+
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high --omit=dev

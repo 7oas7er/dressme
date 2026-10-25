@@ -1,0 +1,19 @@
+function handler(event) {
+  var response = event.response;
+  var headers = response.headers;
+  // CloudFront response-headers policies cannot remove X-Amzn-RequestId /
+  // X-Amzn-ErrorType (AWS deny list). Viewer-response can still drop them
+  // before the response reaches the browser. Header names are lowercase here.
+  var strip = [
+    "x-amzn-trace-id",
+    "x-amzn-requestid",
+    "x-amzn-errortype"
+  ];
+  var i;
+  for (i = 0; i < strip.length; i++) {
+    if (headers[strip[i]]) {
+      delete headers[strip[i]];
+    }
+  }
+  return response;
+}

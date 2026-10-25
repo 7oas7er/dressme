@@ -1,0 +1,18 @@
+# Local gates before push — mirrors CI terraform fmt + fast unit tests.
+# Install: pipx install pre-commit && pre-commit install
+# Run all: pre-commit run --all-files
+repos:
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.109.2
+    hooks:
+      - id: terraform_fmt
+        files: ^infra/terraform/
+
+  - repo: local
+    hooks:
+      - id: tests-unit
+        name: npm run test:unit (tests/)
+        entry: bash -c 'cd tests && { [ -d node_modules ] || npm ci --prefer-offline --no-audit --no-fund; } && npm run test:unit'
+        language: system
+        files: ^(tests/|dressme/js/)
+        pass_filenames: false

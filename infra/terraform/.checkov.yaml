@@ -1,0 +1,49 @@
+# Checkov config for DressMe Terraform roots.
+# CI: `.github/workflows/terraform-plan.yml` job "IaC policy (Checkov)".
+# How to add/remove skips: docs/iac-policy.md
+
+compact: true
+framework:
+  - terraform
+download-external-modules: false
+
+# Fail the scan when any non-skipped check fails (CI treats this as a PR gate).
+quiet: true
+
+skip-check:
+  # --- CloudFront / edge (Cloudflare is the WAF / geo / bot layer) ---
+  - CKV_AWS_68   # AWS WAF on CloudFront — Cloudflare edge handles abuse; avoid dual WAF cost
+  - CKV2_AWS_47  # WAF Log4j AMR — no AWS WAF attached
+  - CKV_AWS_374  # Geo restriction — intentional none (private users are not region-locked)
+  - CKV_AWS_310  # Origin failover — single S3 + Lambda URL origin by design
+  - CKV_AWS_86   # CloudFront access logging — S3 server access logs cover origin; CF logs optional cost
+  - CKV_AWS_174  # "TLS 1.2" allowlist is stale — distribution uses TLSv1.3_2025 (stricter)
+  # Graph check misses response_headers_policy_id → custom aws_cloudfront_response_headers_policy.site
+  # (HSTS/CSP/frame-options already set in modules/site/cloudfront.tf).
+  - CKV2_AWS_32
+
+  # --- Lambda (health via CloudFront OAC; keep cost/complexity low) ---
+  - CKV_AWS_117  # VPC — not required; origin is CloudFront→Lambda URL with OAC
+  - CKV_AWS_116  # DLQ — synchronous HTTP API; errors return to the client
+  - CKV_AWS_50   # X-Ray — CloudWatch + Grafana synthetics are enough for this app
+  - CKV_AWS_272  # Code signing — overkill for a private puzzle-game Lambda
+  - CKV_AWS_115  # Reserved concurrency — optional; set if noisy-neighbor becomes real
+  - CKV_AWS_173  # CMK for env vars — no secrets in env; SSE-S3 / default Lambda encryption OK
+
+  # --- Logs ---
+  - CKV_AWS_338  # 365-day retention — shorter retention is intentional for cost on a private app
+  - CKV_AWS_158  # CW Logs CMK — AWS-managed encryption is acceptable here
+
+  # --- S3 (AES256 + single-region by design; see aws-regions rule) ---
+  - CKV_AWS_145  # Require CMK — SSE-S3 AES256 is intentional
+  # Graph CKV_AWS_19 often misses aws_s3_bucket_server_side_encryption_configuration links
+  # (AES256 is set on state, site, high_scores, access_logs — do not "fix" by nesting legacy SSE blocks).
+  - CKV_AWS_19
+  - CKV_AWS_144  # Cross-region replication — single-region (eu-north-1) by design
+  - CKV2_AWS_62  # Event notifications — not used; no downstream consumers
+  - CKV_AWS_18   # Access logging on state / health — site bucket is logged; state is private account-only
+  - CKV2_AWS_61  # Lifecycle on state / site — state kept; site objects replaced by deploy sync
+  - CKV_AWS_21   # Versioning on access-logs / site — health is versioned; site is immutable deploy overwrite
+
+  # --- IAM ---
+  - CKV_AWS_356  # Grafana CloudWatch scrape policy uses Resource "*" for metrics APIs (AWS requires it)

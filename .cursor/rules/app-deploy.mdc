@@ -1,0 +1,17 @@
+---
+description: GitHub Actions deploy / promote conventions for templated apps
+globs: .github/workflows/**
+alwaysApply: false
+---
+
+# App platform — deploy
+
+- **Branches**: merge to `staging` → AWS stg; merge `staging` → `main` → AWS prod.
+- **Tests gate deploy** on the site workflow; PRs run tests only (no deploy).
+- **Path filters**: skip S3/CDN when only tests or unrelated paths change; keep `workflow_dispatch` able to force deploy.
+- **Auth**: GitHub OIDC → env-specific IAM deploy roles. No long-lived AWS keys in GitHub.
+- Environments `staging` / `production` hold distinct vars (role, region, bucket, distribution, site host, Cloudflare zone) and secrets (`CLOUDFLARE_API_TOKEN`, etc.).
+- After renaming roles/buckets in Terraform, update GitHub Environment vars before the next deploy.
+- Dependabot: weekly PRs to `staging` for Actions and app npm trees; require green CI before merge.
+- **Action pins (mandatory):** every workflow `uses:` is `owner/action@<40-char-sha> # vX.Y.Z` — including GitHub-owned `actions/*` and `github/codeql-action/*`. No mutable tags. Enforced by `.github/scripts/check-github-action-pins.sh` in Required CI; see `docs/github-actions-pinning.md`.
+- Do not wire deploy to CloudFormation outputs — Terraform outputs / variables only.

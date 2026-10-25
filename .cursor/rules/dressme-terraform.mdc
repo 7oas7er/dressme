@@ -1,0 +1,32 @@
+---
+description: DressMe Terraform naming, domains, and scaffold API
+globs: infra/terraform/**/*
+alwaysApply: false
+---
+
+# DressMe — Terraform overlay
+
+Platform layout/CI: `app-terraform`.
+
+## Naming / state
+
+- Pattern: `[environment]-dressme-[purpose]-[resource-type]` (e.g. `stg-dressme-site-bucket`).
+- State bucket: `shared-dressme-terraform-state-bucket`; keys `bootstrap/`, `envs/stg/`, `envs/prod/`, `cloudflare/`, `grafana/`.
+- Plan role: `shared-dressme-terraform-plan-role` + GitHub Environment `terraform` (`infra/terraform/docs/terraform-plan-ci.md`).
+- AWS provider `default_tags`: `Project = "dressme"` (plus `Environment`) on bootstrap / stg / prod.
+
+## Domains
+
+| Env | Domain |
+|-----|--------|
+| stg | `dressme-stg.7oas7er.com` |
+| prod | `dressme.7oas7er.com` |
+
+## App-specific (scaffold → Option A)
+
+- OIDC provider managed in **stg** only; prod looks it up. After repo create, set immutable OIDC subjects to `repo:7oas7er@2952810/dressme@<repo_id>:environment:…`.
+- Scaffold Lambda: `/api/health` (Node 22 via `infra/lambda`). Planned: Cognito, DynamoDB items, S3 media + presigns, suggest Lambda (Bedrock attrs-only).
+- Site bucket unversioned; data/media buckets follow Option A when added.
+- **Origin-verify**: keep AWS `origin_verify_secret` in sync with Cloudflare; rotate via `infra/terraform/docs/origin-verify-secret-rotation.md`.
+- Cloudflare app root is **DNS only** for `dressme` / `dressme-stg` (no apex/www). Zone rulesets + rate limits live in platform `shared-edge`.
+- Access logs: `{env}-dressme-access-logs-bucket` (CloudFront v2 + S3 site). Lambda log group finite retention; CF 5xx alarms in `us-east-1`.

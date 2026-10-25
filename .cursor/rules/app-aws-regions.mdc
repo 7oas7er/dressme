@@ -1,0 +1,12 @@
+---
+description: AWS region defaults for templated apps (eu-north-1)
+alwaysApply: true
+---
+
+# App platform — AWS regions
+
+- **Default region**: `eu-north-1` for regional resources (Lambda, most S3 buckets, DynamoDB, etc.).
+- **us-east-1 only when required**, notably ACM certificates used by CloudFront custom domains.
+- **Global / account-scoped services** (IAM, CloudFront distributions, IAM OIDC providers) are not pinned to `eu-north-1`; create them where the AWS API requires.
+- S3 bucket *names* are globally unique; app/state buckets still live in **`eu-north-1`** unless documented otherwise.
+- Do not introduce a third region without an explicit reason (call it out in the change).

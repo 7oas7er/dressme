@@ -1,0 +1,15 @@
+---
+description: DressMe Grafana labels, APIs, and dashboard path
+alwaysApply: true
+---
+
+# DressMe — observability overlay
+
+Platform pattern: `app-observability`. Dashboard layout: [`docs/grafana-dashboard-template.md`](../../docs/grafana-dashboard-template.md).
+
+- Project label: `project=dressme`.
+- Critical API synthetic: `/api/health` (stg + prod).
+- Scrape: `AWS/Lambda`, `AWS/CloudFront` (incl. OriginLatency).
+- Dashboards: `DressMe — Production` / `DressMe — Staging` — JSON at `infra/terraform/grafana/dashboards/dressme-prod.json` and `dressme-stg.json` (regenerate with `python3 infra/terraform/grafana/scripts/generate-env-dashboards.py`).
+- Stack service account name used for publish: `dressme-terraform`.
+- Probe script: `infra/terraform/grafana/scripts/probe-cloudflare-graphql.sh`.

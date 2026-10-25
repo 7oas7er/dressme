@@ -1,0 +1,2885 @@
+{
+  "uid": "dressme-prod",
+  "title": "DressMe \u2014 Production",
+  "description": "DressMe prod: fixed-window traffic / errors / latency, synthetics, Cloudflare edge, and GitHub Actions.",
+  "tags": [
+    "dressme",
+    "prod",
+    "synthetics",
+    "observability",
+    "cloudflare",
+    "github"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "1m",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
+      },
+      {
+        "name": "loki",
+        "type": "datasource",
+        "query": "loki",
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
+      },
+      {
+        "name": "infinity",
+        "type": "datasource",
+        "query": "yesoreyeram-infinity-datasource",
+        "current": {
+          "text": "Cloudflare GraphQL",
+          "value": "infinity-cloudflare"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
+      },
+      {
+        "name": "github",
+        "type": "datasource",
+        "query": "grafana-github-datasource",
+        "current": {
+          "text": "GitHub DressMe",
+          "value": "github-dressme"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
+      },
+      {
+        "name": "cf_zone",
+        "type": "textbox",
+        "label": "CF zoneTag",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0,
+        "skipUrlSync": false,
+        "description": "Cloudflare zone id (terraform cloudflare output zone_id)."
+      },
+      {
+        "name": "gh_owner",
+        "type": "textbox",
+        "query": "7oas7er",
+        "current": {
+          "text": "7oas7er",
+          "value": "7oas7er"
+        },
+        "hide": 2
+      },
+      {
+        "name": "gh_repo",
+        "type": "textbox",
+        "query": "dressme",
+        "current": {
+          "text": "dressme",
+          "value": "dressme"
+        },
+        "hide": 2
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "GitHub commits",
+        "datasource": {
+          "type": "grafana-github-datasource",
+          "uid": "${github}"
+        },
+        "enable": true,
+        "iconColor": "blue",
+        "target": {
+          "refId": "Anno",
+          "queryType": "Commits",
+          "owner": "$gh_owner",
+          "repository": "$gh_repo"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Traffic \u2014 requests (CF Adaptive \u226430d; year = CloudWatch)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Last hour",
+      "description": "Cloudflare edge requests (dressme.7oas7er.com), fixed range now-1h.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      },
+      "timeFrom": "now-1h",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeMinute",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "requests",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Last day",
+      "description": "Cloudflare edge requests (dressme.7oas7er.com), fixed range now-1d.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      },
+      "timeFrom": "now-1d",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "requests",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Last week",
+      "description": "Cloudflare edge requests (dressme.7oas7er.com), fixed range now-7d.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "timeFrom": "now-7d",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "requests",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Last month",
+      "description": "Cloudflare edge requests (dressme.7oas7er.com), fixed range now-30d.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 5
+      },
+      "timeFrom": "now-30d",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "requests",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Last year",
+      "description": "CloudFront requests (prod-dressme-site-distribution). Cloudflare Adaptive Analytics on Free only retain ~30 days, so the year window uses CloudWatch.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 5
+      },
+      "timeFrom": "now-365d",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(aws_cloudfront_requests_sum{project=\"dressme\", Name=\"prod-dressme-site-distribution\"}[1h]))",
+          "legendFormat": "requests"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Errors \u2014 4xx / 5xx (CF counts \u226430d; year = CloudWatch rates)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 7,
+      "collapsed": false
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Last hour",
+      "description": "Cloudflare edge 4xx and 5xx counts (dressme.7oas7er.com), fixed range now-1h.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 10
+      },
+      "timeFrom": "now-1h",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeMinute",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "4xx",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        },
+        {
+          "refId": "B",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeMinute",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "5xx",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Last day",
+      "description": "Cloudflare edge 4xx and 5xx counts (dressme.7oas7er.com), fixed range now-1d.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 10
+      },
+      "timeFrom": "now-1d",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "4xx",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        },
+        {
+          "refId": "B",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "5xx",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Last week",
+      "description": "Cloudflare edge 4xx and 5xx counts (dressme.7oas7er.com), fixed range now-7d.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 10
+      },
+      "timeFrom": "now-7d",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "4xx",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        },
+        {
+          "refId": "B",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "5xx",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Last month",
+      "description": "Cloudflare edge 4xx and 5xx counts (dressme.7oas7er.com), fixed range now-30d.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 14
+      },
+      "timeFrom": "now-30d",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "4xx",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        },
+        {
+          "refId": "B",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "count",
+              "text": "5xx",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Last year",
+      "description": "CloudFront 4xx/5xx error rates (prod-dressme-site-distribution). Year window uses CloudWatch (rates %, not request counts) because CF Free Adaptive max span is ~30d.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 14
+      },
+      "timeFrom": "now-365d",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(aws_cloudfront_4xx_error_rate_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "legendFormat": "4xx %"
+        },
+        {
+          "refId": "B",
+          "expr": "avg(aws_cloudfront_5xx_error_rate_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "legendFormat": "5xx %"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Latency \u2014 CF OriginLatency + CF origin duration (no Free edge TTFB)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "id": 13,
+      "collapsed": false
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Last hour",
+      "description": "CloudFront OriginLatency (prod-dressme-site-distribution) and Cloudflare avg.originResponseDurationMs (dressme.7oas7er.com). Free plan does not expose edge TTFB.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 19
+      },
+      "timeFrom": "now-1h",
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "legendFormat": "CF OriginLatency"
+        },
+        {
+          "refId": "B",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeMinute",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "avg.originResponseDurationMs",
+              "text": "CF origin duration",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": "",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "${infinity}"
+          }
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Last day",
+      "description": "CloudFront OriginLatency (prod-dressme-site-distribution) and Cloudflare avg.originResponseDurationMs (dressme.7oas7er.com). Free plan does not expose edge TTFB.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 19
+      },
+      "timeFrom": "now-1d",
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "legendFormat": "CF OriginLatency"
+        },
+        {
+          "refId": "B",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "avg.originResponseDurationMs",
+              "text": "CF origin duration",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": "",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "${infinity}"
+          }
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Last week",
+      "description": "CloudFront OriginLatency (prod-dressme-site-distribution) and Cloudflare avg.originResponseDurationMs (dressme.7oas7er.com). Free plan does not expose edge TTFB.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 19
+      },
+      "timeFrom": "now-7d",
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "legendFormat": "CF OriginLatency"
+        },
+        {
+          "refId": "B",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "avg.originResponseDurationMs",
+              "text": "CF origin duration",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": "",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "${infinity}"
+          }
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Last month",
+      "description": "CloudFront OriginLatency (prod-dressme-site-distribution) and Cloudflare avg.originResponseDurationMs (dressme.7oas7er.com). Free plan does not expose edge TTFB.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 23
+      },
+      "timeFrom": "now-30d",
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "legendFormat": "CF OriginLatency"
+        },
+        {
+          "refId": "B",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "avg.originResponseDurationMs",
+              "text": "CF origin duration",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": "",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "${infinity}"
+          }
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "Last year",
+      "description": "CloudFront OriginLatency (prod-dressme-site-distribution). Cloudflare edge TTFB is not available on Free Adaptive Analytics; year window is CloudWatch-only.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 23
+      },
+      "timeFrom": "now-365d",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "legendFormat": "CF OriginLatency"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Synthetics \u2014 availability",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 19,
+      "collapsed": false
+    },
+    {
+      "id": 20,
+      "type": "stat",
+      "title": "prod site",
+      "description": "Average probe_success for dressme-prod-site",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 28
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.95
+              },
+              {
+                "color": "green",
+                "value": 0.99
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "mean"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(probe_success{project=\"dressme\", job=\"dressme-prod-site\"})",
+          "legendFormat": "uptime"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "stat",
+      "title": "prod /api/health",
+      "description": "Average probe_success for dressme-prod-health",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 28
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.95
+              },
+              {
+                "color": "green",
+                "value": 0.99
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "mean"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(probe_success{project=\"dressme\", job=\"dressme-prod-health\"})",
+          "legendFormat": "uptime"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Probe success",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 28
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "auto"
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_success{project=\"dressme\", environment=\"prod\"}",
+          "legendFormat": "{{job}} / {{probe}}"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "Probe duration",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 32
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_duration_seconds{project=\"dressme\", environment=\"prod\"}",
+          "legendFormat": "{{job}} / {{probe}}"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "HTTP status code",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 32
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_http_status_code{project=\"dressme\", environment=\"prod\"}",
+          "legendFormat": "{{job}} / {{probe}}"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "type": "timeseries",
+      "title": "HTTP phase latency",
+      "description": "DNS / connect / TLS / processing / transfer",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 32
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg by (phase) (probe_http_duration_seconds{project=\"dressme\", environment=\"prod\"})",
+          "legendFormat": "{{phase}}"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "type": "logs",
+      "title": "Synthetic check logs",
+      "description": "Loki logs from Synthetic Monitoring agents for this environment",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 36
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{source=\"synthetic-monitoring-agent\", project=\"dressme\", environment=\"prod\"}",
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Cloudflare \u2014 volume",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "id": 27,
+      "collapsed": false
+    },
+    {
+      "id": 28,
+      "type": "timeseries",
+      "title": "Bandwidth",
+      "description": "sum.edgeResponseBytes for dressme.7oas7er.com (eyeball traffic).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 41
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "sum.edgeResponseBytes",
+              "text": "bytes",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "type": "timeseries",
+      "title": "Visits",
+      "description": "sum.visits for dressme.7oas7er.com (Cloudflare visit = page view with external/direct referrer).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 41
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "timeseries",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          visits\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          visits\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.datetimeHour",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "sum.visits",
+              "text": "visits",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "table",
+      "title": "Status mix",
+      "description": "edgeResponseStatus totals for dressme.7oas7er.com in the dashboard range.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 41
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "table",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 30\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { edgeResponseStatus }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 30\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { edgeResponseStatus }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.edgeResponseStatus",
+              "text": "status",
+              "type": "number"
+            },
+            {
+              "selector": "count",
+              "text": "requests",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Cloudflare \u2014 cache & bots",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "id": 31,
+      "collapsed": false
+    },
+    {
+      "id": 32,
+      "type": "table",
+      "title": "Cache status",
+      "description": "cacheStatus breakdown for dressme.7oas7er.com (HIT/MISS/EXPIRED/\u2026).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 46
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "table",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { cacheStatus }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { cacheStatus }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.cacheStatus",
+              "text": "cache",
+              "type": "string"
+            },
+            {
+              "selector": "count",
+              "text": "requests",
+              "type": "number"
+            },
+            {
+              "selector": "sum.edgeResponseBytes",
+              "text": "bytes",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "type": "table",
+      "title": "Verified bots",
+      "description": "verifiedBotCategory for dressme.7oas7er.com (empty = unverified / human-ish).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 46
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "table",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { verifiedBotCategory }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { verifiedBotCategory }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.verifiedBotCategory",
+              "text": "bot category",
+              "type": "string"
+            },
+            {
+              "selector": "count",
+              "text": "requests",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "type": "table",
+      "title": "Countries",
+      "description": "Top clientCountryName for dressme.7oas7er.com.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 46
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "table",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 15\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { clientCountryName }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 15\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { clientCountryName }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.clientCountryName",
+              "text": "country",
+              "type": "string"
+            },
+            {
+              "selector": "count",
+              "text": "requests",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Cloudflare \u2014 paths & firewall",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 50
+      },
+      "id": 35,
+      "collapsed": false
+    },
+    {
+      "id": 36,
+      "type": "table",
+      "title": "Top paths",
+      "description": "Top clientRequestPath + method for dressme.7oas7er.com.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 51
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "table",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 25\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { clientRequestPath clientRequestHTTPMethodName }\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 25\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { clientRequestPath clientRequestHTTPMethodName }\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
+          "columns": [
+            {
+              "selector": "dimensions.clientRequestHTTPMethodName",
+              "text": "method",
+              "type": "string"
+            },
+            {
+              "selector": "dimensions.clientRequestPath",
+              "text": "path",
+              "type": "string"
+            },
+            {
+              "selector": "count",
+              "text": "requests",
+              "type": "number"
+            },
+            {
+              "selector": "sum.edgeResponseBytes",
+              "text": "bytes",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "type": "table",
+      "title": "Firewall events",
+      "description": "firewallEventsAdaptive for dressme.7oas7er.com (may be empty when no WAF/firewall matches). Free plan: event rows only; aggregated firewall groups are unavailable.",
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 51
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${infinity}"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "graphql",
+          "source": "url",
+          "format": "table",
+          "url": "https://api.cloudflare.com/client/v4/graphql",
+          "url_options": {
+            "method": "POST",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      firewallEventsAdaptive(\n        limit: 50\n        orderBy: [datetime_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        datetime\n        action\n        source\n        clientIP\n        clientCountryName\n        clientRequestPath\n        edgeResponseStatus\n        description\n      }\n    }\n  }\n}",
+            "body_type": "graphql",
+            "body_content_type": "application/json",
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      firewallEventsAdaptive(\n        limit: 50\n        orderBy: [datetime_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        datetime\n        action\n        source\n        clientIP\n        clientCountryName\n        clientRequestPath\n        edgeResponseStatus\n        description\n      }\n    }\n  }\n}"
+          },
+          "parser": "backend",
+          "root_selector": "data.viewer.zones.0.firewallEventsAdaptive",
+          "columns": [
+            {
+              "selector": "datetime",
+              "text": "time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "action",
+              "text": "action",
+              "type": "string"
+            },
+            {
+              "selector": "source",
+              "text": "source",
+              "type": "string"
+            },
+            {
+              "selector": "clientIP",
+              "text": "clientIP",
+              "type": "string"
+            },
+            {
+              "selector": "clientCountryName",
+              "text": "country",
+              "type": "string"
+            },
+            {
+              "selector": "clientRequestPath",
+              "text": "path",
+              "type": "string"
+            },
+            {
+              "selector": "edgeResponseStatus",
+              "text": "status",
+              "type": "number"
+            },
+            {
+              "selector": "description",
+              "text": "description",
+              "type": "string"
+            }
+          ],
+          "filters": [],
+          "data": ""
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "GitHub Actions CI",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 59
+      },
+      "id": 38,
+      "collapsed": false
+    },
+    {
+      "id": 39,
+      "type": "table",
+      "title": "Deploy workflow runs",
+      "description": "Workflow_Runs for deploy-dressme.yml.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 60
+      },
+      "datasource": {
+        "type": "grafana-github-datasource",
+        "uid": "${github}"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "Workflow_Runs",
+          "owner": "$gh_owner",
+          "repository": "$gh_repo",
+          "options": {
+            "workflow": "deploy-dressme.yml"
+          }
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "type": "table",
+      "title": "Terraform plan workflow runs",
+      "description": "Workflow_Runs for terraform-plan.yml.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 60
+      },
+      "datasource": {
+        "type": "grafana-github-datasource",
+        "uid": "${github}"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "Workflow_Runs",
+          "owner": "$gh_owner",
+          "repository": "$gh_repo",
+          "options": {
+            "workflow": "terraform-plan.yml"
+          }
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "type": "table",
+      "title": "Deploy workflow usage",
+      "description": "Workflow_Usage for deploy-dressme.yml.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 68
+      },
+      "datasource": {
+        "type": "grafana-github-datasource",
+        "uid": "${github}"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "Workflow_Usage",
+          "owner": "$gh_owner",
+          "repository": "$gh_repo",
+          "options": {
+            "workflow": "deploy-dressme.yml"
+          }
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "type": "table",
+      "title": "Terraform plan workflow usage",
+      "description": "Workflow_Usage for terraform-plan.yml.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 68
+      },
+      "datasource": {
+        "type": "grafana-github-datasource",
+        "uid": "${github}"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "Workflow_Usage",
+          "owner": "$gh_owner",
+          "repository": "$gh_repo",
+          "options": {
+            "workflow": "terraform-plan.yml"
+          }
+        }
+      ]
+    }
+  ]
+}

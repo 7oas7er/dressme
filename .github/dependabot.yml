@@ -1,0 +1,106 @@
+# Supply-chain updates. PRs target staging so they go through the same
+# test / terraform-plan / audit gates as other work.
+# Cadence: docs/maintenance.md
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: staging
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /tests
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: staging
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - javascript
+    groups:
+      playwright:
+        patterns:
+          - "@playwright/*"
+          - "playwright*"
+
+  - package-ecosystem: npm
+    directory: /infra/lambda
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: staging
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - javascript
+    groups:
+      aws-sdk:
+        patterns:
+          - "@aws-sdk/*"
+
+  # One entry per root that has .terraform.lock.hcl (Dependabot requirement).
+  - package-ecosystem: terraform
+    directory: /infra/terraform/aws/bootstrap
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: staging
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - terraform
+
+  - package-ecosystem: terraform
+    directory: /infra/terraform/aws/envs/stg
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: staging
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - terraform
+
+  - package-ecosystem: terraform
+    directory: /infra/terraform/aws/envs/prod
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: staging
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - terraform
+
+  - package-ecosystem: terraform
+    directory: /infra/terraform/cloudflare
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: staging
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - terraform
+
+  - package-ecosystem: terraform
+    directory: /infra/terraform/grafana
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: staging
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - terraform

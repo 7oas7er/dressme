@@ -1,0 +1,8 @@
+.DS_Store
+
+# Strix scan output (keep local; may contain vulnerability details)
+strix_runs/
+
+# Raw review dumps under docs/security-reviews/; curated *.md summaries are committed.
+docs/security-reviews/**
+!docs/security-reviews/*.md

@@ -1,0 +1,36 @@
+---
+description: Terraform layout and CI plan conventions for templated apps
+globs: infra/terraform/**/*
+alwaysApply: false
+---
+
+# App platform — Terraform
+
+## Layout
+
+- AWS site module under `infra/terraform/aws/modules/…`
+- Env roots: `infra/terraform/aws/envs/stg`, `envs/prod`
+- Shared state bootstrap: `infra/terraform/aws/bootstrap`
+- Cloudflare + Grafana: separate roots, same S3 backend
+
+## Naming
+
+Prefer `[environment]-[app]-[purpose]-[resource-type]` (and `shared-[app]-…` for account-wide). Derive from `var.environment` / app slug in locals — do not scatter hard-coded legacy names.
+
+## State
+
+- Remote state + S3 native locking (`use_lockfile = true`; Terraform >= 1.10).
+- Separate keys per root (`bootstrap/`, `envs/stg/`, `envs/prod/`, `cloudflare/`, `grafana/`, …).
+- Never commit `*.tfstate` or `terraform.tfvars`.
+- Backends do not pin `profile=`; locally `export AWS_PROFILE=7oas7er`.
+
+## CI
+
+- Plan-only workflow (fmt / validate / Checkov / plan) — **not** apply. See `docs/adr/0003-local-terraform-apply.md`.
+- Path-filter so unchanged roots skip validate/plan.
+
+## Regions / IAM habits
+
+- Regional default `eu-north-1` (`app-aws-regions`); ACM for CloudFront aliases in `us-east-1`.
+- IAM: `aws_iam_policy_document` in `data.tf`, not inline JSON on the policy resource.
+- Cloudflare-only origin gate belongs in the site module; rotate secrets per `SECURITY.md` / origin-verify runbook when used.

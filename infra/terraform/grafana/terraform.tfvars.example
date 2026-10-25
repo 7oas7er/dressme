@@ -1,0 +1,44 @@
+aws_region = "eu-north-1"
+# Provider only (backends use env AWS_PROFILE / default chain).
+aws_profile = "7oas7er"
+
+# Grafana Cloud Free stack slug (portal → your stack).
+stack_slug = "your-stack-slug"
+
+# Cloud access policy token with stacks:read, stack-service-accounts:write,
+# stack-plugins:read|write|delete (Infinity + GitHub plugins), and (for Cloud
+# Provider) integration-management:read|write.
+# Or export GRAFANA_CLOUD_ACCESS_POLICY_TOKEN and omit this.
+cloud_access_policy_token = "glc_..."
+
+# Cloud Provider API URL is taken from the stack (do not guess region_slug).
+cloud_provider_access_token = "glc_..." # scopes: integration-management:read|write, stacks:read
+
+# Synthetics → Config → Access tokens. sm_url defaults from the stack if omitted.
+sm_access_token = "glsm_..."
+# sm_url = "https://synthetic-monitoring-api-eu-west-2.grafana.net"
+
+# IAM External ID defaults to stack prometheus_user_id.
+# If account create returns aws_authentication_error, paste the value from
+# Grafana → Cloud Provider → AWS → Add account:
+# grafana_aws_external_id = "..."
+
+# Cloud Provider AWS account + CloudWatch scrape (default on). Set false to remove
+# scrape job without removing the IAM role.
+# enable_cloudwatch_scrape = false
+
+# Cloudflare zoneTag for dashboard panels (Infinity DS owned by 7oas7er/platform shared-obs).
+# cloudflare_zone_tag    = "701810fff825f90c0eea671970a0cc9e"
+# enable_cloudflare_edge = true
+
+# GitHub Actions panels (plugin owned by platform shared-obs; PAT for this repo).
+# github_access_token = "github_pat_..."
+# github_owner        = "7oas7er"
+# github_repository   = "dressme"
+# enable_github_ci    = true
+
+# Optional overrides:
+# prod_site_url = "https://dressme.7oas7er.com"
+# stg_site_url  = "https://dressme-stg.7oas7er.com"
+# prod_check_frequency_ms = 300000  # 5m
+# stg_check_frequency_ms  = 900000  # 15m

@@ -1,0 +1,11 @@
+aws_region = "eu-north-1"
+# Provider only (backends use env AWS_PROFILE / default chain).
+aws_profile = "7oas7er"
+
+# Optional overrides; defaults already target production.
+# site_certificate_arn = "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID"
+
+# Must match Cloudflare prod_origin_verify_secret (never commit the real value).
+# Rotation: see infra/terraform/docs/origin-verify-secret-rotation.md
+origin_verify_secret = "replace-with-a-long-random-secret"
+# origin_verify_secret_previous = "previous-secret-only-while-rotating"
