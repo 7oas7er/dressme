@@ -48,3 +48,10 @@ variable "origin_verify_secret_previous" {
   default     = null
   nullable    = true
 }
+
+variable "cognito_owner_email" {
+  description = "Email for the single production Cognito user (admin-created). Set in gitignored terraform.tfvars when applying prod."
+  type        = string
+  default     = null
+  nullable    = true
+}

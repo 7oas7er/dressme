@@ -10,6 +10,7 @@ on:
       - main
     paths:
       - "dressme/**"
+      - "web/**"
       - "infra/lambda/**"
       - ".github/workflows/**"
       - ".github/codeql/**"
@@ -19,6 +20,7 @@ on:
       - main
     paths:
       - "dressme/**"
+      - "web/**"
       - "infra/lambda/**"
       - ".github/workflows/**"
       - ".github/codeql/**"

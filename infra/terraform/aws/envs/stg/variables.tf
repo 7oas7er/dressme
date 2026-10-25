@@ -53,3 +53,10 @@ variable "origin_verify_secret_previous" {
   default     = null
   nullable    = true
 }
+
+variable "cognito_owner_email" {
+  description = "Email for the single staging Cognito user (admin-created). Set in gitignored terraform.tfvars."
+  type        = string
+  default     = null
+  nullable    = true
+}

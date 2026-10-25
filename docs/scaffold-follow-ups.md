@@ -40,4 +40,5 @@ Scaffold creates the isolated app repo. These steps are **not** done by the firs
 
 ## Product (next tasks)
 
-- [ ] Cognito + DynamoDB + S3 media + suggest (UC-01–06) — out of scaffold scope
+- [x] Cognito + DynamoDB + S3 media + catalog CRUD (UC-01–03)
+- [ ] Suggest + collage + Bedrock (UC-04–06)

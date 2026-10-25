@@ -47,3 +47,7 @@ skip-check:
 
   # --- IAM ---
   - CKV_AWS_356  # Grafana CloudWatch scrape policy uses Resource "*" for metrics APIs (AWS requires it)
+
+  # --- Cognito (single-user personal v1) ---
+  - CKV_AWS_73   # Force MFA — OPTIONAL + software token available; not forced for solo owner UX
+  - CKV2_AWS_57  # Advanced security ENFORCED — Extra cost; revisit if abuse appears

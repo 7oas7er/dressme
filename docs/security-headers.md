@@ -4,8 +4,8 @@
 
 | Layer | Role |
 |-------|------|
-| **CloudFront** `aws_cloudfront_response_headers_policy.site` | **Source of truth** for viewer security headers (CSP, HSTS, Referrer-Policy, X-Frame-Options, X-Content-Type-Options, Permissions-Policy, COOP, CORP). Attached to default + `/api/health` behaviors. Also removes `x-amzn-trace-id` and legacy `x-xss-protection` from responses. |
-| **CloudFront Function** `strip_aws_headers` (viewer-response on `/api/health` only) | Attempts to drop `x-amzn-trace-id`, `x-amzn-requestid`, and `x-amzn-errortype`. Needed because CloudFront **response-headers policies cannot remove** `X-Amzn-RequestId` / `X-Amzn-ErrorType` (AWS deny list). **Limitation:** with a Lambda Function URL origin, CloudFront re-attaches `x-amzn-requestid` after the viewer-response Function (confirmed live: Function can add headers, but `requestid` still appears). `x-amzn-trace-id` is still cleared via `remove_headers_config`. |
+| **CloudFront** `aws_cloudfront_response_headers_policy.site` | **Source of truth** for viewer security headers (CSP, HSTS, Referrer-Policy, X-Frame-Options, X-Content-Type-Options, Permissions-Policy, COOP, CORP). Attached to default + `/api/*` behaviors. Also removes `x-amzn-trace-id` and legacy `x-xss-protection` from responses. |
+| **CloudFront Function** `strip_aws_headers` (viewer-response on `/api/*`) | Attempts to drop `x-amzn-trace-id`, `x-amzn-requestid`, and `x-amzn-errortype`. Needed because CloudFront **response-headers policies cannot remove** `X-Amzn-RequestId` / `X-Amzn-ErrorType` (AWS deny list). **Limitation:** with a Lambda Function URL origin, CloudFront re-attaches `x-amzn-requestid` after the viewer-response Function (confirmed live: Function can add headers, but `requestid` still appears). `x-amzn-trace-id` is still cleared via `remove_headers_config`. |
 | **Cloudflare** | App root: DNS. Platform `shared-edge`: cache, rate limit, origin-verify **request** header. Does **not** set CSP / Permissions-Policy for this app — avoid duplicating security headers at the edge (double headers / override fights). |
 | **S3 / Lambda origins** | Do not rely on origin-emitted security headers; CloudFront policy uses `override = true`. |
 
@@ -15,8 +15,8 @@ Change headers in Terraform (`infra/terraform/aws/modules/site/cloudfront.tf` + 
 
 Defined in `local.content_security_policy` and the response headers policy:
 
-- **CSP** (same-origin vanilla game): `default-src`/`script-src`/`style-src`/`img-src`/`font-src`/`connect-src` `'self'`; `object-src 'none'`; `base-uri`/`form-action`/`frame-ancestors` `'self'`; `upgrade-insecure-requests`. High-scores use same-origin `fetch('/api/health')` — covered by `connect-src 'self'`. Web Audio needs no extra CSP sources.
-- **Permissions-Policy**: disable powerful features the game does not use (`camera`, `microphone`, `geolocation`, `payment`, `usb`, sensors, etc.).
+- **CSP** (SPA + Cognito + media): `script-src 'self'`; `style-src`/`font-src` allow Google Fonts; `img-src`/`connect-src` allow `'self'`, blob/data previews, Cognito Hosted UI / IdP, and S3 presigned media hosts; `form-action` allows Cognito logout/authorize; `object-src 'none'`; `upgrade-insecure-requests`.
+- **Permissions-Policy**: `camera=(self)` for wardrobe capture; mic/geo/payment/usb/sensors stay off.
 - **HSTS**: 1y, `includeSubDomains`, `preload`.
 - **COOP / CORP**: `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin` (defence-in-depth; no COEP — this app does not need `crossOriginIsolated`).
 - **Others**: `nosniff`, `SAMEORIGIN` framing, `strict-origin-when-cross-origin` referrer.

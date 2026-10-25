@@ -5,7 +5,7 @@ Instructions for Cursor (and similar) agents working in this repo. Platform rule
 ## Defaults
 
 - Prefer **small diffs** that match existing patterns. No drive-by refactors outside the task.
-- DressMe frontend lives under `dressme/` (SPA; small bundler OK). Tests under `tests/` gate deploy. v1 = UC-01–06 only (Option A).
+- DressMe SPA source lives under `web/` (Vite); build output under `dressme/`. Tests under `tests/` gate deploy. v1 = UC-01–06 only (Option A); catalog CRUD is UC-01–03.
 - **Repo isolation**: this app must not become a dependency of sibling apps. Shared edge/obs → [`7oas7er/platform`](https://github.com/7oas7er/platform) (`app → platform` only).
 - **Terraform** is the source of truth for AWS / Cloudflare DNS / Grafana app objects. Do not reintroduce CDK or manage app resources with CloudFormation.
 - **Observability**: Grafana Cloud only. Do not add Checkly, Datadog, New Relic, or similar unless Frank explicitly asks to replace Grafana. Shared Infinity DS + GitHub plugin: [`7oas7er/platform`](https://github.com/7oas7er/platform) `shared-obs`. Dual env dashboards per [`docs/grafana-dashboard-template.md`](docs/grafana-dashboard-template.md).
@@ -41,7 +41,7 @@ Before considering a task finished:
 1. [ ] Change matches the request; no unrelated refactors.
 2. [ ] Follows `.cursor/rules` for the area touched (`app-*` platform + `dressme-*` product overlays).
 3. [ ] No secrets or state files staged.
-4. [ ] If `dressme/` or `tests/` changed: note or run relevant tests (`cd tests && npm test` when practical).
+4. [ ] If `web/`, `dressme/`, or `tests/` changed: note or run relevant tests (`cd tests && npm test` when practical; builds the SPA first).
 5. [ ] If Terraform changed: roots identified; remind Frank to `terraform plan` / `apply` locally; CI plan + Checkov will run on the PR when paths match. New Checkov skips need a one-line justification (`docs/iac-policy.md`). Security header / CSP changes need stg apply first (`docs/security-headers.md`).
 6. [ ] If `tests/` or `infra/lambda/` lockfiles changed: `npm audit --audit-level=high` must stay clean (CI workflow `dependency-audit.yml`).
 7. [ ] If `dressme/` or `infra/lambda/` JS changed: expect CodeQL on the PR (`docs/codeql.md`); fix real findings, don’t blanket-suppress.
