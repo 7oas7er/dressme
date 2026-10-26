@@ -73,7 +73,7 @@ variable "high_scores_noncurrent_version_expiration_days" {
 }
 
 variable "cognito_owner_email" {
-  description = "Optional email for the single v1 Cognito user (admin-created). Null skips user creation."
+  description = "Optional email for the single v1 Cognito user (admin-created). Stored lowercased — Cognito email sign-in is case-sensitive. Null skips user creation."
   type        = string
   default     = null
   nullable    = true

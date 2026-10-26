@@ -103,12 +103,13 @@ resource "random_password" "cognito_owner_temp" {
 resource "aws_cognito_user" "owner" {
   count = var.cognito_owner_email == null ? 0 : 1
 
-  user_pool_id       = aws_cognito_user_pool.app.id
-  username           = var.cognito_owner_email
+  user_pool_id = aws_cognito_user_pool.app.id
+  # Cognito email sign-in is case-sensitive; always store lowercase.
+  username           = lower(var.cognito_owner_email)
   temporary_password = random_password.cognito_owner_temp[0].result
 
   attributes = {
-    email          = var.cognito_owner_email
+    email          = lower(var.cognito_owner_email)
     email_verified = "true"
   }
 
