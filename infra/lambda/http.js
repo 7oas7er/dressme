@@ -4,7 +4,8 @@ function corsHeaders() {
   return {
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
-    "access-control-allow-headers": "authorization,content-type",
+    "access-control-allow-headers":
+      "authorization,content-type,x-id-token,x-amz-content-sha256",
     "cache-control": "no-store",
   };
 }

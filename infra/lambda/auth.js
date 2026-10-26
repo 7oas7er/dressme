@@ -27,7 +27,32 @@ function getVerifier() {
 }
 
 /**
- * Resolve the signed-in user from the Authorization bearer token.
+ * Cognito ID token from the viewer.
+ * Prefer x-id-token: CloudFront OAC (always) overwrites Authorization with SigV4
+ * when invoking a Lambda Function URL, so Bearer never reaches the function.
+ */
+function extractIdToken(event) {
+  var custom = (http.getHeader(event, "x-id-token") || "").trim();
+  if (custom) {
+    var customLower = custom.toLowerCase();
+    if (customLower.indexOf("bearer ") === 0) {
+      return custom.slice(7).trim();
+    }
+    return custom;
+  }
+
+  var header = (http.getHeader(event, "authorization") || "").trim();
+  var space = header.indexOf(" ");
+  var scheme = space > 0 ? header.slice(0, space) : "";
+  var token = space > 0 ? header.slice(space + 1).trim() : "";
+  if (scheme.toLowerCase() === "bearer" && token && token.indexOf(" ") === -1) {
+    return token;
+  }
+  return "";
+}
+
+/**
+ * Resolve the signed-in user from the Cognito ID token.
  * When AUTH_DISABLED=true (unit tests only), returns a fixed test user.
  */
 async function requireUser(event) {
@@ -35,11 +60,8 @@ async function requireUser(event) {
     return { sub: "test-user", username: "test-user", email: "test@example.com" };
   }
 
-  var header = (http.getHeader(event, "authorization") || "").trim();
-  var space = header.indexOf(" ");
-  var scheme = space > 0 ? header.slice(0, space) : "";
-  var token = space > 0 ? header.slice(space + 1).trim() : "";
-  if (scheme.toLowerCase() !== "bearer" || !token || token.indexOf(" ") !== -1) {
+  var token = extractIdToken(event);
+  if (!token) {
     var missing = new Error("unauthorized");
     missing.statusCode = 401;
     throw missing;
@@ -73,3 +95,4 @@ function publicConfig() {
 
 exports.requireUser = requireUser;
 exports.publicConfig = publicConfig;
+exports.extractIdToken = extractIdToken;

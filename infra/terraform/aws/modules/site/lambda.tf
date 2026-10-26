@@ -14,6 +14,7 @@ data "archive_file" "high_scores" {
   source_dir  = local.high_scores_lambda_dir
   output_path = "${path.module}/build/api.zip"
   excludes = [
+    "auth.test.js",
     "health.test.js",
     "items.test.js",
     "package.json",
