@@ -1,3 +1,5 @@
+data "aws_region" "current" {}
+
 data "aws_iam_policy_document" "github_deploy_assume_role" {
   statement {
     actions = [
@@ -77,6 +79,51 @@ data "aws_iam_policy_document" "high_scores" {
       "s3:PutObject",
     ]
     resources = ["${aws_s3_bucket.high_scores.arn}/${local.score_tickets_prefix}*"]
+  }
+
+  statement {
+    sid = "ItemsTableCrud"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:Query",
+    ]
+    resources = [aws_dynamodb_table.items.arn]
+  }
+
+  statement {
+    sid = "MediaObjectAccess"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+    resources = ["${aws_s3_bucket.media.arn}/*"]
+  }
+}
+
+data "aws_iam_policy_document" "media_bucket" {
+  statement {
+    sid     = "DenyInsecureTransport"
+    effect  = "Deny"
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.media.arn,
+      "${aws_s3_bucket.media.arn}/*",
+    ]
+
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
   }
 }
 

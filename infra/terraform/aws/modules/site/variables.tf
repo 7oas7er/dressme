@@ -71,3 +71,10 @@ variable "high_scores_noncurrent_version_expiration_days" {
     error_message = "high_scores_noncurrent_version_expiration_days must be between 1 and 3650."
   }
 }
+
+variable "cognito_owner_email" {
+  description = "Optional email for the single v1 Cognito user (admin-created). Stored lowercased — Cognito email sign-in is case-sensitive. Null skips user creation."
+  type        = string
+  default     = null
+  nullable    = true
+}

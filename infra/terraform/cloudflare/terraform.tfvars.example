@@ -4,8 +4,9 @@
 # zone_id = "701810fff825f90c0eea671970a0cc9e"
 
 # CloudFront distribution domain names (from envs/*/ terraform output distribution_domain_name).
-prod_cloudfront_domain_name = "d111111abcdef8.cloudfront.net"
-stg_cloudfront_domain_name  = "d222222abcdef8.cloudfront.net"
+stg_cloudfront_domain_name = "d222222abcdef8.cloudfront.net"
+# Optional until aws/envs/prod is applied (omit or null for stg-first).
+# prod_cloudfront_domain_name = "d111111abcdef8.cloudfront.net"
 
 # This root is DNS only. Origin-verify, cache, redirects, rate-limit, and SSL
 # live in https://github.com/7oas7er/platform (infra/terraform/shared-edge).

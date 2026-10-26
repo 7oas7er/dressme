@@ -32,7 +32,7 @@ variable "site_certificate_arn" {
 variable "github_actions_subject" {
   description = "Immutable GitHub Actions OIDC subject for the production GitHub Environment (jobs with environment: production)."
   type        = string
-  default     = "repo:7oas7er/dressme:environment:production"
+  default     = "repo:7oas7er@2952810/dressme@1433682888:environment:production"
 }
 
 variable "origin_verify_secret" {
@@ -45,6 +45,13 @@ variable "origin_verify_secret_previous" {
   description = "Optional previous production origin-verify secret during rotation. See docs/origin-verify-secret-rotation.md."
   type        = string
   sensitive   = true
+  default     = null
+  nullable    = true
+}
+
+variable "cognito_owner_email" {
+  description = "Email for the single production Cognito user (admin-created; stored lowercased). Set in gitignored terraform.tfvars when applying prod."
+  type        = string
   default     = null
   nullable    = true
 }

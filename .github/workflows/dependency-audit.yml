@@ -10,6 +10,8 @@ on:
     paths:
       - "tests/package.json"
       - "tests/package-lock.json"
+      - "web/package.json"
+      - "web/package-lock.json"
       - "infra/lambda/package.json"
       - "infra/lambda/package-lock.json"
       - ".github/workflows/dependency-audit.yml"
@@ -20,6 +22,8 @@ on:
     paths:
       - "tests/package.json"
       - "tests/package-lock.json"
+      - "web/package.json"
+      - "web/package-lock.json"
       - "infra/lambda/package.json"
       - "infra/lambda/package-lock.json"
       - ".github/workflows/dependency-audit.yml"
@@ -39,6 +43,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       tests: ${{ steps.filter.outputs.tests }}
+      web: ${{ steps.filter.outputs.web }}
       lambda: ${{ steps.filter.outputs.lambda }}
       workflow: ${{ steps.filter.outputs.workflow }}
     steps:
@@ -53,6 +58,9 @@ jobs:
             tests:
               - 'tests/package.json'
               - 'tests/package-lock.json'
+            web:
+              - 'web/package.json'
+              - 'web/package-lock.json'
             lambda:
               - 'infra/lambda/package.json'
               - 'infra/lambda/package-lock.json'
@@ -81,6 +89,35 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: tests/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+
+  audit-web:
+    name: npm audit (web)
+    needs: changes
+    if: >
+      github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.web == 'true'
+      || needs.changes.outputs.workflow == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
         run: npm ci

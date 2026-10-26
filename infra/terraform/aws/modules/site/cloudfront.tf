@@ -25,7 +25,7 @@ resource "aws_cloudfront_function" "origin_verify" {
   })
 }
 
-# Strip AWS fingerprinting headers on /api/health (Strix M2). Policy remove_headers
+# Strip AWS fingerprinting headers on /api/* (Strix M2). Policy remove_headers
 # cannot delete X-Amzn-RequestId / X-Amzn-ErrorType; this viewer-response can.
 resource "aws_cloudfront_function" "strip_aws_headers" {
   name    = local.strip_aws_headers_function_name
@@ -150,7 +150,7 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   ordered_cache_behavior {
-    path_pattern               = "/api/health"
+    path_pattern               = "/api/*"
     target_origin_id           = local.high_scores_origin_id
     viewer_protocol_policy     = "redirect-to-https"
     allowed_methods            = ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "POST", "DELETE"]

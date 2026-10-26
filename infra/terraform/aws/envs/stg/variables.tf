@@ -31,13 +31,13 @@ variable "site_certificate_arn" {
 variable "github_actions_subject" {
   description = "Immutable GitHub Actions OIDC subject for the staging GitHub Environment (jobs with environment: staging)."
   type        = string
-  default     = "repo:7oas7er/dressme:environment:staging"
+  default     = "repo:7oas7er@2952810/dressme@1433682888:environment:staging"
 }
 
 variable "github_actions_plan_subject" {
   description = "Immutable GitHub Actions OIDC subject for the terraform GitHub Environment (plan-only CI)."
   type        = string
-  default     = "repo:7oas7er/dressme:environment:terraform"
+  default     = "repo:7oas7er@2952810/dressme@1433682888:environment:terraform"
 }
 
 variable "origin_verify_secret" {
@@ -50,6 +50,13 @@ variable "origin_verify_secret_previous" {
   description = "Optional previous staging origin-verify secret during rotation. See docs/origin-verify-secret-rotation.md."
   type        = string
   sensitive   = true
+  default     = null
+  nullable    = true
+}
+
+variable "cognito_owner_email" {
+  description = "Email for the single staging Cognito user (admin-created; stored lowercased). Set in gitignored terraform.tfvars."
+  type        = string
   default     = null
   nullable    = true
 }
