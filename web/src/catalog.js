@@ -1,5 +1,16 @@
 import * as api from "./api.js";
 
+/** Fields that use suggested values + free text (UC-19). brandModel stays plain text. */
+const SUGGESTION_KEYS = new Set([
+  "type",
+  "color",
+  "fabric",
+  "formality",
+  "pattern",
+  "season",
+  "outfitRole",
+]);
+
 const ATTR_FIELDS = [
   { key: "type", label: "Type", placeholder: "jacket, shirt, shoes…" },
   { key: "color", label: "Color", placeholder: "navy" },
@@ -43,7 +54,18 @@ export function renderCatalogApp(root, { onLogout }) {
     status: "",
     error: "",
     busy: false,
+    attributeOptions: {},
   };
+
+  async function loadAttributeOptions() {
+    try {
+      const data = await api.listAttributeOptions();
+      state.attributeOptions = (data && data.options) || {};
+    } catch {
+      // Forms still work as free-text inputs if suggestions fail to load.
+      state.attributeOptions = state.attributeOptions || {};
+    }
+  }
 
   async function refresh() {
     state.busy = true;
@@ -63,18 +85,22 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
-  function openCreate() {
+  async function openCreate() {
     state.view = "form";
     state.editing = null;
     state.error = "";
     paint();
+    await loadAttributeOptions();
+    if (state.view === "form" && !state.editing) paint();
   }
 
-  function openEdit(item) {
+  async function openEdit(item) {
     state.view = "form";
     state.editing = item;
     state.error = "";
     paint();
+    await loadAttributeOptions();
+    if (state.view === "form" && state.editing === item) paint();
   }
 
   function openDetail(item) {
@@ -129,6 +155,7 @@ export function renderCatalogApp(root, { onLogout }) {
       state.view = "list";
       state.editing = null;
       state.status = "Saved.";
+      await loadAttributeOptions();
       await refresh();
     } catch (err) {
       state.error = err.message || "Save failed.";
@@ -311,17 +338,36 @@ export function renderCatalogApp(root, { onLogout }) {
 
     const grid = el("div", { className: "form-grid" });
     for (const field of ATTR_FIELDS) {
-      grid.append(
-        el("label", {}, [
-          field.label,
-          el("input", {
-            name: field.key,
-            required: "required",
-            placeholder: field.placeholder,
-            value: editing ? editing[field.key] || "" : "",
-          }),
-        ])
-      );
+      const useSuggestions = SUGGESTION_KEYS.has(field.key);
+      const listId = useSuggestions ? `suggest-${field.key}` : null;
+      const input = el("input", {
+        name: field.key,
+        required: "required",
+        placeholder: useSuggestions
+          ? `${field.placeholder} — pick or type`
+          : field.placeholder,
+        value: editing ? editing[field.key] || "" : "",
+        autocomplete: useSuggestions ? "off" : null,
+        list: listId,
+        "aria-describedby": useSuggestions ? `hint-${field.key}` : null,
+      });
+      const children = [field.label, input];
+      if (useSuggestions) {
+        const options = state.attributeOptions[field.key] || [];
+        const datalist = el("datalist", { id: listId });
+        for (const value of options) {
+          datalist.append(el("option", { value }));
+        }
+        children.push(datalist);
+        children.push(
+          el("span", {
+            id: `hint-${field.key}`,
+            className: "field-hint",
+            text: "Suggested values — or type your own.",
+          })
+        );
+      }
+      grid.append(el("label", {}, children));
     }
     form.append(grid);
 

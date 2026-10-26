@@ -29,3 +29,15 @@ test("edit form supports current-photo remove (UC-18)", () => {
   assert.match(catalog, /function removePhoto|async function removePhoto/);
   assert.match(catalog, /edit-photos/);
 });
+
+test("add/edit forms use suggested values with free text (UC-19)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
+  assert.match(catalog, /SUGGESTION_KEYS/);
+  assert.match(catalog, /datalist/);
+  assert.match(catalog, /listAttributeOptions/);
+  assert.match(catalog, /Suggested values — or type your own/);
+  assert.match(apiSrc, /\/api\/attribute-options/);
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(useCases, /UC-19 — Suggested values with free-text/);
+});

@@ -33,10 +33,12 @@ function makeMemoryDeps() {
         }
         if (name === "QueryCommand") {
           var rows = [];
+          var pk = command.input.ExpressionAttributeValues[":pk"];
+          var skPrefix = command.input.ExpressionAttributeValues[":sk"];
           for (var value of store.values()) {
-            if (value.pk === command.input.ExpressionAttributeValues[":pk"]) {
-              rows.push(value);
-            }
+            if (value.pk !== pk) continue;
+            if (skPrefix && String(value.sk).indexOf(skPrefix) !== 0) continue;
+            rows.push(value);
           }
           return { Items: rows };
         }

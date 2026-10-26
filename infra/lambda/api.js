@@ -1,6 +1,7 @@
 "use strict";
 
 var auth = require("./auth");
+var attributeOptions = require("./attributeOptions");
 var health = require("./health");
 var http = require("./http");
 var items = require("./items");
@@ -27,6 +28,17 @@ exports.handler = async function handler(event) {
         return http.json(405, { error: "method_not_allowed" });
       }
       return http.json(200, { cognito: auth.publicConfig() });
+    }
+
+    if (
+      path === "/api/attribute-options" ||
+      path === "/attribute-options"
+    ) {
+      var optionsUser = await auth.requireUser(event);
+      if (method === "GET" || method === "HEAD") {
+        return respond(await attributeOptions.listAttributeOptions(optionsUser));
+      }
+      return http.json(405, { error: "method_not_allowed" });
     }
 
     var itemMatch = /^\/api\/items(?:\/([^/]+))?(?:\/(photos\/complete))?$/.exec(path);
