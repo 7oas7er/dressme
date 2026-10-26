@@ -1,16 +1,43 @@
 import { getIdToken } from "./auth.js";
 
+function bufferToHex(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) {
+    const piece = bytes[i].toString(16);
+    hex += piece.length === 1 ? `0${piece}` : piece;
+  }
+  return hex;
+}
+
+async function sha256Hex(text) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return bufferToHex(digest);
+}
+
 async function request(path, options = {}) {
   const headers = Object.assign({ accept: "application/json" }, options.headers || {});
   const token = getIdToken();
   if (token) {
+    // CloudFront OAC (signing_behavior=always) overwrites Authorization with SigV4
+    // for the Lambda Function URL. Send the Cognito ID token on x-id-token too.
     headers.authorization = `Bearer ${token}`;
-  }
-  if (options.body && !headers["content-type"]) {
-    headers["content-type"] = "application/json";
+    headers["x-id-token"] = token;
   }
 
-  const res = await fetch(path, Object.assign({}, options, { headers }));
+  let body = options.body;
+  if (body != null && body !== "") {
+    if (typeof body !== "string") {
+      body = JSON.stringify(body);
+    }
+    if (!headers["content-type"]) {
+      headers["content-type"] = "application/json";
+    }
+    // Required for CloudFront → Lambda Function URL OAC on POST/PUT/PATCH.
+    headers["x-amz-content-sha256"] = await sha256Hex(body);
+  }
+
+  const res = await fetch(path, Object.assign({}, options, { headers, body }));
   if (res.status === 204) {
     return null;
   }

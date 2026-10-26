@@ -25,5 +25,18 @@ function handler(event) {
     };
   }
 
+  // CloudFront OAC (signing_behavior=always) overwrites Authorization with SigV4
+  // for Lambda Function URL origins. Preserve the Cognito ID token on x-id-token
+  // so the API Lambda can still verify the viewer JWT.
+  var auth = headers["authorization"] ? headers["authorization"].value : null;
+  if (auth && !headers["x-id-token"]) {
+    var bearerPrefix = "bearer ";
+    var value = auth;
+    if (auth.length > bearerPrefix.length && auth.substring(0, bearerPrefix.length).toLowerCase() === bearerPrefix) {
+      value = auth.substring(bearerPrefix.length).replace(/^\s+/, "");
+    }
+    headers["x-id-token"] = { value: value };
+  }
+
   return request;
 }
