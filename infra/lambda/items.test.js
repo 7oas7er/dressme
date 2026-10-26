@@ -153,3 +153,67 @@ test("create rejects missing attributes", async function () {
   assert.equal(res.statusCode, 400);
   assert.match(JSON.parse(res.body).error, /^missing_attribute:/);
 });
+
+test("update removes specific photos and deletes S3 objects", async function () {
+  var memory = makeMemoryDeps();
+  var deletedKeys = [];
+  memory.s3.send = async function (command) {
+    if (command.constructor.name === "DeleteObjectCommand") {
+      deletedKeys.push(command.input.Key);
+    }
+    return {};
+  };
+  items.resetDepsForTests(memory);
+
+  var created = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(
+      Object.assign(attrs(), {
+        photos: [{ contentType: "image/jpeg" }, { contentType: "image/png" }],
+      })
+    ),
+  });
+  assert.equal(created.statusCode, 201);
+  var createdBody = JSON.parse(created.body);
+  var itemId = createdBody.item.itemId;
+  var photoA = createdBody.uploads[0].photoId;
+  var photoB = createdBody.uploads[1].photoId;
+
+  await api.handler({
+    rawPath: "/api/items/" + itemId + "/photos/complete",
+    requestContext: {
+      http: { method: "POST", path: "/api/items/" + itemId + "/photos/complete" },
+    },
+    body: JSON.stringify({ photoIds: [photoA, photoB] }),
+  });
+
+  var removed = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({ removePhotoIds: [photoA] }),
+  });
+  assert.equal(removed.statusCode, 200);
+  var removedBody = JSON.parse(removed.body);
+  assert.equal(removedBody.item.photos.length, 1);
+  assert.equal(removedBody.item.photos[0].photoId, photoB);
+  assert.equal(deletedKeys.length, 1);
+  assert.match(deletedKeys[0], new RegExp(photoA));
+
+  var combined = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({
+      removePhotoIds: [photoB],
+      addPhotos: [{ contentType: "image/webp" }],
+    }),
+  });
+  assert.equal(combined.statusCode, 200);
+  var combinedBody = JSON.parse(combined.body);
+  assert.equal(combinedBody.item.photos.length, 1);
+  assert.equal(combinedBody.uploads.length, 1);
+  assert.notEqual(combinedBody.item.photos[0].photoId, photoB);
+  assert.ok(deletedKeys.some(function (key) {
+    return key.indexOf(photoB) >= 0;
+  }));
+});

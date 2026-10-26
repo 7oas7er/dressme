@@ -153,6 +153,30 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
+  async function removePhoto(photoId) {
+    if (!state.editing) return;
+    if (!window.confirm("Remove this photo from the item?")) return;
+    state.busy = true;
+    state.error = "";
+    state.status = "Removing photo…";
+    paint();
+    try {
+      const updated = await api.updateItem(state.editing.itemId, {
+        removePhotoIds: [photoId],
+      });
+      state.editing = updated.item;
+      state.items = state.items.map((item) =>
+        item.itemId === updated.item.itemId ? updated.item : item
+      );
+      state.status = "Photo removed.";
+    } catch (err) {
+      state.error = err.message || "Could not remove photo.";
+    } finally {
+      state.busy = false;
+      paint();
+    }
+  }
+
   function paint() {
     root.replaceChildren();
     const shell = el("main", { className: "shell stack" });
@@ -300,6 +324,58 @@ export function renderCatalogApp(root, { onLogout }) {
       );
     }
     form.append(grid);
+
+    if (editing) {
+      const existing = editing.photos || [];
+      const photoBlock = el("div", { className: "stack current-photos" }, [
+        el("p", { className: "field-label", text: "Current photos" }),
+      ]);
+      if (!existing.length) {
+        photoBlock.append(
+          el("p", {
+            className: "muted",
+            text: "No photos on this item yet. Add some below.",
+          })
+        );
+      } else {
+        const gridPhotos = el("div", { className: "edit-photos" });
+        for (const photo of existing) {
+          const tile = el("div", {
+            className: "edit-photo",
+            "data-photo-id": photo.photoId,
+          });
+          if (photo.url) {
+            tile.append(
+              el("img", {
+                src: photo.url,
+                alt: `${editing.type || "item"} photo`,
+              })
+            );
+          } else {
+            tile.append(
+              el("div", {
+                className: "thumb",
+                text: photo.status === "pending" ? "Pending" : "No preview",
+              })
+            );
+          }
+          tile.append(
+            el("button", {
+              type: "button",
+              className: "secondary photo-remove",
+              text: "Remove",
+              disabled: state.busy ? "disabled" : null,
+              "aria-label": "Remove photo",
+              onClick: () => removePhoto(photo.photoId),
+            })
+          );
+          gridPhotos.append(tile);
+        }
+        photoBlock.append(gridPhotos);
+      }
+      form.append(photoBlock);
+    }
+
     form.append(
       el("label", {}, [
         editing ? "Add photos" : "Photos",
