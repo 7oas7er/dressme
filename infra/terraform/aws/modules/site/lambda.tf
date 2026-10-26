@@ -5,16 +5,17 @@ locals {
 check "high_scores_sdk_vendored" {
   assert {
     condition     = fileexists("${local.high_scores_lambda_dir}/node_modules/@aws-sdk/client-s3/package.json")
-    error_message = "Missing vendored @aws-sdk/client-s3. Run: cd infra/lambda && npm ci --omit=dev"
+    error_message = "Missing vendored Lambda deps. Run: cd infra/lambda && npm ci --omit=dev"
   }
 }
 
 data "archive_file" "high_scores" {
   type        = "zip"
   source_dir  = local.high_scores_lambda_dir
-  output_path = "${path.module}/build/health.zip"
+  output_path = "${path.module}/build/api.zip"
   excludes = [
     "health.test.js",
+    "items.test.js",
     "package.json",
     "package-lock.json",
     "README.md",
@@ -31,22 +32,30 @@ resource "random_password" "score_ticket_secret" {
 
 resource "aws_lambda_function" "high_scores" {
   function_name    = local.high_scores_function_name
-  description      = "DressMe scaffold health API (/api/health)."
+  description      = "DressMe API (/api/health, /api/config, /api/items)."
   role             = aws_iam_role.high_scores.arn
-  handler          = "health.handler"
+  handler          = "api.handler"
   runtime          = "nodejs22.x"
   architectures    = ["arm64"]
   filename         = data.archive_file.high_scores.output_path
   source_code_hash = data.archive_file.high_scores.output_base64sha256
-  timeout          = 8
-  memory_size      = 128
+  timeout          = 20
+  memory_size      = 256
 
   environment {
     variables = {
-      SCORES_BUCKET  = aws_s3_bucket.high_scores.bucket
-      SCORES_KEY     = local.high_scores_object_key
-      TICKET_SECRET  = random_password.score_ticket_secret.result
-      TICKETS_PREFIX = local.score_tickets_prefix
+      SCORES_BUCKET        = aws_s3_bucket.high_scores.bucket
+      SCORES_KEY           = local.high_scores_object_key
+      TICKET_SECRET        = random_password.score_ticket_secret.result
+      TICKETS_PREFIX       = local.score_tickets_prefix
+      ITEMS_TABLE          = aws_dynamodb_table.items.name
+      MEDIA_BUCKET         = aws_s3_bucket.media.bucket
+      COGNITO_USER_POOL_ID = aws_cognito_user_pool.app.id
+      COGNITO_CLIENT_ID    = aws_cognito_user_pool_client.spa.id
+      COGNITO_REGION       = data.aws_region.current.region
+      COGNITO_AUTH_DOMAIN  = local.cognito_auth_domain
+      COGNITO_REDIRECT_URI = "https://${var.site_domain_name}/"
+      COGNITO_LOGOUT_URL   = "https://${var.site_domain_name}/"
     }
   }
 

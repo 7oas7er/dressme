@@ -8,4 +8,5 @@ module "site" {
   github_actions_subject        = var.github_actions_subject
   origin_verify_secret          = var.origin_verify_secret
   origin_verify_secret_previous = var.origin_verify_secret_previous
+  cognito_owner_email           = var.cognito_owner_email
 }

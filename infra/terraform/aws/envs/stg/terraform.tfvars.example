@@ -9,3 +9,6 @@ site_certificate_arn = "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE
 # Rotation: see infra/terraform/docs/origin-verify-secret-rotation.md
 origin_verify_secret = "replace-with-a-long-random-secret"
 # origin_verify_secret_previous = "previous-secret-only-while-rotating"
+
+# Single v1 user (admin-created; Hosted UI invite / set password separately if needed).
+# cognito_owner_email = "you@example.com"

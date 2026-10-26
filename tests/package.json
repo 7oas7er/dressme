@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "pretest": "npm --prefix ../web ci && npm --prefix ../web run build",
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "node --test --test-reporter=spec unit/*.test.mjs",
     "test:e2e": "playwright test",

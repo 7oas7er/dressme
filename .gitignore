@@ -1,5 +1,9 @@
 .DS_Store
 
+# SPA toolchain
+web/node_modules/
+web/dist/
+
 # Strix scan output (keep local; may contain vulnerability details)
 strix_runs/
 

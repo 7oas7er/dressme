@@ -1,6 +1,6 @@
 # DressMe tests
 
-Automated checks for the static game under `../dressme/`. The game itself stays free of a package manager; this folder owns Node, Playwright, and a pinned `serve` for the e2e static host.
+Automated checks for the Vite SPA (`../web/` → build into `../dressme/`). This folder owns Node, Playwright, and a pinned `serve` for the e2e static host. `npm test` builds the SPA first.
 
 ## What runs
 

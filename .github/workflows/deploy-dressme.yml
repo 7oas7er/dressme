@@ -9,6 +9,7 @@ on:
       - main
     paths:
       - "dressme/**"
+      - "web/**"
       - "tests/**"
       - ".github/workflows/deploy-dressme.yml"
   pull_request:
@@ -17,6 +18,7 @@ on:
       - main
     paths:
       - "dressme/**"
+      - "web/**"
       - "tests/**"
       - ".github/workflows/deploy-dressme.yml"
   workflow_dispatch:
@@ -48,15 +50,13 @@ jobs:
           filters: |
             site:
               - 'dressme/**'
+              - 'web/**'
               - '.github/workflows/deploy-dressme.yml'
 
   test:
     name: App tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: tests
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,13 +66,23 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: tests/package-lock.json
+          cache-dependency-path: |
+            tests/package-lock.json
+            web/package-lock.json
+
+      - name: Install and build SPA
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
 
       - name: Install test dependencies
+        working-directory: tests
         run: npm ci
 
       - name: Resolve Playwright version
         id: playwright-version
+        working-directory: tests
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
@@ -84,13 +94,16 @@ jobs:
 
       - name: Install Playwright Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: tests
         run: npx playwright install --with-deps chromium
 
       - name: Install Playwright OS dependencies
         if: steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: tests
         run: npx playwright install-deps chromium
 
       - name: Run unit and end-to-end tests
+        working-directory: tests
         run: npm test
         env:
           CI: true
@@ -150,25 +163,36 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
           role-session-name: dressme-${{ github.run_id }}
 
+      - name: Setup Node.js (SPA build)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build SPA into dressme/
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
       - name: Sync the site to S3
         run: |
           set -euo pipefail
           # Origin Cache-Control; Cloudflare cache rules respect this (see infra/terraform/cloudflare/cache.tf).
-          # HTML stays short-lived so new ?v= asset URLs show up quickly after deploy.
-          # JS/CSS are versioned via ?v= in HTML — long immutable TTL is safe (bump ?v= when they change).
+          # HTML stays short-lived so new hashed Vite assets show up quickly after deploy.
+          # Hashed JS/CSS under assets/ get a long immutable TTL.
           bucket="s3://${{ vars.AWS_SITE_BUCKET }}"
           aws s3 sync dressme "${bucket}" \
             --delete \
             --exclude "README.md" \
             --exclude ".DS_Store" \
             --exclude "*/.DS_Store" \
-            --exclude "*.js" \
-            --exclude "*.css" \
+            --exclude "assets/*" \
             --cache-control "public, max-age=60, must-revalidate"
           aws s3 sync dressme "${bucket}" \
             --exclude "*" \
-            --include "*.js" \
-            --include "*.css" \
+            --include "assets/*" \
             --exclude ".DS_Store" \
             --exclude "*/.DS_Store" \
             --cache-control "public, max-age=31536000, immutable"
@@ -192,34 +216,7 @@ jobs:
           mapfile -t paths < <(printf '%s\n' \
             "/" \
             "/index.html" \
-            "/imprint.html" \
-            "/css/styles.css" \
-            "/css/styles.css?v=2" \
-            "/css/styles.css?v=theme-1" \
-            "/css/styles.css?v=score-1" \
-            "/css/styles.css?v=imprint-1" \
-            "/css/styles.css?v=imprint-2" \
-            "/js/theme-boot.js" \
-            "/js/theme-boot.js?v=2" \
-            "/js/theme-boot.js?v=theme-1" \
-            "/js/theme.js" \
-            "/js/theme.js?v=2" \
-            "/js/theme.js?v=theme-1" \
-            "/js/pieces.js" \
-            "/js/pieces.js?v=2" \
-            "/js/pieces.js?v=theme-1" \
-            "/js/game.js" \
-            "/js/game.js?v=2" \
-            "/js/game.js?v=theme-1" \
-            "/js/audio.js" \
-            "/js/audio.js?v=2" \
-            "/js/audio.js?v=theme-1" \
-            "/js/health.js" \
-            "/js/health.js?v=2" \
-            "/js/health.js?v=theme-1" \
-            "/js/main.js" \
-            "/js/main.js?v=2" \
-            "/js/main.js?v=theme-1")
+            "/imprint.html")
           files_json='['
           first=1
           for path in "${paths[@]}"; do

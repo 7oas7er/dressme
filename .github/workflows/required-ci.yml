@@ -37,6 +37,7 @@ jobs:
           filters: |
             site:
               - 'dressme/**'
+              - 'web/**'
               - 'tests/**'
               - '.github/workflows/deploy-dressme.yml'
             infra:
@@ -46,11 +47,14 @@ jobs:
             deps:
               - 'tests/package.json'
               - 'tests/package-lock.json'
+              - 'web/package.json'
+              - 'web/package-lock.json'
               - 'infra/lambda/package.json'
               - 'infra/lambda/package-lock.json'
               - '.github/workflows/dependency-audit.yml'
             codeql:
               - 'dressme/**'
+              - 'web/**'
               - 'infra/lambda/**'
               - '.github/workflows/**'
               - '.github/codeql/**'

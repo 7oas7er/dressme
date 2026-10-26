@@ -57,3 +57,34 @@ output "github_terraform_plan_role_arn" {
   description = "Store this in the GitHub Environment variable AWS_TERRAFORM_PLAN_ROLE_ARN on environment terraform."
   value       = aws_iam_role.github_terraform_plan.arn
 }
+
+output "items_table_name" {
+  description = "Staging DynamoDB wardrobe items table."
+  value       = module.site.items_table_name
+}
+
+output "media_bucket_name" {
+  description = "Staging private media bucket for wardrobe photos."
+  value       = module.site.media_bucket_name
+}
+
+output "cognito_user_pool_id" {
+  description = "Staging Cognito user pool id."
+  value       = module.site.cognito_user_pool_id
+}
+
+output "cognito_client_id" {
+  description = "Staging Cognito SPA client id."
+  value       = module.site.cognito_client_id
+}
+
+output "cognito_auth_domain" {
+  description = "Staging Cognito Hosted UI base URL."
+  value       = module.site.cognito_auth_domain
+}
+
+output "cognito_owner_temporary_password" {
+  description = "Temporary Cognito password when cognito_owner_email is set (sensitive)."
+  value       = module.site.cognito_owner_temporary_password
+  sensitive   = true
+}

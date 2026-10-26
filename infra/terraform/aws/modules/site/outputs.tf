@@ -42,3 +42,34 @@ output "high_score_function_url" {
   description = "Function URL origin behind CloudFront."
   value       = aws_lambda_function_url.high_scores.function_url
 }
+
+output "items_table_name" {
+  description = "DynamoDB table for wardrobe item metadata."
+  value       = aws_dynamodb_table.items.name
+}
+
+output "media_bucket_name" {
+  description = "Private S3 bucket for wardrobe photos."
+  value       = aws_s3_bucket.media.bucket
+}
+
+output "cognito_user_pool_id" {
+  description = "Cognito user pool id for the SPA auth gate."
+  value       = aws_cognito_user_pool.app.id
+}
+
+output "cognito_client_id" {
+  description = "Cognito SPA app client id (public)."
+  value       = aws_cognito_user_pool_client.spa.id
+}
+
+output "cognito_auth_domain" {
+  description = "Cognito Hosted UI base URL."
+  value       = local.cognito_auth_domain
+}
+
+output "cognito_owner_temporary_password" {
+  description = "Temporary password for cognito_owner_email (only when that variable is set). Change on first Hosted UI sign-in."
+  value       = try(random_password.cognito_owner_temp[0].result, null)
+  sensitive   = true
+}

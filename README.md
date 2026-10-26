@@ -4,18 +4,19 @@ Personal wardrobe catalog and outfit suggestions (classic menswear), plus the **
 
 **Fundamental design:** each app is an **isolated repository**. Shared Cloudflare zone rulesets and shared Grafana Free objects (Infinity DS, GitHub plugin) live in [`7oas7er/platform`](https://github.com/7oas7er/platform). Apps depend on platform — **never on each other**. Architecture: [`docs/architecture.md`](docs/architecture.md) (Option A).
 
-Frontend lives under [`dressme/`](dressme/) (SPA placeholder today; small bundler OK). Product scope: UC-01–06.
+Frontend source lives under [`web/`](web/) (Vite); build output under [`dressme/`](dressme/). Product scope: UC-01–06 (catalog first).
 
 ## Layout
 
 | Path | Role |
 |------|------|
-| [`dressme/`](dressme/) | SPA site assets (placeholder → catalog/suggest) |
+| [`web/`](web/) | Vite SPA source (catalog + Cognito gate) |
+| [`dressme/`](dressme/) | Built site assets synced to S3 |
 | [`tests/`](tests/) | Node unit tests + Playwright e2e; gates deploy |
 | [`infra/terraform/aws/`](infra/terraform/aws/) | Site module + `envs/stg` / `envs/prod` + bootstrap |
 | [`infra/terraform/cloudflare/`](infra/terraform/cloudflare/) | **DNS only** for DressMe hosts (zone rulesets → platform `shared-edge`) |
 | [`infra/terraform/grafana/`](infra/terraform/grafana/) | App synthetics, CloudWatch, **prod+stg** dashboards, GitHub DS |
-| [`infra/lambda/`](infra/lambda/) | Scaffold `/api/health` Lambda (zipped by AWS Terraform) |
+| [`infra/lambda/`](infra/lambda/) | API Lambda (`/api/health`, `/api/config`, `/api/items*`) |
 | [`.cursor/rules/`](.cursor/rules/) | Platform (`app-*`) + product (`dressme-*`) |
 | [`AGENTS.md`](AGENTS.md) | Definition of done for AI-assisted changes |
 | [`docs/architecture.md`](docs/architecture.md) | App vs platform ownership + Option A |

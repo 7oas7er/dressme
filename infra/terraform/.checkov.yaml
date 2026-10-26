@@ -45,5 +45,12 @@ skip-check:
   - CKV2_AWS_61  # Lifecycle on state / site — state kept; site objects replaced by deploy sync
   - CKV_AWS_21   # Versioning on access-logs / site — health is versioned; site is immutable deploy overwrite
 
+  # --- DynamoDB (AWS-owned SSE key; same CMK posture as S3 / Lambda env) ---
+  - CKV_AWS_119  # Require CMK — server_side_encryption enabled with AWS-owned key is intentional
+
   # --- IAM ---
   - CKV_AWS_356  # Grafana CloudWatch scrape policy uses Resource "*" for metrics APIs (AWS requires it)
+
+  # --- Cognito (single-user personal v1) ---
+  - CKV_AWS_73   # Force MFA — OPTIONAL + software token available; not forced for solo owner UX
+  - CKV2_AWS_57  # Advanced security ENFORCED — Extra cost; revisit if abuse appears

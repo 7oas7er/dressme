@@ -1,13 +1,17 @@
 {
-  "name": "dressme-health",
+  "name": "dressme-api",
   "private": true,
-  "description": "Lambda package for the DressMe health API (Node.js 22 does not ship AWS SDK).",
-  "main": "health.js",
+  "description": "Lambda package for DressMe health + catalog API (Node.js 22 does not ship AWS SDK).",
+  "main": "api.js",
   "scripts": {
-    "test": "node --test health.test.js",
+    "test": "node --test *.test.js",
     "ci": "npm ci --omit=dev"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1153.0"
+    "@aws-sdk/client-dynamodb": "3.1153.0",
+    "@aws-sdk/client-s3": "3.1153.0",
+    "@aws-sdk/lib-dynamodb": "3.1153.0",
+    "@aws-sdk/s3-request-presigner": "3.1153.0",
+    "aws-jwt-verify": "5.1.1"
   }
 }

@@ -28,14 +28,15 @@ Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–06), single user
 | Suggest | Lambda → **Bedrock** (`eu-north-1`) with attrs+IDs; validate returned IDs |
 | Collage | **Client-side** from signed/CDN photo URLs |
 
-Scaffold today may ship a static SPA placeholder + `/api/health` stub before Cognito/CRUD/suggest land. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
+Catalog (UC-01–03) lands Cognito + DynamoDB + media S3 + `/api/items*` on the API Lambda; suggest/collage (UC-04–06) remains follow-up. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
 
 ## What this repo owns
 
 | Path | Role |
 |------|------|
-| `dressme/` | SPA (placeholder → catalog/suggest UI) |
-| `infra/terraform/aws/` | S3, CloudFront, Lambda, OIDC deploy/plan; later Cognito/DynamoDB/media |
+| `web/` | Vite SPA source (catalog UI + Cognito Hosted UI PKCE) |
+| `dressme/` | Vite build output synced to S3 |
+| `infra/terraform/aws/` | S3, CloudFront, Lambda, Cognito, DynamoDB, media, OIDC deploy/plan |
 | `infra/terraform/cloudflare/` | **DNS only** for DressMe hosts |
 | `infra/terraform/grafana/` | Folder, **prod+stg** dashboards, synthetics, CloudWatch scrape, GitHub DS `github-dressme` |
 | `.github/workflows/` | Tests, deploy, terraform plan (never apply) |

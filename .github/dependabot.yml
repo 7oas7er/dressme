@@ -35,6 +35,22 @@ updates:
           - "playwright*"
 
   - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: staging
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - javascript
+    groups:
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+
+  - package-ecosystem: npm
     directory: /infra/lambda
     schedule:
       interval: weekly
@@ -48,6 +64,7 @@ updates:
       aws-sdk:
         patterns:
           - "@aws-sdk/*"
+          - "aws-jwt-verify"
 
   # One entry per root that has .terraform.lock.hcl (Dependabot requirement).
   - package-ecosystem: terraform
