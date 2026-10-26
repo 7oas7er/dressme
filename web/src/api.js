@@ -66,6 +66,10 @@ export function listItems(q = "") {
   return request(`/api/items${query}`);
 }
 
+export function listAttributeOptions() {
+  return request("/api/attribute-options");
+}
+
 export function getItem(itemId) {
   return request(`/api/items/${encodeURIComponent(itemId)}`);
 }

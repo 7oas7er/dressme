@@ -16,7 +16,7 @@ Full platform write-up: [platform docs/architecture.md](https://github.com/7oas7
 
 ## v1 contract (Option A — planned)
 
-Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–06, UC-18), single user, Bedrock **attributes + item IDs only**, client-side flat-lay collage.
+Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–06, UC-18, UC-19), single user, Bedrock **attributes + item IDs only**, client-side flat-lay collage.
 
 | Layer | Choice |
 |-------|--------|
@@ -28,7 +28,7 @@ Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–06, UC-18), sing
 | Suggest | Lambda → **Bedrock** (`eu-north-1`) with attrs+IDs; validate returned IDs |
 | Collage | **Client-side** from signed/CDN photo URLs |
 
-Catalog (UC-01–03, UC-18) lands Cognito + DynamoDB + media S3 + `/api/items*` on the API Lambda; suggest/collage (UC-04–06) remains follow-up. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
+Catalog (UC-01–03, UC-18–19) lands Cognito + DynamoDB + media S3 + `/api/items*` and `/api/attribute-options` on the API Lambda; suggest/collage (UC-04–06) remains follow-up. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
 
 ## What this repo owns
 

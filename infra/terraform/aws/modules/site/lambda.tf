@@ -17,6 +17,7 @@ data "archive_file" "high_scores" {
     "auth.test.js",
     "health.test.js",
     "items.test.js",
+    "attributeOptions.test.js",
     "package.json",
     "package-lock.json",
     "README.md",
@@ -33,7 +34,7 @@ resource "random_password" "score_ticket_secret" {
 
 resource "aws_lambda_function" "high_scores" {
   function_name    = local.high_scores_function_name
-  description      = "DressMe API (/api/health, /api/config, /api/items)."
+  description      = "DressMe API (/api/health, /api/config, /api/items, /api/attribute-options)."
   role             = aws_iam_role.high_scores.arn
   handler          = "api.handler"
   runtime          = "nodejs22.x"

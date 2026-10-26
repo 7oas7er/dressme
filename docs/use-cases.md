@@ -2,7 +2,7 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18).  
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19).  
 Last updated: 2026-10-26 (Europe/Berlin)
 
 ---
@@ -20,6 +20,9 @@ As Frank, I update attributes/photos or delete an item so the catalog stays accu
 
 ### UC-18 — Manage photos while editing an item
 As Frank, when I open Edit item, I see the item’s current photos and can remove any of them (and still add new ones), so the catalog visuals stay accurate without deleting the whole item.
+
+### UC-19 — Suggested values with free-text for item attributes
+As Frank, when I add or edit an item, for fields such as fabric, outfit role, type, color, formality, pattern, and season/climate I can pick from a dropdown of suggested values, or enter free text if none match; a new free-text value is remembered and appears in that field’s dropdown going forward.
 
 ### UC-04 — Request outfit suggestions
 As Frank, before getting dressed, I enter a free-text occasion and (when relevant) manual weather, then receive exactly three outfit suggestions drawn only from my catalog, informed by classic menswear knowledge.

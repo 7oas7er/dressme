@@ -16,6 +16,7 @@ var {
   GetObjectCommand,
 } = require("@aws-sdk/client-s3");
 var { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+var attributeOptions = require("./attributeOptions");
 
 var ATTR_KEYS = [
   "type",
@@ -43,6 +44,7 @@ function resetDepsForTests(next) {
   deps.doc = next && next.doc ? next.doc : null;
   deps.s3 = next && next.s3 ? next.s3 : null;
   deps.sign = next && next.sign ? next.sign : getSignedUrl;
+  attributeOptions.resetDepsForTests(next);
 }
 
 function docClient() {
@@ -315,6 +317,9 @@ async function createItem(user, body) {
     })
   );
 
+  // UC-19: remember free-text attribute values that are not seed suggestions.
+  await attributeOptions.rememberCustomValues(user, attrs);
+
   return {
     statusCode: 201,
     body: {
@@ -374,6 +379,11 @@ async function updateItem(user, itemId, body) {
 
   next.searchText = buildSearchText(next);
   await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
+
+  if (Object.keys(attrs).length) {
+    await attributeOptions.rememberCustomValues(user, attrs);
+  }
+
   var responseBody = { item: publicItem(next, await signedGetUrls(next)) };
   if (uploads.length) {
     responseBody.uploads = uploads;
