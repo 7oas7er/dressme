@@ -21,3 +21,11 @@ test("built index includes DressMe app mount", () => {
   assert.match(html, /id="app"/);
   assert.match(html, /DressMe/i);
 });
+
+test("edit form supports current-photo remove (UC-18)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  assert.match(catalog, /Current photos/);
+  assert.match(catalog, /removePhotoIds/);
+  assert.match(catalog, /function removePhoto|async function removePhoto/);
+  assert.match(catalog, /edit-photos/);
+});

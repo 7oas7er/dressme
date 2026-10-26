@@ -332,26 +332,9 @@ async function updateItem(user, itemId, body) {
 
   var attrs = normalizeAttributes(body, true);
   var next = Object.assign({}, existing, attrs, { updatedAt: nowIso() });
+  var uploads = [];
 
-  var addPhotos = Array.isArray(body.addPhotos) ? body.addPhotos : [];
-  if (addPhotos.length) {
-    var currentCount = (next.photos || []).length;
-    if (currentCount + addPhotos.length > MAX_PHOTOS) {
-      throw Object.assign(new Error("too_many_photos"), { statusCode: 400 });
-    }
-    var slot = await buildUploadSlots(user.sub, itemId, addPhotos);
-    next.photos = (next.photos || []).concat(slot.photos);
-    next.searchText = buildSearchText(next);
-    await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
-    return {
-      statusCode: 200,
-      body: {
-        item: publicItem(next, await signedGetUrls(next)),
-        uploads: slot.uploads,
-      },
-    };
-  }
-
+  // Removals first so a single PUT can drop photos and request new upload slots.
   var removePhotoIds = Array.isArray(body.removePhotoIds) ? body.removePhotoIds : [];
   if (removePhotoIds.length) {
     var keep = [];
@@ -378,11 +361,26 @@ async function updateItem(user, itemId, body) {
     }
   }
 
+  var addPhotos = Array.isArray(body.addPhotos) ? body.addPhotos : [];
+  if (addPhotos.length) {
+    var currentCount = (next.photos || []).length;
+    if (currentCount + addPhotos.length > MAX_PHOTOS) {
+      throw Object.assign(new Error("too_many_photos"), { statusCode: 400 });
+    }
+    var slot = await buildUploadSlots(user.sub, itemId, addPhotos);
+    next.photos = (next.photos || []).concat(slot.photos);
+    uploads = slot.uploads;
+  }
+
   next.searchText = buildSearchText(next);
   await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
+  var responseBody = { item: publicItem(next, await signedGetUrls(next)) };
+  if (uploads.length) {
+    responseBody.uploads = uploads;
+  }
   return {
     statusCode: 200,
-    body: { item: publicItem(next, await signedGetUrls(next)) },
+    body: responseBody,
   };
 }
 

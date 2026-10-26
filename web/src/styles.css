@@ -276,6 +276,37 @@ label {
   border-radius: 12px;
 }
 
+.field-label {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 560;
+}
+
+.edit-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.65rem;
+}
+
+.edit-photo {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.edit-photo img,
+.edit-photo .thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.edit-photo .photo-remove {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+}
+
 .hidden {
   display: none !important;
 }

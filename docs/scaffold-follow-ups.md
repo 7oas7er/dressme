@@ -41,4 +41,5 @@ Scaffold creates the isolated app repo. These steps are **not** done by the firs
 ## Product (next tasks)
 
 - [x] Cognito + DynamoDB + S3 media + catalog CRUD (UC-01–03)
+- [x] Manage photos while editing an item (UC-18)
 - [ ] Suggest + collage + Bedrock (UC-04–06)

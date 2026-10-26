@@ -7,7 +7,7 @@ alwaysApply: true
 
 Platform defaults: `app-core`, `app-aws-regions`, `app-observability` (see `.cursor/rules/README.md`). Shared GitHub repo for zone/Grafana Free objects: [`7oas7er/platform`](https://github.com/7oas7er/platform) — see `docs/architecture.md`.
 
-- **Product**: personal wardrobe catalog + LLM outfit suggestions (classic menswear); v1 = UC-01–06; single user (Frank).
+- **Product**: personal wardrobe catalog + LLM outfit suggestions (classic menswear); v1 = UC-01–06 + UC-18; single user (Frank).
 - **Architecture (Option A)**: S3/CloudFront SPA + Lambda CRUD/suggest + DynamoDB + S3 media + Cognito; Bedrock attrs+IDs only; client-side flat-lay collage. Scaffold may ship a SPA placeholder + `/api/health` stub before Cognito/CRUD land.
 - **Frontend**: SPA under `dressme/` (small bundler OK). Tests under `tests/` gate deploy.
 - **Agents**: `AGENTS.md`, `README.md`, `docs/architecture.md`, `docs/adr/`, `SECURITY.md`. Prefer small diffs.
