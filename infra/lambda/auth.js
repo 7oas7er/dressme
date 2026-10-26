@@ -35,9 +35,11 @@ async function requireUser(event) {
     return { sub: "test-user", username: "test-user", email: "test@example.com" };
   }
 
-  var header = http.getHeader(event, "authorization") || "";
-  var match = /^Bearer\s+(.+)$/i.exec(header);
-  if (!match) {
+  var header = (http.getHeader(event, "authorization") || "").trim();
+  var space = header.indexOf(" ");
+  var scheme = space > 0 ? header.slice(0, space) : "";
+  var token = space > 0 ? header.slice(space + 1).trim() : "";
+  if (scheme.toLowerCase() !== "bearer" || !token || token.indexOf(" ") !== -1) {
     var missing = new Error("unauthorized");
     missing.statusCode = 401;
     throw missing;
@@ -45,7 +47,7 @@ async function requireUser(event) {
 
   try {
     var verifier = await getVerifier();
-    var payload = await verifier.verify(match[1]);
+    var payload = await verifier.verify(token);
     return {
       sub: payload.sub,
       username: payload["cognito:username"] || payload.username || payload.sub,
