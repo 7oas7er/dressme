@@ -145,7 +145,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: "1.11.4"
+          terraform_version: "1.16.5"
           terraform_wrapper: false
 
       - name: terraform fmt -check
@@ -192,7 +192,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: "1.11.4"
+          terraform_version: "1.16.5"
           terraform_wrapper: false
 
       - name: Setup Node.js (Lambda package check)
@@ -241,7 +241,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: "1.11.4"
+          terraform_version: "1.16.5"
           terraform_wrapper: false
 
       - name: Configure AWS credentials (plan role)
@@ -336,7 +336,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: "1.11.4"
+          terraform_version: "1.16.5"
           terraform_wrapper: false
 
       - name: Configure AWS credentials (state access)
@@ -387,7 +387,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: "1.11.4"
+          terraform_version: "1.16.5"
           terraform_wrapper: false
 
       - name: Configure AWS credentials (state + IAM read)

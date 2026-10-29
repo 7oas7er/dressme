@@ -25,11 +25,16 @@ One red Dependabot PR: fix or split; don’t batch-merge majors with unknowns.
 ## Monthly (~1 hour)
 
 ```text
+[ ] Patch management — survey libs/frameworks/Terraform CLI+providers/AWS engines; prefer open Dependabot PRs
+[ ] Documentation accuracy — README/AGENTS/architecture/ADRs/maintenance vs code+Settings reality
 [ ] Terraform providers: review Dependabot PRs (or `terraform init -upgrade` per root),
     plan stg → apply stg → plan/apply prod when ready
 [ ] Terraform CLI: if CI pin in terraform-plan.yml drifted from local, bump both;
     keep required_version floors in versions.tf coherent
+[ ] AWS Project= tag audit (eu-north-1; us-east-1 for CloudFront/ACM/Billing)
+[ ] GitHub security floor API verify (docs/github-branch-protection.md)
 [ ] pre-commit autoupdate (then commit the config change via a normal PR)
+[ ] npm audit high+ clean where lockfiles exist (tests/, infra/lambda/)
 [ ] Secrets: rotate only if leak / offboarding / vendor forced expiry (see SECURITY.md)
 ```
 
