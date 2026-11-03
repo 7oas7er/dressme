@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testsDir, "..");
-const serveBin = path.join(testsDir, "node_modules", ".bin", "serve");
+const webDir = path.join(repoRoot, "web");
+const viteBin = path.join(webDir, "node_modules", ".bin", "vite");
 
 export default defineConfig({
   testDir: path.join(testsDir, "e2e"),
@@ -18,12 +19,16 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    // Pinned via tests/package.json (avoid unpinned `npx --yes serve` on every run).
-    command: `"${serveBin}" "${path.join(repoRoot, "dressme")}" -l 4173 --no-request-logging`,
+    // Host the Vite build (`../dressme`) with the same vite already installed under
+    // `../web/` — avoids transitive `serve` → `minimatch` <11.0.1 (GHSA-g3hv-75wg-m249).
+    // `pretest` runs `web` ci+build first so this binary and outDir exist.
+    command: `"${viteBin}" preview --host 127.0.0.1 --port 4173`,
+    cwd: webDir,
     url: "http://127.0.0.1:4173",
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },
+
   projects: [
     {
       name: "chromium",
