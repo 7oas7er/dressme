@@ -65,8 +65,8 @@ Metric tiles use **panel `timeFrom`**, not the dashboard picker alone — so hou
 | Last hour | `now-1h` | Cloudflare Adaptive (`datetimeMinute`) |
 | Last day | `now-1d` | Cloudflare Adaptive (`datetimeHour`) |
 | Last week | `now-7d` | Cloudflare Adaptive (`datetimeHour`) |
-| Last month | `now-30d` | Cloudflare Adaptive (`datetimeHour`) — Free max span ≈ 30d; **no** `datetimeDay_ASC` |
-| Last year | `now-365d` | **CloudWatch / Prometheus** only (Adaptive cannot cover a year on Free) |
+| Last month | `now-29d` | Cloudflare Adaptive (`datetimeHour`) — Free max span ≈ 30d; use **29d** so inclusive bounds stay under `maxDuration`; **no** `datetimeDay_ASC` |
+| Last year | `now-365d` | Intended CloudWatch history — **but** scrape→Prometheus on Grafana Cloud Free only retains **14 days**, so year tiles stay empty unless you add a native CloudWatch DS or upgrade retention |
 
 ## Formatting / layout
 
@@ -80,14 +80,15 @@ Metric tiles use **panel `timeFrom`**, not the dashboard picker alone — so hou
 
 - Query **`httpRequestsAdaptiveGroups`** for traffic; **`firewallEventsAdaptive`** (table rows) for firewall — **never** `firewallEventsAdaptiveGroups` on Free.
 - Infinity GraphQL query must live in `url_options.body_graphql_query` (and/or `url_options.data`). A top-level `data` field is ignored → empty query → misleading JSONata errors.
+- Fixed-window Infinity panels must use **`${__timeFrom:date:iso}` / `${__timeTo:date:iso}`** (Infinity backend macros). Do **not** use Grafana `${__from}` / `${__to}` — those follow the dashboard picker only, so panel `timeFrom` (hour/day/week/month) is ignored and longer tiles look empty.
 - Filter by `clientRequestHTTPHost` for the env host; zone via `${cf_zone}`.
 - Latency: use `avg.originResponseDurationMs` — Free does **not** entitle edge TTFB (`edgeTimeToFirstByteMs`).
-- Year-window traffic/errors: CloudWatch metrics labeled `project=<slug>` and CloudFront `Name=<env>-<slug>-site-distribution` (or the app’s real distribution Name tag).
+- Year-window traffic/errors: today query Prometheus metrics from CloudWatch scrape (`project=<slug>`, CloudFront `Name=<env>-<slug>-site-distribution`). That path cannot show a calendar year on Grafana Cloud Free (14-day metrics retention). True year history needs a native CloudWatch data source (AWS retains ~15 months) or a paid Grafana retention tier.
 
 ## CloudWatch scrape expectations
 
 - Scrape `AWS/CloudFront` (include **`OriginLatency` Average**) and app compute (e.g. `AWS/Lambda`) in `eu-north-1` + `us-east-1` when CloudFront is involved.
-- Label `project=<slug>`. No dedicated “CloudWatch section” on the dashboard — scrape feeds year windows + origin latency (+ synthetics stack elsewhere).
+- Label `project=<slug>`. No dedicated “CloudWatch section” on the dashboard — scrape feeds origin latency + short-retention Prom series (not a full year on Free).
 
 ## GitHub CI panels
 
