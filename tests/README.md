@@ -1,6 +1,6 @@
 # DressMe tests
 
-Automated checks for the Vite SPA (`../web/` → build into `../dressme/`). This folder owns Node, Playwright, and a pinned `serve` for the e2e static host. `npm test` builds the SPA first.
+Automated checks for the Vite SPA (`../web/` → build into `../dressme/`). This folder owns Node and Playwright; e2e hosts the build with `vite preview` from `../web/`. `npm test` builds the SPA first.
 
 ## What runs
 

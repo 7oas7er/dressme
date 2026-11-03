@@ -10,12 +10,7 @@
     "test:e2e:install": "playwright install --with-deps chromium"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.1",
-    "serve": "14.2.6"
-  },
-  "overrides": {
-    "compression": "1.8.2",
-    "fast-uri": "3.1.9"
+    "@playwright/test": "1.64.1"
   },
   "engines": {
     "node": ">=20"
