@@ -11,7 +11,11 @@ Outputs:
 Cloudflare Free Adaptive Analytics limits (verified against the zone):
   - max query span ~30d (4w2d); no datetimeDay_ASC enum
   - edgeTimeToFirstByteMs not entitled; use avg.originResponseDurationMs
-  - year windows use CloudWatch/Prometheus instead of Cloudflare GraphQL
+  - year windows use CloudWatch scrape → Grafana Cloud Prometheus (Free retains 14d)
+
+Infinity fixed-window panels MUST use ${__timeFrom}/${__timeTo} (backend macros that
+honor panel timeFrom). Grafana ${__from}/${__to} are dashboard-picker only — using them
+makes Last month/year look empty while hour/day/week still appear to work.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ from pathlib import Path
 
 OUT_DIR = Path(__file__).resolve().parents[1] / "dashboards"
 
-# source: "cf" = Infinity GraphQL; "cw" = CloudWatch via Prometheus (CF Free retention)
+# source: "cf" = Infinity GraphQL; "cw" = CloudWatch via Prometheus (Grafana Free retention)
 WINDOWS = [
     {
         "title": "Last hour",
@@ -45,14 +49,17 @@ WINDOWS = [
         "order_by": "datetimeHour_ASC",
     },
     {
-        # CF Free maxDuration ≈ 30d; label stays "Last month"
+        # CF Free maxDuration ≈ 30d; stay under inclusive-bound edge (now-30d can exceed).
         "title": "Last month",
-        "time_from": "now-30d",
+        "time_from": "now-29d",
         "source": "cf",
         "dim": "datetimeHour",
         "order_by": "datetimeHour_ASC",
     },
     {
+        # Grafana Cloud Free metrics retention is 14d — year panels stay empty on Free
+        # until a native CloudWatch DS (or Pro retention) is wired. Keep the window for
+        # layout parity; descriptions document the limit.
         "title": "Last year",
         "time_from": "now-365d",
         "source": "cw",
@@ -210,8 +217,8 @@ def cf_graphql(
         f"        limit: {limit}\n"
         f"        orderBy: [{order_by}]\n"
         "        filter: {\n"
-        '          datetime_geq: "${__from:date:iso}"\n'
-        '          datetime_leq: "${__to:date:iso}"\n'
+        '          datetime_geq: "${__timeFrom:date:iso}"\n'
+        '          datetime_leq: "${__timeTo:date:iso}"\n'
         f'          clientRequestHTTPHost: "{host}"\n'
         f"{eyeball_line}"
         f"{extra_filter}"
@@ -245,8 +252,8 @@ def cf_firewall_events(ref_id: str, host: str) -> dict:
         "        limit: 50\n"
         "        orderBy: [datetime_DESC]\n"
         "        filter: {\n"
-        '          datetime_geq: "${__from:date:iso}"\n'
-        '          datetime_leq: "${__to:date:iso}"\n'
+        '          datetime_geq: "${__timeFrom:date:iso}"\n'
+        '          datetime_leq: "${__timeTo:date:iso}"\n'
         f'          clientRequestHTTPHost: "{host}"\n'
         "        }\n"
         "      ) {\n"
@@ -291,8 +298,9 @@ def traffic_panel(panel_id: int, cfg: dict, win: dict, grid_pos: dict) -> dict:
             "type": "timeseries",
             "title": title,
             "description": (
-                f"CloudFront requests ({cf_name}). Cloudflare Adaptive Analytics on Free "
-                "only retain ~30 days, so the year window uses CloudWatch."
+                f"CloudFront requests ({cf_name}) via CloudWatch scrape → Prometheus. "
+                "Grafana Cloud Free retains metrics for 14 days only — a full year needs "
+                "a native CloudWatch data source or Pro retention (not scrape-to-Prom)."
             ),
             "gridPos": grid_pos,
             "timeFrom": time_from,
@@ -384,8 +392,9 @@ def errors_panel(panel_id: int, cfg: dict, win: dict, grid_pos: dict) -> dict:
             "type": "timeseries",
             "title": title,
             "description": (
-                f"CloudFront 4xx/5xx error rates ({cf_name}). Year window uses CloudWatch "
-                "(rates %, not request counts) because CF Free Adaptive max span is ~30d."
+                f"CloudFront 4xx/5xx error rates ({cf_name}) via CloudWatch scrape → "
+                "Prometheus (rates %, not counts). Grafana Cloud Free metrics retention "
+                "is 14 days — year history needs native CloudWatch DS or Pro."
             ),
             "gridPos": grid_pos,
             "timeFrom": time_from,
@@ -479,8 +488,9 @@ def latency_panel(panel_id: int, cfg: dict, win: dict, grid_pos: dict) -> dict:
             "type": "timeseries",
             "title": title,
             "description": (
-                f"CloudFront OriginLatency ({cf_name}). Cloudflare edge TTFB is not available "
-                "on Free Adaptive Analytics; year window is CloudWatch-only."
+                f"CloudFront OriginLatency ({cf_name}) via CloudWatch scrape → Prometheus. "
+                "Grafana Cloud Free retains metrics 14 days; year history needs native "
+                "CloudWatch DS or Pro. CF Free has no edge TTFB."
             ),
             "gridPos": grid_pos,
             "timeFrom": time_from,
