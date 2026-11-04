@@ -191,10 +191,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -265,10 +265,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -339,10 +339,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -367,14 +367,14 @@
       "id": 5,
       "type": "timeseries",
       "title": "Last month",
-      "description": "Cloudflare edge requests (dressme.7oas7er.com), fixed range now-30d.",
+      "description": "Cloudflare edge requests (dressme.7oas7er.com), fixed range now-29d.",
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 0,
         "y": 5
       },
-      "timeFrom": "now-30d",
+      "timeFrom": "now-29d",
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
         "uid": "${infinity}"
@@ -413,10 +413,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -441,7 +441,7 @@
       "id": 6,
       "type": "timeseries",
       "title": "Last year",
-      "description": "CloudFront requests (prod-dressme-site-distribution). Cloudflare Adaptive Analytics on Free only retain ~30 days, so the year window uses CloudWatch.",
+      "description": "CloudFront requests (prod-dressme-site-distribution) via CloudWatch scrape \u2192 Prometheus. Grafana Cloud Free retains metrics for 14 days only \u2014 a full year needs a native CloudWatch data source or Pro retention (not scrape-to-Prom).",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -639,10 +639,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -669,10 +669,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -834,10 +834,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -864,10 +864,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -1029,10 +1029,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -1059,10 +1059,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -1087,14 +1087,14 @@
       "id": 11,
       "type": "timeseries",
       "title": "Last month",
-      "description": "Cloudflare edge 4xx and 5xx counts (dressme.7oas7er.com), fixed range now-30d.",
+      "description": "Cloudflare edge 4xx and 5xx counts (dressme.7oas7er.com), fixed range now-29d.",
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 0,
         "y": 14
       },
-      "timeFrom": "now-30d",
+      "timeFrom": "now-29d",
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
         "uid": "${infinity}"
@@ -1224,10 +1224,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -1254,10 +1254,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -1282,7 +1282,7 @@
       "id": 12,
       "type": "timeseries",
       "title": "Last year",
-      "description": "CloudFront 4xx/5xx error rates (prod-dressme-site-distribution). Year window uses CloudWatch (rates %, not request counts) because CF Free Adaptive max span is ~30d.",
+      "description": "CloudFront 4xx/5xx error rates (prod-dressme-site-distribution) via CloudWatch scrape \u2192 Prometheus (rates %, not counts). Grafana Cloud Free metrics retention is 14 days \u2014 year history needs native CloudWatch DS or Pro.",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -1494,10 +1494,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -1581,10 +1581,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -1668,10 +1668,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -1707,7 +1707,7 @@
         "x": 0,
         "y": 23
       },
-      "timeFrom": "now-30d",
+      "timeFrom": "now-29d",
       "datasource": {
         "type": "datasource",
         "uid": "-- Mixed --"
@@ -1755,10 +1755,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        avg {\n          originResponseDurationMs\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -1787,7 +1787,7 @@
       "id": 18,
       "type": "timeseries",
       "title": "Last year",
-      "description": "CloudFront OriginLatency (prod-dressme-site-distribution). Cloudflare edge TTFB is not available on Free Adaptive Analytics; year window is CloudWatch-only.",
+      "description": "CloudFront OriginLatency (prod-dressme-site-distribution) via CloudWatch scrape \u2192 Prometheus. Grafana Cloud Free retains metrics 14 days; year history needs native CloudWatch DS or Pro. CF Free has no edge TTFB.",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -2253,10 +2253,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -2326,10 +2326,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          visits\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          visits\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          visits\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          visits\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -2381,10 +2381,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 30\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { edgeResponseStatus }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 30\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { edgeResponseStatus }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 30\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { edgeResponseStatus }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 30\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { edgeResponseStatus }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -2448,10 +2448,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { cacheStatus }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { cacheStatus }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { cacheStatus }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { cacheStatus }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -2508,10 +2508,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { verifiedBotCategory }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { verifiedBotCategory }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { verifiedBotCategory }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 20\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        count\n        dimensions { verifiedBotCategory }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -2563,10 +2563,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 15\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { clientCountryName }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 15\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { clientCountryName }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 15\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { clientCountryName }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 15\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        dimensions { clientCountryName }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -2630,10 +2630,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 25\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { clientRequestPath clientRequestHTTPMethodName }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 25\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { clientRequestPath clientRequestHTTPMethodName }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 25\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { clientRequestPath clientRequestHTTPMethodName }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 25\n        orderBy: [count_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n          requestSource: \"eyeball\"\n        }\n      ) {\n        count\n        sum {\n          edgeResponseBytes\n        }\n        dimensions { clientRequestPath clientRequestHTTPMethodName }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -2695,10 +2695,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      firewallEventsAdaptive(\n        limit: 50\n        orderBy: [datetime_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        datetime\n        action\n        source\n        clientIP\n        clientCountryName\n        clientRequestPath\n        edgeResponseStatus\n        description\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      firewallEventsAdaptive(\n        limit: 50\n        orderBy: [datetime_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        datetime\n        action\n        source\n        clientIP\n        clientCountryName\n        clientRequestPath\n        edgeResponseStatus\n        description\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      firewallEventsAdaptive(\n        limit: 50\n        orderBy: [datetime_DESC]\n        filter: {\n          datetime_geq: \"${__from:date:iso}\"\n          datetime_leq: \"${__to:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        datetime\n        action\n        source\n        clientIP\n        clientCountryName\n        clientRequestPath\n        edgeResponseStatus\n        description\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      firewallEventsAdaptive(\n        limit: 50\n        orderBy: [datetime_DESC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme.7oas7er.com\"\n        }\n      ) {\n        datetime\n        action\n        source\n        clientIP\n        clientCountryName\n        clientRequestPath\n        edgeResponseStatus\n        description\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.firewallEventsAdaptive",
