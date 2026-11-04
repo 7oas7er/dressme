@@ -16,6 +16,8 @@ Within a run, **validate/plan are scoped per root** (`dorny/paths-filter`): e.g.
 
 Apply stays local (or a future apply workflow). Plan exit code **2** (changes) is treated as success; only errors fail the job.
 
+**Plan Grafana** wires optional Environment secret `GRAFANA_GITHUB_TOKEN` → `TF_VAR_github_access_token` so CI does not plan to destroy (or fail to recreate) the GitHub data source. Without it, `enable_github_ci` flips false and count→0.
+
 ## One-time setup
 
 ### 1. Apply the plan role (stg)
@@ -55,6 +57,7 @@ Create Environment **terraform** (Settings → Environments). No deploy branch r
 | `GRAFANA_CLOUD_ACCESS_POLICY_TOKEN` | stacks:read (+ SA write if plan needs it) |
 | `GRAFANA_CLOUD_PROVIDER_ACCESS_TOKEN` | integration-management scopes |
 | `GRAFANA_SM_ACCESS_TOKEN` | Synthetic Monitoring token |
+| `GRAFANA_GITHUB_TOKEN` | Fine-grained PAT (Actions + Metadata read on `7oas7er/dressme`). Same value as local `github_access_token`. Name is `GRAFANA_GITHUB_*` because Actions forbids secrets starting with `GITHUB_`. Without it, Plan Grafana proposes destroying `grafana_data_source.github` once present (exit code 2 — still green), and dashboards show **Datasource not found** for the GitHub filter. |
 
 OIDC trust subject (already the Terraform default):
 

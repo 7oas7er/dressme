@@ -32,6 +32,8 @@ sm_access_token = "glsm_..."
 # enable_cloudflare_edge = true
 
 # GitHub Actions panels (plugin owned by platform shared-obs; PAT for this repo).
+# Also set Environment terraform secret GRAFANA_GITHUB_TOKEN to the same PAT for CI plans
+# (Actions forbids secret names starting with GITHUB_).
 # github_access_token = "github_pat_..."
 # github_owner        = "7oas7er"
 # github_repository   = "dressme"
