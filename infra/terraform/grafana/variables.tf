@@ -78,15 +78,15 @@ variable "stg_site_url" {
 }
 
 variable "prod_check_frequency_ms" {
-  description = "Production synthetic check interval in milliseconds (default 5m)."
+  description = "Production synthetic check interval in milliseconds (default 15m; Free SM quota)."
   type        = number
-  default     = 300000
+  default     = 900000
 }
 
 variable "stg_check_frequency_ms" {
-  description = "Staging synthetic check interval in milliseconds (default 15m; keeps Free SM volume down)."
+  description = "Staging synthetic check interval in milliseconds (default 30m; Free SM quota)."
   type        = number
-  default     = 900000
+  default     = 1800000
 }
 
 variable "check_timeout_ms" {

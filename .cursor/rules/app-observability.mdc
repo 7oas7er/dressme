@@ -12,7 +12,7 @@ alwaysApply: true
 
 ## Pattern for a public web app
 
-1. **Synthetics (HTTP)** — prod + stg site URLs; critical API paths; labels `project`, `environment` (`prod`|`stg`), `kind` (`site`|`api`). Keep Free cheap (prod ~5m / ≤2 probes; stg ~15m / 1 probe).
+1. **Synthetics (HTTP)** — prod + stg site URLs; critical API paths; labels `project`, `environment` (`prod`|`stg`), `kind` (`site`|`api`). Keep Free cheap (prod ~15m / ≤2 probes; stg ~30m / 1 probe).
 2. **CloudWatch scrape** — IAM role trusted by Grafana Labs `008923505280` with `sts:ExternalId` = stack `prometheus_user_id`. Scrape app services (e.g. `AWS/Lambda`, `AWS/CloudFront` including **OriginLatency**); regions `eu-north-1` + `us-east-1` when CloudFront is involved. Tag resources; label `project=<app>`. Org RCP must exempt Grafana or AssumeRole fails.
 3. **Cloudflare edge (Free)** — shared Infinity (platform) → GraphQL: `httpRequestsAdaptiveGroups`, `firewallEventsAdaptive` table. Do **not** query `firewallEventsAdaptiveGroups` on Free. App sets `cloudflare_zone_tag` only. Infinity queries go in `url_options.body_graphql_query`.
 4. **GitHub Actions** — plugin installed by platform; app creates per-app GitHub DS + fine-grained PAT (Actions + Metadata read). Panel targets use `options.workflow` = workflow **file name**.
