@@ -275,18 +275,22 @@ async function getItemRecord(userId, itemId) {
   return result.Item || null;
 }
 
-async function listItems(user, query) {
+async function listItemRecords(userId) {
   var result = await docClient().send(
     new QueryCommand({
       TableName: tableName(),
       KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
       ExpressionAttributeValues: {
-        ":pk": pkForUser(user.sub),
+        ":pk": pkForUser(userId),
         ":sk": "ITEM#",
       },
     })
   );
-  var rows = result.Items || [];
+  return result.Items || [];
+}
+
+async function listItems(user, query) {
+  var rows = await listItemRecords(user.sub);
   var q = (query.q || query.search || "").trim().toLowerCase();
   if (q) {
     rows = rows.filter(function (item) {
@@ -591,11 +595,15 @@ async function deleteItem(user, itemId) {
 }
 
 exports.listItems = listItems;
+exports.listItemRecords = listItemRecords;
 exports.getItem = getItem;
 exports.createItem = createItem;
 exports.updateItem = updateItem;
 exports.confirmPhotos = confirmPhotos;
 exports.backfillThumbs = backfillThumbs;
 exports.deleteItem = deleteItem;
+exports.publicItem = publicItem;
+exports.signedFullUrls = signedFullUrls;
+exports.signedThumbUrls = signedThumbUrls;
 exports.ATTR_KEYS = ATTR_KEYS;
 exports.resetDepsForTests = resetDepsForTests;

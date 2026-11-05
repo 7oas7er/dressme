@@ -13,6 +13,7 @@ Routes (CloudFront `/api/*` → Function URL):
 | POST | `/api/items/{id}/photos/complete` | Cognito JWT | Mark uploads ready + generate overview thumbs (UC-20) |
 | POST | `/api/photos/backfill-thumbs` | Cognito JWT | One-shot: generate missing thumbs for the caller’s items |
 | GET | `/api/attribute-options` | Cognito JWT | Seed + per-user custom attribute suggestions (UC-19) |
+| POST | `/api/suggest` | Cognito JWT | Exactly three outfit looks from the catalog (UC-04–06); random assembly MVP, Bedrock later |
 
 Photo upload flow: `POST /api/items` (or update with `addPhotos`) returns presigned PUT URLs; client uploads directly to the media bucket; then `photos/complete`.
 
@@ -21,6 +22,8 @@ On `photos/complete`, the API downloads each newly ready object, writes a ~400px
 Update (`PUT /api/items/{id}`) may include `removePhotoIds: string[]` to drop specific photos (deletes the S3 object and its thumb when keyed, updates the DynamoDB photo list). Removals run before `addPhotos` so one request can replace photos.
 
 Attribute suggestions (UC-19): Add/Edit forms load `/api/attribute-options` (classic menswear seeds plus the user’s remembered free-text values for type, color, fabric, brand/model, formality, pattern, season, outfit role). `brandModel` has no fixed seed list — every free-text value is remembered. Creating or updating an item persists any non-seed values under DynamoDB `META#attrOptions` on the same items table (no schema change).
+
+Outfit suggestions (UC-04–06): `POST /api/suggest` with `{ occasion, weather? }` returns exactly three looks, each a list of catalog items with signed photo URLs for the SPA flat-lay collage. v1 uses **random** role-slot assembly (`outfitRole` / `type`); empty slots are skipped. Set `engine: "bedrock"` (or `SUGGEST_ENGINE=bedrock`) later to swap in attrs+IDs Bedrock — not wired yet (returns 501). No worn/like/reject persistence.
 
 ### Staging backfill (existing photos)
 

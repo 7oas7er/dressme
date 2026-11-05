@@ -92,3 +92,26 @@ test("catalog list exposes attribute filters above the grid (UC-07)", () => {
   assert.match(styles, /\.filter-grid/);
   assert.match(useCases, /UC-07 — Filter the catalog by attributes/);
 });
+
+test("suggest outfits flow and flat-lay collage (UC-04–06)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const suggest = fs.readFileSync(path.join(root, "web/src/suggest.js"), "utf8");
+  const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(catalog, /Suggest outfits/);
+  assert.match(catalog, /openSuggest|view === "suggest"/);
+  assert.match(catalog, /runSuggest/);
+  assert.match(catalog, /renderLookCollage|look-collage/);
+  assert.match(catalog, /Nothing is recorded|does not record worn/);
+  assert.match(catalog, /name: "occasion"/);
+  assert.match(catalog, /name: "weather"/);
+  assert.match(suggest, /collagePhotoUrl/);
+  assert.match(apiSrc, /\/api\/suggest/);
+  assert.match(apiSrc, /suggestOutfits/);
+  assert.match(styles, /\.look-collage/);
+  assert.match(styles, /\.looks-grid/);
+  assert.match(useCases, /UC-04 — Request outfit suggestions/);
+  assert.match(useCases, /UC-05 — View a look as a flat-lay collage/);
+  assert.match(useCases, /UC-06 — Pick among three looks/);
+});

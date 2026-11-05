@@ -2,8 +2,10 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23).  
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; UC-04–06 suggest UX ships with random assembly before Bedrock).  
 Last updated: 2026-11-05 (Europe/Berlin)
+
+Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
 ---
 
