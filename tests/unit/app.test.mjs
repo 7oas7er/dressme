@@ -53,3 +53,14 @@ test("catalog overview prefers thumbUrl (UC-20)", () => {
   assert.match(apiSrc, /\/api\/photos\/backfill-thumbs/);
   assert.match(useCases, /UC-20 — Fast catalog thumbnails/);
 });
+
+test("add/edit form keeps Brand/model on shared row baseline (UC-21)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(catalog, /field-title/);
+  assert.match(catalog, /Brand \/ model/);
+  assert.match(styles, /\.form-grid\s*\{[^}]*align-items:\s*start/s);
+  assert.match(styles, /\.form-grid\s*>\s*label\s*\{[^}]*align-content:\s*start/s);
+  assert.match(useCases, /UC-21 — Brand\/model field alignment/);
+});
