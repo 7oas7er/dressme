@@ -64,9 +64,15 @@ test("catalog cutouts B2: prefer cutoutUrl + backfill endpoint", () => {
   assert.match(lookLayout, /purpose === "strip"/);
   assert.match(catalog, /backfillCutouts|maybeBackfillCutouts/);
   assert.match(catalog, /catalog-cutout/);
+  assert.match(catalog, /CUTOUT_ALGO_CLIENT = 3/);
   assert.match(apiSrc, /\/api\/photos\/backfill-cutouts/);
   assert.match(lambdaApi, /backfill-cutouts/);
   assert.match(useCases, /UC-24 — Catalog cutouts/);
+  const cutoutsSrc = fs.readFileSync(
+    path.join(root, "infra/lambda/cutouts.js"),
+    "utf8"
+  );
+  assert.match(cutoutsSrc, /CUTOUT_VERSION = 3/);
 });
 
 test("add/edit form keeps Brand/model on shared row baseline (UC-21)", () => {
