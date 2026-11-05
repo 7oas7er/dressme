@@ -41,3 +41,13 @@ test("add/edit forms use suggested values with free text (UC-19)", () => {
   const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
   assert.match(useCases, /UC-19 — Suggested values with free-text/);
 });
+
+test("catalog overview prefers thumbUrl (UC-20)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(catalog, /thumbUrl \|\| p\.url|p\.thumbUrl \|\| p\.url/);
+  assert.match(catalog, /loadFullItem/);
+  assert.match(apiSrc, /\/api\/photos\/backfill-thumbs/);
+  assert.match(useCases, /UC-20 — Fast catalog thumbnails/);
+});

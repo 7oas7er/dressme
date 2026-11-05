@@ -206,7 +206,8 @@ jobs:
       - name: Install Lambda dependencies
         if: matrix.root == 'aws/stg' || matrix.root == 'aws/prod'
         working-directory: infra/lambda
-        run: npm ci --omit=dev
+        # Lambda is arm64; force linux-arm64 sharp binaries into the archive.
+        run: npm ci --omit=dev --os=linux --cpu=arm64
 
       - name: terraform init (-backend=false)
         working-directory: ${{ matrix.path }}
@@ -262,7 +263,8 @@ jobs:
       - name: Install Lambda dependencies
         if: matrix.root == 'stg' || matrix.root == 'prod'
         working-directory: infra/lambda
-        run: npm ci --omit=dev
+        # Lambda is arm64; force linux-arm64 sharp binaries into the archive.
+        run: npm ci --omit=dev --os=linux --cpu=arm64
 
       - name: terraform init
         working-directory: ${{ matrix.path }}

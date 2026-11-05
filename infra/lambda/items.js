@@ -17,6 +17,7 @@ var {
 } = require("@aws-sdk/client-s3");
 var { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 var attributeOptions = require("./attributeOptions");
+var thumbs = require("./thumbs");
 
 var ATTR_KEYS = [
   "type",
@@ -38,12 +39,15 @@ var deps = {
   doc: null,
   s3: null,
   sign: getSignedUrl,
+  makeThumb: thumbs.makeThumbWithSharp,
 };
 
 function resetDepsForTests(next) {
   deps.doc = next && next.doc ? next.doc : null;
   deps.s3 = next && next.s3 ? next.s3 : null;
   deps.sign = next && next.sign ? next.sign : getSignedUrl;
+  deps.makeThumb =
+    next && next.makeThumb ? next.makeThumb : thumbs.makeThumbWithSharp;
   attributeOptions.resetDepsForTests(next);
 }
 
@@ -138,7 +142,7 @@ function buildSearchText(item) {
     .toLowerCase();
 }
 
-function publicItem(item, photoUrls) {
+function publicItem(item, photoUrls, thumbUrls) {
   return {
     itemId: item.itemId,
     type: item.type,
@@ -158,6 +162,9 @@ function publicItem(item, photoUrls) {
       if (photoUrls && photoUrls[photo.photoId]) {
         row.url = photoUrls[photo.photoId];
       }
+      if (thumbUrls && thumbUrls[photo.photoId]) {
+        row.thumbUrl = thumbUrls[photo.photoId];
+      }
       return row;
     }),
     createdAt: item.createdAt,
@@ -165,7 +172,18 @@ function publicItem(item, photoUrls) {
   };
 }
 
-async function signedGetUrls(item) {
+async function signKey(key) {
+  return deps.sign(
+    s3Client(),
+    new GetObjectCommand({
+      Bucket: mediaBucket(),
+      Key: key,
+    }),
+    { expiresIn: PRESIGN_GET_SECONDS }
+  );
+}
+
+async function signedFullUrls(item) {
   var urls = {};
   var photos = item.photos || [];
   for (var i = 0; i < photos.length; i++) {
@@ -173,16 +191,78 @@ async function signedGetUrls(item) {
     if (photo.status !== "ready" || !photo.key) {
       continue;
     }
-    urls[photo.photoId] = await deps.sign(
-      s3Client(),
+    urls[photo.photoId] = await signKey(photo.key);
+  }
+  return urls;
+}
+
+async function signedThumbUrls(item) {
+  var urls = {};
+  var photos = item.photos || [];
+  for (var i = 0; i < photos.length; i++) {
+    var photo = photos[i];
+    if (photo.status !== "ready" || !photo.key) {
+      continue;
+    }
+    var key = photo.thumbKey || photo.key;
+    urls[photo.photoId] = await signKey(key);
+  }
+  return urls;
+}
+
+async function deleteMediaKey(key) {
+  if (!key) return;
+  try {
+    await s3Client().send(
+      new DeleteObjectCommand({ Bucket: mediaBucket(), Key: key })
+    );
+  } catch (_err) {
+    // Best-effort media cleanup; metadata remains authoritative.
+  }
+}
+
+async function ensureThumbForPhoto(photo) {
+  if (!photo || photo.status !== "ready" || !photo.key) {
+    return photo;
+  }
+  if (photo.thumbKey) {
+    return photo;
+  }
+  try {
+    var obj = await s3Client().send(
       new GetObjectCommand({
         Bucket: mediaBucket(),
         Key: photo.key,
-      }),
-      { expiresIn: PRESIGN_GET_SECONDS }
+      })
     );
+    var input = await thumbs.streamToBuffer(obj.Body);
+    var thumbBuf = await deps.makeThumb(input);
+    var thumbKey = thumbs.thumbKeyFor(photo.key);
+    await s3Client().send(
+      new PutObjectCommand({
+        Bucket: mediaBucket(),
+        Key: thumbKey,
+        Body: thumbBuf,
+        ContentType: thumbs.THUMB_CONTENT_TYPE,
+      })
+    );
+    return Object.assign({}, photo, { thumbKey: thumbKey });
+  } catch (err) {
+    console.error(
+      "thumb_failed",
+      photo.photoId,
+      err && err.message ? err.message : err
+    );
+    return photo;
   }
-  return urls;
+}
+
+async function ensureThumbsForPhotos(photos) {
+  var out = [];
+  for (var i = 0; i < (photos || []).length; i++) {
+    out.push(await ensureThumbForPhoto(photos[i]));
+  }
+  return out;
 }
 
 async function getItemRecord(userId, itemId) {
@@ -219,8 +299,9 @@ async function listItems(user, query) {
 
   var out = [];
   for (var i = 0; i < rows.length; i++) {
-    var urls = await signedGetUrls(rows[i]);
-    out.push(publicItem(rows[i], urls));
+    // Overview cards use thumb URLs (full-res still available on get/edit).
+    var thumbUrls = await signedThumbUrls(rows[i]);
+    out.push(publicItem(rows[i], null, thumbUrls));
   }
   return { statusCode: 200, body: { items: out } };
 }
@@ -230,8 +311,9 @@ async function getItem(user, itemId) {
   if (!item) {
     return { statusCode: 404, body: { error: "not_found" } };
   }
-  var urls = await signedGetUrls(item);
-  return { statusCode: 200, body: { item: publicItem(item, urls) } };
+  var urls = await signedFullUrls(item);
+  var thumbUrls = await signedThumbUrls(item);
+  return { statusCode: 200, body: { item: publicItem(item, urls, thumbUrls) } };
 }
 
 function photoKey(userId, itemId, photoId, contentType) {
@@ -354,15 +436,8 @@ async function updateItem(user, itemId, body) {
     }
     next.photos = keep;
     for (var r = 0; r < removed.length; r++) {
-      if (removed[r].key) {
-        try {
-          await s3Client().send(
-            new DeleteObjectCommand({ Bucket: mediaBucket(), Key: removed[r].key })
-          );
-        } catch (_err) {
-          // Best-effort media cleanup; metadata remains authoritative.
-        }
-      }
+      await deleteMediaKey(removed[r].key);
+      await deleteMediaKey(removed[r].thumbKey);
     }
   }
 
@@ -384,7 +459,9 @@ async function updateItem(user, itemId, body) {
     await attributeOptions.rememberCustomValues(user, attrs);
   }
 
-  var responseBody = { item: publicItem(next, await signedGetUrls(next)) };
+  var responseBody = {
+    item: publicItem(next, await signedFullUrls(next), await signedThumbUrls(next)),
+  };
   if (uploads.length) {
     responseBody.uploads = uploads;
   }
@@ -409,6 +486,8 @@ async function confirmPhotos(user, itemId, body) {
     }
     return photo;
   });
+  // UC-20: generate overview thumbnails for newly ready photos.
+  photos = await ensureThumbsForPhotos(photos);
   var next = Object.assign({}, existing, {
     photos: photos,
     updatedAt: nowIso(),
@@ -417,7 +496,78 @@ async function confirmPhotos(user, itemId, body) {
   await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
   return {
     statusCode: 200,
-    body: { item: publicItem(next, await signedGetUrls(next)) },
+    body: {
+      item: publicItem(next, await signedFullUrls(next), await signedThumbUrls(next)),
+    },
+  };
+}
+
+async function backfillThumbs(user) {
+  var result = await docClient().send(
+    new QueryCommand({
+      TableName: tableName(),
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+      ExpressionAttributeValues: {
+        ":pk": pkForUser(user.sub),
+        ":sk": "ITEM#",
+      },
+    })
+  );
+  var rows = result.Items || [];
+  var processed = 0;
+  var skipped = 0;
+  var failed = 0;
+  var updatedItems = 0;
+
+  for (var i = 0; i < rows.length; i++) {
+    var item = rows[i];
+    var photos = item.photos || [];
+    var changed = false;
+    var nextPhotos = [];
+    for (var p = 0; p < photos.length; p++) {
+      var photo = photos[p];
+      if (photo.status !== "ready" || !photo.key) {
+        nextPhotos.push(photo);
+        skipped += 1;
+        continue;
+      }
+      if (photo.thumbKey) {
+        nextPhotos.push(photo);
+        skipped += 1;
+        continue;
+      }
+      var withThumb = await ensureThumbForPhoto(photo);
+      if (withThumb.thumbKey && withThumb.thumbKey !== photo.thumbKey) {
+        processed += 1;
+        changed = true;
+        nextPhotos.push(withThumb);
+      } else if (!withThumb.thumbKey) {
+        failed += 1;
+        nextPhotos.push(photo);
+      } else {
+        skipped += 1;
+        nextPhotos.push(withThumb);
+      }
+    }
+    if (changed) {
+      var next = Object.assign({}, item, {
+        photos: nextPhotos,
+        updatedAt: nowIso(),
+      });
+      next.searchText = buildSearchText(next);
+      await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
+      updatedItems += 1;
+    }
+  }
+
+  return {
+    statusCode: 200,
+    body: {
+      processed: processed,
+      skipped: skipped,
+      failed: failed,
+      updatedItems: updatedItems,
+    },
   };
 }
 
@@ -428,15 +578,8 @@ async function deleteItem(user, itemId) {
   }
   for (var i = 0; i < (existing.photos || []).length; i++) {
     var photo = existing.photos[i];
-    if (photo.key) {
-      try {
-        await s3Client().send(
-          new DeleteObjectCommand({ Bucket: mediaBucket(), Key: photo.key })
-        );
-      } catch (_err) {
-        // Best-effort.
-      }
-    }
+    await deleteMediaKey(photo.key);
+    await deleteMediaKey(photo.thumbKey);
   }
   await docClient().send(
     new DeleteCommand({
@@ -452,6 +595,7 @@ exports.getItem = getItem;
 exports.createItem = createItem;
 exports.updateItem = updateItem;
 exports.confirmPhotos = confirmPhotos;
+exports.backfillThumbs = backfillThumbs;
 exports.deleteItem = deleteItem;
 exports.ATTR_KEYS = ATTR_KEYS;
 exports.resetDepsForTests = resetDepsForTests;

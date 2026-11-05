@@ -41,8 +41,9 @@ function el(tag, attrs = {}, children = []) {
 }
 
 function thumbUrl(item) {
-  const photo = (item.photos || []).find((p) => p.url);
-  return photo ? photo.url : "";
+  // UC-20: prefer low-res overview thumb; fall back to full-res when missing.
+  const photo = (item.photos || []).find((p) => p.thumbUrl || p.url);
+  return photo ? photo.thumbUrl || photo.url : "";
 }
 
 export function renderCatalogApp(root, { onLogout }) {
@@ -94,20 +95,50 @@ export function renderCatalogApp(root, { onLogout }) {
     if (state.view === "form" && !state.editing) paint();
   }
 
+  async function loadFullItem(itemId) {
+    const data = await api.getItem(itemId);
+    return data.item;
+  }
+
   async function openEdit(item) {
     state.view = "form";
     state.editing = item;
     state.error = "";
+    state.busy = true;
     paint();
-    await loadAttributeOptions();
-    if (state.view === "form" && state.editing === item) paint();
+    try {
+      // List payloads use thumbs only; edit needs full-res photo URLs (UC-20).
+      const full = await loadFullItem(item.itemId);
+      if (state.view === "form") {
+        state.editing = full;
+      }
+      await loadAttributeOptions();
+    } catch (err) {
+      state.error = err.message || "Could not load item.";
+    } finally {
+      state.busy = false;
+      paint();
+    }
   }
 
-  function openDetail(item) {
+  async function openDetail(item) {
     state.view = "detail";
     state.editing = item;
     state.error = "";
+    state.busy = true;
     paint();
+    try {
+      // Overview cards use thumbUrl; detail shows full-resolution photos (UC-20).
+      const full = await loadFullItem(item.itemId);
+      if (state.view === "detail") {
+        state.editing = full;
+      }
+    } catch (err) {
+      state.error = err.message || "Could not load item.";
+    } finally {
+      state.busy = false;
+      paint();
+    }
   }
 
   function backToList() {

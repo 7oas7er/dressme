@@ -16,7 +16,7 @@ Full platform write-up: [platform docs/architecture.md](https://github.com/7oas7
 
 ## v1 contract (Option A — planned)
 
-Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–06, UC-18, UC-19), single user, Bedrock **attributes + item IDs only**, client-side flat-lay collage.
+Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–07, UC-18–21), single user, Bedrock **attributes + item IDs only**, client-side flat-lay collage.
 
 | Layer | Choice |
 |-------|--------|
@@ -24,11 +24,11 @@ Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–06, UC-18, UC-19
 | Auth | **Cognito** user pool (one user in v1) |
 | API | Lambda (Function URL or HTTP API) behind CloudFront `/api/*` |
 | Items | **DynamoDB** metadata |
-| Photos | Private **S3 media** + presigned uploads |
+| Photos | Private **S3 media** + presigned uploads; UC-20 ~400px JPEG thumbs (`*.thumb.jpg`) for catalog overview |
 | Suggest | Lambda → **Bedrock** (`eu-north-1`) with attrs+IDs; validate returned IDs |
 | Collage | **Client-side** from signed/CDN photo URLs |
 
-Catalog (UC-01–03, UC-18–19) lands Cognito + DynamoDB + media S3 + `/api/items*` and `/api/attribute-options` on the API Lambda; suggest/collage (UC-04–06) remains follow-up. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
+Catalog (UC-01–03, UC-18–20) lands Cognito + DynamoDB + media S3 + `/api/items*` / `/api/photos/backfill-thumbs` and `/api/attribute-options` on the API Lambda; UC-07 filters + UC-21 form alignment + suggest/collage (UC-04–06) remain follow-up. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
 
 ## What this repo owns
 

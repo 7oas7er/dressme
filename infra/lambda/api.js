@@ -41,6 +41,17 @@ exports.handler = async function handler(event) {
       return http.json(405, { error: "method_not_allowed" });
     }
 
+    if (
+      path === "/api/photos/backfill-thumbs" ||
+      path === "/photos/backfill-thumbs"
+    ) {
+      var backfillUser = await auth.requireUser(event);
+      if (method === "POST") {
+        return respond(await items.backfillThumbs(backfillUser));
+      }
+      return http.json(405, { error: "method_not_allowed" });
+    }
+
     var itemMatch = /^\/api\/items(?:\/([^/]+))?(?:\/(photos\/complete))?$/.exec(path);
     if (!itemMatch && /^\/items(?:\/([^/]+))?(?:\/(photos\/complete))?$/.exec(path)) {
       itemMatch = /^\/items(?:\/([^/]+))?(?:\/(photos\/complete))?$/.exec(path);
