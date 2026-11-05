@@ -104,11 +104,17 @@ export function backfillThumbs() {
   });
 }
 
-/** B2: one-shot cutout backfill for the signed-in user's existing photos. */
-export function backfillCutouts() {
+/**
+ * B2: cutout backfill for the signed-in user's existing photos.
+ * Pass `{ force: true }` (or `upgrade: true`) to regenerate after a matte algo bump.
+ */
+export function backfillCutouts({ force = false, upgrade = false } = {}) {
+  const body = {};
+  if (force) body.force = true;
+  if (upgrade) body.upgrade = true;
   return request("/api/photos/backfill-cutouts", {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify(body),
   });
 }
 

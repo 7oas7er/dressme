@@ -59,7 +59,12 @@ exports.handler = async function handler(event) {
     ) {
       var cutoutBackfillUser = await auth.requireUser(event);
       if (method === "POST") {
-        return respond(await items.backfillCutouts(cutoutBackfillUser));
+        return respond(
+          await items.backfillCutouts(
+            cutoutBackfillUser,
+            http.parseBody(event)
+          )
+        );
       }
       return http.json(405, { error: "method_not_allowed" });
     }

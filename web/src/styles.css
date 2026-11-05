@@ -507,21 +507,35 @@ label {
 
 .look-layer {
   position: absolute;
-  left: 8%;
-  right: 8%;
-  display: grid;
-  place-items: center;
+  /* left/right come from SLOT_INSET inline styles for silhouette */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
+  box-sizing: border-box;
 }
 
 .look-layer img {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  object-position: center center;
   display: block;
-  filter: drop-shadow(0 1px 2px rgba(21, 32, 51, 0.12));
+  filter: drop-shadow(0 2px 4px rgba(21, 32, 51, 0.18));
+}
+
+/* Anchor each garment in its band so the stack reads top→bottom as a body. */
+.look-layer--jacket img {
+  object-position: center top;
+}
+.look-layer--shirt img {
+  object-position: center 35%;
+}
+.look-layer--trousers img {
+  object-position: center bottom;
+}
+.look-layer--shoes img {
+  object-position: center bottom;
 }
 
 .look-layer-empty {
