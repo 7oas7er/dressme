@@ -2,7 +2,7 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; UC-04–06 suggest UX ships with random assembly before Bedrock).  
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–24; UC-04–06 suggest UX ships with random assembly before Bedrock).  
 Last updated: 2026-11-05 (Europe/Berlin)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
@@ -42,7 +42,10 @@ As Frank, above the catalog grid I can filter items by attribute categories that
 As Frank, before getting dressed, I enter a free-text occasion and (when relevant) manual weather, then receive exactly three outfit suggestions drawn only from my catalog, informed by classic menswear knowledge.
 
 ### UC-05 — View a look as a layered collage
-As Frank, for each of the three suggestions I see one outfit card: a layered hero (shoes→jacket bands) of the actual item photos plus a right-hand authenticity strip of original thumbs, so I can judge the look as a whole and still verify each piece.
+As Frank, for each of the three suggestions I see one outfit card: a layered hero (shoes→jacket bands) of the actual item photos plus a right-hand authenticity strip of original thumbs, so I can judge the look as a whole and still verify each piece. When a cutout exists, the hero prefers it; the authenticity strip always stays photographic.
+
+### UC-24 — Catalog cutouts at upload (no re-upload backfill)
+As Frank, when I add or update a catalog photo, the app stores a transparent cutout derivative alongside the original; the catalog overview and suggest hero prefer cutouts when present. Existing photos get cutouts via a one-shot backfill so I do not re-upload. If matting fails, save still succeeds and the UI falls back to the original/thumb.
 
 ### UC-06 — Pick among three looks (no in-app feedback)
 As Frank, I choose which look to wear mentally / offline; the app does not record worn, like, or reject in v1.

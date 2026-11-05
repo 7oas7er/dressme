@@ -48,10 +48,25 @@ test("catalog overview prefers thumbUrl (UC-20)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
   const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
-  assert.match(catalog, /thumbUrl \|\| p\.url|p\.thumbUrl \|\| p\.url/);
+  assert.match(catalog, /layerImageUrl\(item,\s*\{\s*purpose:\s*"catalog"/);
   assert.match(catalog, /loadFullItem/);
   assert.match(apiSrc, /\/api\/photos\/backfill-thumbs/);
   assert.match(useCases, /UC-20 — Fast catalog thumbnails/);
+});
+
+test("catalog cutouts B2: prefer cutoutUrl + backfill endpoint", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
+  const lookLayout = fs.readFileSync(path.join(root, "web/src/lookLayout.js"), "utf8");
+  const lambdaApi = fs.readFileSync(path.join(root, "infra/lambda/api.js"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(lookLayout, /cutoutUrl/);
+  assert.match(lookLayout, /purpose === "strip"/);
+  assert.match(catalog, /backfillCutouts|maybeBackfillCutouts/);
+  assert.match(catalog, /catalog-cutout/);
+  assert.match(apiSrc, /\/api\/photos\/backfill-cutouts/);
+  assert.match(lambdaApi, /backfill-cutouts/);
+  assert.match(useCases, /UC-24 — Catalog cutouts/);
 });
 
 test("add/edit form keeps Brand/model on shared row baseline (UC-21)", () => {

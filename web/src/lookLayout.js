@@ -1,7 +1,7 @@
 /**
  * Layered look layout (Option 4 chrome + Option 1 photo bands).
  * Slot synonyms + hero/strip view-model for suggest cards.
- * Cutout preference is wired for B2; B1 falls back to full → thumb.
+ * Cutout preference (B2/UC-24): hero/catalog use cutoutUrl when present.
  */
 
 /** Bottom → top paint / low → high z-index. */

@@ -80,6 +80,9 @@ function makeMemoryDeps() {
     makeThumb: async function (_buf) {
       return Buffer.from("thumb-bytes");
     },
+    makeCutout: async function (_buf) {
+      return Buffer.from("cutout-bytes");
+    },
   };
 }
 
@@ -134,7 +137,10 @@ test("catalog CRUD happy path", async function () {
   assert.ok(confirmedBody.item.photos[0].url);
   assert.ok(confirmedBody.item.photos[0].thumbUrl);
   assert.match(confirmedBody.item.photos[0].thumbUrl, /\.thumb\.jpg/);
+  assert.ok(confirmedBody.item.photos[0].cutoutUrl);
+  assert.match(confirmedBody.item.photos[0].cutoutUrl, /\.cutout\.webp/);
   assert.ok(memory.objects.has(photoKey.replace(/\.[^.]+$/, "") + ".thumb.jpg"));
+  assert.ok(memory.objects.has(photoKey.replace(/\.[^.]+$/, "") + ".cutout.webp"));
 
   var listed = await api.handler({
     rawPath: "/api/items",
@@ -237,10 +243,10 @@ test("update removes specific photos and deletes S3 objects", async function () 
   var removedBody = JSON.parse(removed.body);
   assert.equal(removedBody.item.photos.length, 1);
   assert.equal(removedBody.item.photos[0].photoId, photoB);
-  // Full + thumb deleted for removed photo.
+  // Full + thumb + cutout deleted for removed photo.
   assert.ok(deletedKeys.filter(function (key) {
     return key.indexOf(photoA) >= 0;
-  }).length >= 2);
+  }).length >= 3);
   assert.match(deletedKeys[0], new RegExp(photoA));
 
   var combined = await api.handler({
@@ -317,4 +323,99 @@ test("backfill generates thumbs for ready photos missing thumbKey", async functi
   });
   assert.equal(JSON.parse(again.body).processed, 0);
   assert.ok(photoId);
+});
+
+test("confirm and backfill generate cutouts for ready photos", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+
+  var created = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(
+      Object.assign(attrs(), {
+        photos: [{ contentType: "image/jpeg" }],
+      })
+    ),
+  });
+  var createdBody = JSON.parse(created.body);
+  var itemId = createdBody.item.itemId;
+  var photoId = createdBody.uploads[0].photoId;
+  var photoKey = createdBody.uploads[0].uploadUrl.replace("https://upload.example/", "");
+  memory.objects.set(photoKey, Buffer.from("legacy-full-cutout"));
+
+  // Simulate a pre-B2 ready photo (thumb present, no cutoutKey).
+  var itemKey = "USER#test-user|ITEM#" + itemId;
+  var stored = memory.store.get(itemKey);
+  stored.photos[0].status = "ready";
+  stored.photos[0].thumbKey = photoKey.replace(/\.[^.]+$/, "") + ".thumb.jpg";
+  memory.objects.set(stored.photos[0].thumbKey, Buffer.from("thumb"));
+  delete stored.photos[0].cutoutKey;
+  memory.store.set(itemKey, stored);
+
+  var backfill = await api.handler({
+    rawPath: "/api/photos/backfill-cutouts",
+    requestContext: {
+      http: { method: "POST", path: "/api/photos/backfill-cutouts" },
+    },
+    body: JSON.stringify({}),
+  });
+  assert.equal(backfill.statusCode, 200);
+  var body = JSON.parse(backfill.body);
+  assert.equal(body.processed, 1);
+  assert.equal(body.updatedItems, 1);
+  assert.ok(memory.objects.has(photoKey.replace(/\.[^.]+$/, "") + ".cutout.webp"));
+
+  var listed = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "GET", path: "/api/items" } },
+  });
+  var listBody = JSON.parse(listed.body);
+  assert.match(listBody.items[0].photos[0].cutoutUrl, /\.cutout\.webp/);
+
+  var again = await api.handler({
+    rawPath: "/api/photos/backfill-cutouts",
+    requestContext: {
+      http: { method: "POST", path: "/api/photos/backfill-cutouts" },
+    },
+    body: JSON.stringify({}),
+  });
+  assert.equal(JSON.parse(again.body).processed, 0);
+  assert.ok(photoId);
+});
+
+test("cutout failure does not block photos/complete", async function () {
+  var memory = makeMemoryDeps();
+  memory.makeCutout = async function () {
+    throw new Error("matte_boom");
+  };
+  items.resetDepsForTests(memory);
+
+  var created = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(
+      Object.assign(attrs(), {
+        photos: [{ contentType: "image/png" }],
+      })
+    ),
+  });
+  var createdBody = JSON.parse(created.body);
+  var itemId = createdBody.item.itemId;
+  var photoId = createdBody.uploads[0].photoId;
+  var photoKey = createdBody.uploads[0].uploadUrl.replace("https://upload.example/", "");
+  memory.objects.set(photoKey, Buffer.from("full-png"));
+
+  var confirmed = await api.handler({
+    rawPath: "/api/items/" + itemId + "/photos/complete",
+    requestContext: {
+      http: { method: "POST", path: "/api/items/" + itemId + "/photos/complete" },
+    },
+    body: JSON.stringify({ photoIds: [photoId] }),
+  });
+  assert.equal(confirmed.statusCode, 200);
+  var confirmedBody = JSON.parse(confirmed.body);
+  assert.equal(confirmedBody.item.photos[0].status, "ready");
+  assert.ok(confirmedBody.item.photos[0].thumbUrl);
+  assert.equal(confirmedBody.item.photos[0].cutoutUrl, undefined);
 });
