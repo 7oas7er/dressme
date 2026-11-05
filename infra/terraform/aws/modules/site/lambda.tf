@@ -43,8 +43,8 @@ resource "aws_lambda_function" "high_scores" {
   filename         = data.archive_file.high_scores.output_path
   source_code_hash = data.archive_file.high_scores.output_base64sha256
   # UC-20 thumbnail generation on photos/complete needs more headroom than CRUD.
-  timeout          = 60
-  memory_size      = 512
+  timeout     = 60
+  memory_size = 512
 
   environment {
     variables = {
