@@ -383,7 +383,11 @@ export function renderCatalogApp(root, { onLogout }) {
         list: listId,
         "aria-describedby": useSuggestions ? `hint-${field.key}` : null,
       });
-      const children = [field.label, input];
+      // Explicit title node keeps row baselines stable (UC-21) across wrapping labels.
+      const children = [
+        el("span", { className: "field-title", text: field.label }),
+        input,
+      ];
       if (useSuggestions) {
         const options = state.attributeOptions[field.key] || [];
         const datalist = el("datalist", { id: listId });
