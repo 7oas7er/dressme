@@ -44,5 +44,5 @@ Scaffold creates the isolated app repo. These steps are **not** done by the firs
 - [x] Manage photos while editing an item (UC-18)
 - [x] Suggest + collage UX (UC-04–06) — random assembly MVP; Bedrock still follow-up
 - [x] Layered look layout B1 (hero + right strip; SPA `lookLayout` / `lookCard`)
-- [ ] Layered look cutouts B2 (client matte + S3; hero prefers cutout)
+- [x] Layered look cutouts B2 (lean sharp matte + S3; hero/catalog prefer cutout; backfill)
 - [ ] Bedrock suggest engine (swap `SUGGEST_ENGINE` / `engine: "bedrock"`)

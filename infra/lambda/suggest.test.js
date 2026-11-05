@@ -81,6 +81,7 @@ function seedItem(memory, attrs) {
           contentType: "image/jpeg",
           status: "ready",
           thumbKey: "users/test-user/items/" + itemId + "/p.thumb.jpg",
+          cutoutKey: "users/test-user/items/" + itemId + "/p.cutout.webp",
         },
       ],
       createdAt: "2026-01-01T00:00:00.000Z",

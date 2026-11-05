@@ -1,4 +1,5 @@
 import * as api from "./api.js";
+import { layerImageUrl } from "./lookLayout.js";
 import { renderLookCard } from "./lookCard.js";
 
 /** Fields that use suggested values + free text (UC-19), including brand/model. */
@@ -80,9 +81,8 @@ function el(tag, attrs = {}, children = []) {
 }
 
 function thumbUrl(item) {
-  // UC-20: prefer low-res overview thumb; fall back to full-res when missing.
-  const photo = (item.photos || []).find((p) => p.thumbUrl || p.url);
-  return photo ? photo.thumbUrl || photo.url : "";
+  // B2 / §4.3: catalog prefers cutout when present; else UC-20 thumb / full.
+  return layerImageUrl(item, { purpose: "catalog" });
 }
 
 /** UC-23: full-res lightbox; dismiss via backdrop, close control, or Escape. */
@@ -211,6 +211,42 @@ export function renderCatalogApp(root, { onLogout }) {
     state.status = `${total} item${total === 1 ? "" : "s"}`;
   }
 
+  let cutoutBackfillStarted = false;
+
+  async function maybeBackfillCutouts() {
+    if (cutoutBackfillStarted) return;
+    const needs = (state.items || []).some((item) =>
+      (item.photos || []).some(
+        (photo) => photo && photo.status === "ready" && !photo.cutoutUrl
+      )
+    );
+    if (!needs) return;
+    cutoutBackfillStarted = true;
+    try {
+      state.status = "Generating cutouts for existing photos…";
+      paint();
+      const result = await api.backfillCutouts();
+      const processed = (result && result.processed) || 0;
+      if (processed > 0) {
+        const data = await api.listItems(state.query);
+        state.items = data.items || [];
+        pruneStaleFilters();
+      }
+      updateStatusFromItems();
+      if (processed > 0) {
+        state.status =
+          (state.status ? state.status + " · " : "") +
+          `Cutouts ready (${processed}).`;
+      }
+    } catch (err) {
+      // Non-fatal: catalog still works with photographic thumbs.
+      console.warn("cutout_backfill_failed", err);
+      updateStatusFromItems();
+    } finally {
+      paint();
+    }
+  }
+
   async function refresh() {
     state.busy = true;
     state.error = "";
@@ -225,6 +261,7 @@ export function renderCatalogApp(root, { onLogout }) {
     } finally {
       state.busy = false;
       paint();
+      maybeBackfillCutouts();
     }
   }
 
@@ -598,6 +635,7 @@ export function renderCatalogApp(root, { onLogout }) {
     } else {
       for (const item of visible) {
         const url = thumbUrl(item);
+        const hasCutout = (item.photos || []).some((p) => p && p.cutoutUrl);
         const card = el(
           "button",
           {
@@ -607,7 +645,11 @@ export function renderCatalogApp(root, { onLogout }) {
           },
           [
             url
-              ? el("img", { src: url, alt: `${item.type} ${item.color}` })
+              ? el("img", {
+                  src: url,
+                  alt: `${item.type} ${item.color}`,
+                  className: hasCutout ? "catalog-cutout" : null,
+                })
               : el("div", { className: "thumb", text: "No photo" }),
             el("div", { className: "meta" }, [
               el("p", { className: "title", text: item.type }),

@@ -257,6 +257,14 @@ label {
   display: block;
 }
 
+/* B2: cutouts sit on a calm neutral tile (contain, not cover crop). */
+.item-card img.catalog-cutout {
+  object-fit: contain;
+  padding: 0.35rem;
+  background:
+    linear-gradient(180deg, #eef2f6 0%, #e2e8ef 100%);
+}
+
 .item-card .meta {
   padding: 0 0.75rem 0.85rem;
 }

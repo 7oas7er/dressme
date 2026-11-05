@@ -17,6 +17,7 @@ var {
 } = require("@aws-sdk/client-s3");
 var { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 var attributeOptions = require("./attributeOptions");
+var cutouts = require("./cutouts");
 var thumbs = require("./thumbs");
 
 var ATTR_KEYS = [
@@ -40,6 +41,7 @@ var deps = {
   s3: null,
   sign: getSignedUrl,
   makeThumb: thumbs.makeThumbWithSharp,
+  makeCutout: cutouts.makeCutoutWithSharp,
 };
 
 function resetDepsForTests(next) {
@@ -48,6 +50,8 @@ function resetDepsForTests(next) {
   deps.sign = next && next.sign ? next.sign : getSignedUrl;
   deps.makeThumb =
     next && next.makeThumb ? next.makeThumb : thumbs.makeThumbWithSharp;
+  deps.makeCutout =
+    next && next.makeCutout ? next.makeCutout : cutouts.makeCutoutWithSharp;
   attributeOptions.resetDepsForTests(next);
 }
 
@@ -142,7 +146,7 @@ function buildSearchText(item) {
     .toLowerCase();
 }
 
-function publicItem(item, photoUrls, thumbUrls) {
+function publicItem(item, photoUrls, thumbUrls, cutoutUrls) {
   return {
     itemId: item.itemId,
     type: item.type,
@@ -164,6 +168,9 @@ function publicItem(item, photoUrls, thumbUrls) {
       }
       if (thumbUrls && thumbUrls[photo.photoId]) {
         row.thumbUrl = thumbUrls[photo.photoId];
+      }
+      if (cutoutUrls && cutoutUrls[photo.photoId]) {
+        row.cutoutUrl = cutoutUrls[photo.photoId];
       }
       return row;
     }),
@@ -210,6 +217,19 @@ async function signedThumbUrls(item) {
   return urls;
 }
 
+async function signedCutoutUrls(item) {
+  var urls = {};
+  var photos = item.photos || [];
+  for (var i = 0; i < photos.length; i++) {
+    var photo = photos[i];
+    if (photo.status !== "ready" || !photo.cutoutKey) {
+      continue;
+    }
+    urls[photo.photoId] = await signKey(photo.cutoutKey);
+  }
+  return urls;
+}
+
 async function deleteMediaKey(key) {
   if (!key) return;
   try {
@@ -221,7 +241,17 @@ async function deleteMediaKey(key) {
   }
 }
 
-async function ensureThumbForPhoto(photo) {
+async function loadPhotoBuffer(photo) {
+  var obj = await s3Client().send(
+    new GetObjectCommand({
+      Bucket: mediaBucket(),
+      Key: photo.key,
+    })
+  );
+  return thumbs.streamToBuffer(obj.Body);
+}
+
+async function ensureThumbForPhoto(photo, cachedBuffer) {
   if (!photo || photo.status !== "ready" || !photo.key) {
     return photo;
   }
@@ -229,13 +259,7 @@ async function ensureThumbForPhoto(photo) {
     return photo;
   }
   try {
-    var obj = await s3Client().send(
-      new GetObjectCommand({
-        Bucket: mediaBucket(),
-        Key: photo.key,
-      })
-    );
-    var input = await thumbs.streamToBuffer(obj.Body);
+    var input = cachedBuffer || (await loadPhotoBuffer(photo));
     var thumbBuf = await deps.makeThumb(input);
     var thumbKey = thumbs.thumbKeyFor(photo.key);
     await s3Client().send(
@@ -257,10 +281,62 @@ async function ensureThumbForPhoto(photo) {
   }
 }
 
-async function ensureThumbsForPhotos(photos) {
+async function ensureCutoutForPhoto(photo, cachedBuffer) {
+  if (!photo || photo.status !== "ready" || !photo.key) {
+    return photo;
+  }
+  if (photo.cutoutKey) {
+    return photo;
+  }
+  try {
+    var input = cachedBuffer || (await loadPhotoBuffer(photo));
+    var cutoutBuf = await deps.makeCutout(input);
+    var cutoutKey = cutouts.cutoutKeyFor(photo.key);
+    await s3Client().send(
+      new PutObjectCommand({
+        Bucket: mediaBucket(),
+        Key: cutoutKey,
+        Body: cutoutBuf,
+        ContentType: cutouts.CUTOUT_CONTENT_TYPE,
+      })
+    );
+    return Object.assign({}, photo, { cutoutKey: cutoutKey });
+  } catch (err) {
+    // Never block item save / confirm on matting failure (design §4a).
+    console.error(
+      "cutout_failed",
+      photo.photoId,
+      err && err.message ? err.message : err
+    );
+    return photo;
+  }
+}
+
+async function ensureDerivativesForPhotos(photos) {
   var out = [];
   for (var i = 0; i < (photos || []).length; i++) {
-    out.push(await ensureThumbForPhoto(photos[i]));
+    var photo = photos[i];
+    if (!photo || photo.status !== "ready" || !photo.key) {
+      out.push(photo);
+      continue;
+    }
+    var cached = null;
+    if (!photo.thumbKey || !photo.cutoutKey) {
+      try {
+        cached = await loadPhotoBuffer(photo);
+      } catch (err) {
+        console.error(
+          "photo_load_failed",
+          photo.photoId,
+          err && err.message ? err.message : err
+        );
+        out.push(photo);
+        continue;
+      }
+    }
+    var withThumb = await ensureThumbForPhoto(photo, cached);
+    var withCutout = await ensureCutoutForPhoto(withThumb, cached);
+    out.push(withCutout);
   }
   return out;
 }
@@ -303,9 +379,10 @@ async function listItems(user, query) {
 
   var out = [];
   for (var i = 0; i < rows.length; i++) {
-    // Overview cards use thumb URLs (full-res still available on get/edit).
+    // Overview: thumbs + cutouts when present (full-res still on get/edit).
     var thumbUrls = await signedThumbUrls(rows[i]);
-    out.push(publicItem(rows[i], null, thumbUrls));
+    var cutoutUrls = await signedCutoutUrls(rows[i]);
+    out.push(publicItem(rows[i], null, thumbUrls, cutoutUrls));
   }
   return { statusCode: 200, body: { items: out } };
 }
@@ -317,7 +394,11 @@ async function getItem(user, itemId) {
   }
   var urls = await signedFullUrls(item);
   var thumbUrls = await signedThumbUrls(item);
-  return { statusCode: 200, body: { item: publicItem(item, urls, thumbUrls) } };
+  var cutoutUrls = await signedCutoutUrls(item);
+  return {
+    statusCode: 200,
+    body: { item: publicItem(item, urls, thumbUrls, cutoutUrls) },
+  };
 }
 
 function photoKey(userId, itemId, photoId, contentType) {
@@ -442,6 +523,7 @@ async function updateItem(user, itemId, body) {
     for (var r = 0; r < removed.length; r++) {
       await deleteMediaKey(removed[r].key);
       await deleteMediaKey(removed[r].thumbKey);
+      await deleteMediaKey(removed[r].cutoutKey);
     }
   }
 
@@ -464,7 +546,12 @@ async function updateItem(user, itemId, body) {
   }
 
   var responseBody = {
-    item: publicItem(next, await signedFullUrls(next), await signedThumbUrls(next)),
+    item: publicItem(
+      next,
+      await signedFullUrls(next),
+      await signedThumbUrls(next),
+      await signedCutoutUrls(next)
+    ),
   };
   if (uploads.length) {
     responseBody.uploads = uploads;
@@ -490,8 +577,8 @@ async function confirmPhotos(user, itemId, body) {
     }
     return photo;
   });
-  // UC-20: generate overview thumbnails for newly ready photos.
-  photos = await ensureThumbsForPhotos(photos);
+  // UC-20 thumbs + B2 cutouts for newly ready photos (cutout failure is non-fatal).
+  photos = await ensureDerivativesForPhotos(photos);
   var next = Object.assign({}, existing, {
     photos: photos,
     updatedAt: nowIso(),
@@ -501,12 +588,19 @@ async function confirmPhotos(user, itemId, body) {
   return {
     statusCode: 200,
     body: {
-      item: publicItem(next, await signedFullUrls(next), await signedThumbUrls(next)),
+      item: publicItem(
+        next,
+        await signedFullUrls(next),
+        await signedThumbUrls(next),
+        await signedCutoutUrls(next)
+      ),
     },
   };
 }
 
-async function backfillThumbs(user) {
+async function backfillDerivative(user, kind) {
+  var wantThumb = kind === "thumbs" || kind === "both";
+  var wantCutout = kind === "cutouts" || kind === "both";
   var result = await docClient().send(
     new QueryCommand({
       TableName: tableName(),
@@ -535,22 +629,63 @@ async function backfillThumbs(user) {
         skipped += 1;
         continue;
       }
-      if (photo.thumbKey) {
+
+      var needsThumb = wantThumb && !photo.thumbKey;
+      var needsCutout = wantCutout && !photo.cutoutKey;
+      if (!needsThumb && !needsCutout) {
         nextPhotos.push(photo);
         skipped += 1;
         continue;
       }
-      var withThumb = await ensureThumbForPhoto(photo);
-      if (withThumb.thumbKey && withThumb.thumbKey !== photo.thumbKey) {
+
+      var cached = null;
+      try {
+        cached = await loadPhotoBuffer(photo);
+      } catch (err) {
+        console.error(
+          "photo_load_failed",
+          photo.photoId,
+          err && err.message ? err.message : err
+        );
+        failed += 1;
+        nextPhotos.push(photo);
+        continue;
+      }
+
+      var nextPhoto = photo;
+      var madeProgress = false;
+      var hadFailure = false;
+
+      if (needsThumb) {
+        var withThumb = await ensureThumbForPhoto(nextPhoto, cached);
+        if (withThumb.thumbKey && withThumb.thumbKey !== photo.thumbKey) {
+          nextPhoto = withThumb;
+          madeProgress = true;
+        } else if (!withThumb.thumbKey) {
+          hadFailure = true;
+        }
+      }
+
+      if (needsCutout) {
+        var withCutout = await ensureCutoutForPhoto(nextPhoto, cached);
+        if (withCutout.cutoutKey && withCutout.cutoutKey !== photo.cutoutKey) {
+          nextPhoto = withCutout;
+          madeProgress = true;
+        } else if (!withCutout.cutoutKey) {
+          hadFailure = true;
+        }
+      }
+
+      if (madeProgress) {
         processed += 1;
         changed = true;
-        nextPhotos.push(withThumb);
-      } else if (!withThumb.thumbKey) {
+        nextPhotos.push(nextPhoto);
+      } else if (hadFailure) {
         failed += 1;
         nextPhotos.push(photo);
       } else {
         skipped += 1;
-        nextPhotos.push(withThumb);
+        nextPhotos.push(nextPhoto);
       }
     }
     if (changed) {
@@ -575,6 +710,14 @@ async function backfillThumbs(user) {
   };
 }
 
+async function backfillThumbs(user) {
+  return backfillDerivative(user, "thumbs");
+}
+
+async function backfillCutouts(user) {
+  return backfillDerivative(user, "cutouts");
+}
+
 async function deleteItem(user, itemId) {
   var existing = await getItemRecord(user.sub, itemId);
   if (!existing) {
@@ -584,6 +727,7 @@ async function deleteItem(user, itemId) {
     var photo = existing.photos[i];
     await deleteMediaKey(photo.key);
     await deleteMediaKey(photo.thumbKey);
+    await deleteMediaKey(photo.cutoutKey);
   }
   await docClient().send(
     new DeleteCommand({
@@ -601,9 +745,11 @@ exports.createItem = createItem;
 exports.updateItem = updateItem;
 exports.confirmPhotos = confirmPhotos;
 exports.backfillThumbs = backfillThumbs;
+exports.backfillCutouts = backfillCutouts;
 exports.deleteItem = deleteItem;
 exports.publicItem = publicItem;
 exports.signedFullUrls = signedFullUrls;
 exports.signedThumbUrls = signedThumbUrls;
+exports.signedCutoutUrls = signedCutoutUrls;
 exports.ATTR_KEYS = ATTR_KEYS;
 exports.resetDepsForTests = resetDepsForTests;

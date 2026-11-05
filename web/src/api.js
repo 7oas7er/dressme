@@ -104,6 +104,14 @@ export function backfillThumbs() {
   });
 }
 
+/** B2: one-shot cutout backfill for the signed-in user's existing photos. */
+export function backfillCutouts() {
+  return request("/api/photos/backfill-cutouts", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 /** UC-04: three outfit suggestions from the catalog (random MVP; Bedrock later). */
 export function suggestOutfits({ occasion, weather = "", engine } = {}) {
   const body = { occasion, weather };

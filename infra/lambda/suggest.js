@@ -198,7 +198,8 @@ async function enrichLookItems(records) {
     var record = records[i];
     var urls = await items.signedFullUrls(record);
     var thumbUrls = await items.signedThumbUrls(record);
-    out.push(items.publicItem(record, urls, thumbUrls));
+    var cutoutUrls = await items.signedCutoutUrls(record);
+    out.push(items.publicItem(record, urls, thumbUrls, cutoutUrls));
   }
   return out;
 }

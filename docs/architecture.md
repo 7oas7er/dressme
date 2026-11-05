@@ -24,11 +24,11 @@ Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–07, UC-18–21),
 | Auth | **Cognito** user pool (one user in v1) |
 | API | Lambda (Function URL or HTTP API) behind CloudFront `/api/*` |
 | Items | **DynamoDB** metadata |
-| Photos | Private **S3 media** + presigned uploads; UC-20 ~400px JPEG thumbs (`*.thumb.jpg`) for catalog overview |
+| Photos | Private **S3 media** + presigned uploads; UC-20 ~400px JPEG thumbs (`*.thumb.jpg`); B2/UC-24 transparent cutouts (`*.cutout.webp`) for catalog + suggest hero |
 | Suggest | Lambda → **Bedrock** (`eu-north-1`) with attrs+IDs; validate returned IDs |
 | Collage | **Client-side** CSS compositor (`lookLayout.js` / `lookCard.js`) from signed/CDN photo URLs; Option 4 chrome + Option 1 photo layers |
 
-Catalog (UC-01–03, UC-07, UC-18–21) lands Cognito + DynamoDB + media S3 + `/api/items*` / `/api/photos/backfill-thumbs` and `/api/attribute-options` on the API Lambda, with add/edit form field baselines aligned (UC-21) and client-side attribute filters above the catalog grid (UC-07). Suggest/collage (UC-04–06): `POST /api/suggest` returns three looks; MVP uses **random** role-slot assembly (Bedrock attrs+IDs later via the same route / `SUGGEST_ENGINE`); SPA renders per-look layered heroes + right authenticity strips from signed photo URLs (B1; cutouts B2) with no worn/like/reject recording. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
+Catalog (UC-01–03, UC-07, UC-18–21, UC-24) lands Cognito + DynamoDB + media S3 + `/api/items*` / `/api/photos/backfill-thumbs` / `/api/photos/backfill-cutouts` and `/api/attribute-options` on the API Lambda, with add/edit form field baselines aligned (UC-21) and client-side attribute filters above the catalog grid (UC-07). Suggest/collage (UC-04–06): `POST /api/suggest` returns three looks; MVP uses **random** role-slot assembly (Bedrock attrs+IDs later via the same route / `SUGGEST_ENGINE`); SPA renders per-look layered heroes + right authenticity strips from signed photo URLs (B1 layout; B2 cutouts via lean sharp edge-matte on upload/backfill — not rembg) with no worn/like/reject recording. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
 
 ## What this repo owns
 
