@@ -17,12 +17,27 @@ const SLOT_Z = {
   jacket: 4,
 };
 
-/** Vertical bands as % of the hero frame (design §3.1). */
+/**
+ * Vertical bands as % of the hero frame.
+ * Tuned so shoes + lower trousers stay readable under a frontmost jacket
+ * (design §3.1 with B3 polish — jacket no longer covers ~half the frame).
+ */
 export const SLOT_BANDS = {
-  shoes: { topPct: 78, heightPct: 22 },
-  trousers: { topPct: 42, heightPct: 40 },
-  shirt: { topPct: 18, heightPct: 37 },
-  jacket: { topPct: 8, heightPct: 40 },
+  shoes: { topPct: 70, heightPct: 30 },
+  trousers: { topPct: 36, heightPct: 44 },
+  shirt: { topPct: 10, heightPct: 40 },
+  jacket: { topPct: 2, heightPct: 34 },
+};
+
+/**
+ * Horizontal inset (% of hero width) — silhouette so shoes sit narrower
+ * than jacket/shirt and the stack reads as one body.
+ */
+export const SLOT_INSET = {
+  shoes: { leftPct: 22, rightPct: 22 },
+  trousers: { leftPct: 14, rightPct: 14 },
+  shirt: { leftPct: 12, rightPct: 12 },
+  jacket: { leftPct: 6, rightPct: 6 },
 };
 
 /**
@@ -38,14 +53,27 @@ const SLOT_SYNONYMS = [
       /boot/,
       /loafer/,
       /sneaker/,
+      /trainer/,
       /derby/,
+      /brogue/,
+      /oxford\s*shoe/,
       /monk\s*strap/,
+      /chelsea/,
     ],
   },
   {
     slotId: "trousers",
     roles: ["trousers", "pants", "bottoms"],
-    types: [/trousers/, /pants/, /jean/, /chino/, /short/, /trouser/],
+    types: [
+      /trousers/,
+      /pants/,
+      /jean/,
+      /denim/,
+      /chino/,
+      /short/,
+      /trouser/,
+      /cord/,
+    ],
   },
   {
     slotId: "shirt",
@@ -54,17 +82,29 @@ const SLOT_SYNONYMS = [
       /\bshirt\b/,
       /knit/,
       /sweater/,
+      /jumper/,
+      /hoodie/,
       /polo/,
       /\btee\b/,
       /t-shirt/,
       /blouse/,
-      /oxford/,
+      /\boxford\b/,
     ],
   },
   {
     slotId: "jacket",
     roles: ["outerwear", "jacket", "coat", "layer"],
-    types: [/\bjacket\b/, /\bcoat\b/, /blazer/, /overshirt/, /cardigan/, /suit\s*jacket/],
+    types: [
+      /\bjacket\b/,
+      /\bcoat\b/,
+      /blazer/,
+      /overshirt/,
+      /cardigan/,
+      /suit\s*jacket/,
+      /gilet/,
+      /waistcoat/,
+      /vest/,
+    ],
   },
 ];
 
@@ -138,6 +178,7 @@ function itemLabel(item) {
 
 function makeLayer(item, slotId, { hero }) {
   const band = slotId && SLOT_BANDS[slotId] ? { ...SLOT_BANDS[slotId] } : null;
+  const inset = slotId && SLOT_INSET[slotId] ? { ...SLOT_INSET[slotId] } : null;
   return {
     itemId: String((item && (item.itemId || item.id)) || ""),
     slotId,
@@ -146,6 +187,7 @@ function makeLayer(item, slotId, { hero }) {
     thumbUrl: layerImageUrl(item, { purpose: "strip" }),
     label: itemLabel(item),
     band,
+    inset,
     hero: Boolean(hero),
   };
 }

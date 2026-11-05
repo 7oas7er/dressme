@@ -26,11 +26,14 @@ function el(tag, attrs = {}, children = []) {
 
 function renderHeroLayer(layer) {
   const band = layer.band || { topPct: 30, heightPct: 30 };
+  const inset = layer.inset || { leftPct: 8, rightPct: 8 };
   const node = el("div", {
     className: `look-layer look-layer--${layer.slotId || "other"}`,
     style: [
       `top:${band.topPct}%`,
       `height:${band.heightPct}%`,
+      `left:${inset.leftPct}%`,
+      `right:${inset.rightPct}%`,
       `z-index:${layer.zIndex}`,
     ].join(";"),
     "data-slot": layer.slotId || "",

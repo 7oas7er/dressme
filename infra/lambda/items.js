@@ -281,11 +281,18 @@ async function ensureThumbForPhoto(photo, cachedBuffer) {
   }
 }
 
-async function ensureCutoutForPhoto(photo, cachedBuffer) {
+async function ensureCutoutForPhoto(photo, cachedBuffer, options) {
   if (!photo || photo.status !== "ready" || !photo.key) {
     return photo;
   }
-  if (photo.cutoutKey) {
+  var opts = options || {};
+  var force = Boolean(opts.force);
+  var currentVersion = photo.cutoutVersion || 0;
+  var needs =
+    force ||
+    !photo.cutoutKey ||
+    currentVersion !== cutouts.CUTOUT_VERSION;
+  if (!needs) {
     return photo;
   }
   try {
@@ -300,7 +307,10 @@ async function ensureCutoutForPhoto(photo, cachedBuffer) {
         ContentType: cutouts.CUTOUT_CONTENT_TYPE,
       })
     );
-    return Object.assign({}, photo, { cutoutKey: cutoutKey });
+    return Object.assign({}, photo, {
+      cutoutKey: cutoutKey,
+      cutoutVersion: cutouts.CUTOUT_VERSION,
+    });
   } catch (err) {
     // Never block item save / confirm on matting failure (design §4a).
     console.error(
@@ -312,7 +322,16 @@ async function ensureCutoutForPhoto(photo, cachedBuffer) {
   }
 }
 
-async function ensureDerivativesForPhotos(photos) {
+function photoNeedsCutout(photo, force) {
+  if (!photo || photo.status !== "ready" || !photo.key) return false;
+  if (force) return true;
+  if (!photo.cutoutKey) return true;
+  return (photo.cutoutVersion || 0) !== cutouts.CUTOUT_VERSION;
+}
+
+async function ensureDerivativesForPhotos(photos, options) {
+  var opts = options || {};
+  var forceCutouts = Boolean(opts.forceCutouts);
   var out = [];
   for (var i = 0; i < (photos || []).length; i++) {
     var photo = photos[i];
@@ -321,7 +340,8 @@ async function ensureDerivativesForPhotos(photos) {
       continue;
     }
     var cached = null;
-    if (!photo.thumbKey || !photo.cutoutKey) {
+    var needsCutout = photoNeedsCutout(photo, forceCutouts);
+    if (!photo.thumbKey || needsCutout) {
       try {
         cached = await loadPhotoBuffer(photo);
       } catch (err) {
@@ -335,7 +355,9 @@ async function ensureDerivativesForPhotos(photos) {
       }
     }
     var withThumb = await ensureThumbForPhoto(photo, cached);
-    var withCutout = await ensureCutoutForPhoto(withThumb, cached);
+    var withCutout = await ensureCutoutForPhoto(withThumb, cached, {
+      force: forceCutouts,
+    });
     out.push(withCutout);
   }
   return out;
@@ -598,7 +620,9 @@ async function confirmPhotos(user, itemId, body) {
   };
 }
 
-async function backfillDerivative(user, kind) {
+async function backfillDerivative(user, kind, options) {
+  var opts = options || {};
+  var force = Boolean(opts.force);
   var wantThumb = kind === "thumbs" || kind === "both";
   var wantCutout = kind === "cutouts" || kind === "both";
   var result = await docClient().send(
@@ -631,7 +655,7 @@ async function backfillDerivative(user, kind) {
       }
 
       var needsThumb = wantThumb && !photo.thumbKey;
-      var needsCutout = wantCutout && !photo.cutoutKey;
+      var needsCutout = wantCutout && photoNeedsCutout(photo, force);
       if (!needsThumb && !needsCutout) {
         nextPhotos.push(photo);
         skipped += 1;
@@ -667,12 +691,21 @@ async function backfillDerivative(user, kind) {
       }
 
       if (needsCutout) {
-        var withCutout = await ensureCutoutForPhoto(nextPhoto, cached);
-        if (withCutout.cutoutKey && withCutout.cutoutKey !== photo.cutoutKey) {
+        var prevKey = photo.cutoutKey || null;
+        var prevVersion = photo.cutoutVersion || 0;
+        var withCutout = await ensureCutoutForPhoto(nextPhoto, cached, {
+          force: force || prevVersion !== cutouts.CUTOUT_VERSION,
+        });
+        if (!withCutout.cutoutKey) {
+          hadFailure = true;
+        } else if (
+          force ||
+          withCutout.cutoutKey !== prevKey ||
+          (withCutout.cutoutVersion || 0) !== prevVersion
+        ) {
+          // Force regenerates in place (same key); still count as processed.
           nextPhoto = withCutout;
           madeProgress = true;
-        } else if (!withCutout.cutoutKey) {
-          hadFailure = true;
         }
       }
 
@@ -706,6 +739,7 @@ async function backfillDerivative(user, kind) {
       skipped: skipped,
       failed: failed,
       updatedItems: updatedItems,
+      cutoutVersion: cutouts.CUTOUT_VERSION,
     },
   };
 }
@@ -714,8 +748,9 @@ async function backfillThumbs(user) {
   return backfillDerivative(user, "thumbs");
 }
 
-async function backfillCutouts(user) {
-  return backfillDerivative(user, "cutouts");
+async function backfillCutouts(user, body) {
+  var force = Boolean(body && (body.force || body.upgrade));
+  return backfillDerivative(user, "cutouts", { force: force });
 }
 
 async function deleteItem(user, itemId) {

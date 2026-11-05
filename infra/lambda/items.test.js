@@ -380,8 +380,21 @@ test("confirm and backfill generate cutouts for ready photos", async function ()
     },
     body: JSON.stringify({}),
   });
-  assert.equal(JSON.parse(again.body).processed, 0);
+  var againBody = JSON.parse(again.body);
+  assert.equal(againBody.processed, 0);
+  assert.equal(againBody.cutoutVersion, require("./cutouts").CUTOUT_VERSION);
   assert.ok(photoId);
+
+  // Force regenerates in place (same key) and counts as processed.
+  var forced = await api.handler({
+    rawPath: "/api/photos/backfill-cutouts",
+    requestContext: {
+      http: { method: "POST", path: "/api/photos/backfill-cutouts" },
+    },
+    body: JSON.stringify({ force: true }),
+  });
+  assert.equal(forced.statusCode, 200);
+  assert.equal(JSON.parse(forced.body).processed, 1);
 });
 
 test("cutout failure does not block photos/complete", async function () {

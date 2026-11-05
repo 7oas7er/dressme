@@ -6,6 +6,7 @@ import {
   layerImageUrl,
   HERO_SLOT_ORDER,
   STRIP_SLOT_ORDER,
+  SLOT_BANDS,
 } from "../../web/src/lookLayout.js";
 import { renderLookCard } from "../../web/src/lookCard.js";
 
@@ -103,8 +104,26 @@ test("itemToSlot prefers outfitRole synonyms then type", () => {
   assert.equal(itemToSlot({ outfitRole: "footwear", type: "derby" }), "shoes");
   assert.equal(itemToSlot({ outfitRole: "bottoms", type: "chinos" }), "trousers");
   assert.equal(itemToSlot({ outfitRole: "", type: "sneakers" }), "shoes");
+  assert.equal(itemToSlot({ outfitRole: "", type: "trainers" }), "shoes");
+  assert.equal(itemToSlot({ outfitRole: "", type: "denim" }), "trousers");
   assert.equal(itemToSlot({ outfitRole: "", type: "overshirt" }), "jacket");
+  assert.equal(itemToSlot({ outfitRole: "", type: "waistcoat" }), "jacket");
   assert.equal(itemToSlot({ outfitRole: "misc", type: "watch" }), null);
+});
+
+test("hero bands leave shoes and lower trousers below jacket", () => {
+  const jacketBottom = SLOT_BANDS.jacket.topPct + SLOT_BANDS.jacket.heightPct;
+  const shoesTop = SLOT_BANDS.shoes.topPct;
+  const trousersBottom =
+    SLOT_BANDS.trousers.topPct + SLOT_BANDS.trousers.heightPct;
+  assert.ok(
+    jacketBottom < shoesTop,
+    "jacket must not cover the shoe band"
+  );
+  assert.ok(
+    trousersBottom > jacketBottom,
+    "trousers must peek below the jacket band"
+  );
 });
 
 test("layerImageUrl: hero prefers cutout → full → thumb; strip uses thumb", () => {

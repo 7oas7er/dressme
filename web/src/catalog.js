@@ -212,25 +212,53 @@ export function renderCatalogApp(root, { onLogout }) {
   }
 
   let cutoutBackfillStarted = false;
+  /** Must match infra/lambda/cutouts.js CUTOUT_VERSION after each matte bump. */
+  const CUTOUT_ALGO_CLIENT = 2;
+  const CUTOUT_ALGO_STORAGE_KEY = "dressme.cutoutAlgo";
 
   async function maybeBackfillCutouts() {
     if (cutoutBackfillStarted) return;
-    const needs = (state.items || []).some((item) =>
+    const needsMissing = (state.items || []).some((item) =>
       (item.photos || []).some(
         (photo) => photo && photo.status === "ready" && !photo.cutoutUrl
       )
     );
-    if (!needs) return;
+    let storedAlgo = null;
+    try {
+      storedAlgo = localStorage.getItem(CUTOUT_ALGO_STORAGE_KEY);
+    } catch {
+      storedAlgo = null;
+    }
+    const needsUpgrade = storedAlgo !== String(CUTOUT_ALGO_CLIENT);
+    if (!needsMissing && !needsUpgrade) return;
     cutoutBackfillStarted = true;
     try {
-      state.status = "Generating cutouts for existing photos…";
+      state.status = needsUpgrade
+        ? "Refreshing cutouts…"
+        : "Generating cutouts for existing photos…";
       paint();
-      const result = await api.backfillCutouts();
+      const result = await api.backfillCutouts({
+        force: needsUpgrade,
+        upgrade: needsUpgrade,
+      });
       const processed = (result && result.processed) || 0;
+      const serverVersion = (result && result.cutoutVersion) || 0;
       if (processed > 0) {
         const data = await api.listItems(state.query);
         state.items = data.items || [];
         pruneStaleFilters();
+      }
+      // Only pin the client algo marker once the deployed Lambda speaks this version
+      // (avoids marking "done" before stg terraform apply ships CUTOUT_VERSION).
+      if (serverVersion === CUTOUT_ALGO_CLIENT) {
+        try {
+          localStorage.setItem(
+            CUTOUT_ALGO_STORAGE_KEY,
+            String(CUTOUT_ALGO_CLIENT)
+          );
+        } catch {
+          /* ignore quota / private mode */
+        }
       }
       updateStatusFromItems();
       if (processed > 0) {
