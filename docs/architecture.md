@@ -16,7 +16,7 @@ Full platform write-up: [platform docs/architecture.md](https://github.com/7oas7
 
 ## v1 contract (Option A — planned)
 
-Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–07, UC-18–21), single user, Bedrock **attributes + item IDs only**, client-side flat-lay collage.
+Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–07, UC-18–21), single user, Bedrock **attributes + item IDs only**, client-side layered collage (hero + authenticity strip; cutouts later).
 
 | Layer | Choice |
 |-------|--------|
@@ -26,9 +26,9 @@ Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–07, UC-18–21),
 | Items | **DynamoDB** metadata |
 | Photos | Private **S3 media** + presigned uploads; UC-20 ~400px JPEG thumbs (`*.thumb.jpg`) for catalog overview |
 | Suggest | Lambda → **Bedrock** (`eu-north-1`) with attrs+IDs; validate returned IDs |
-| Collage | **Client-side** from signed/CDN photo URLs |
+| Collage | **Client-side** CSS compositor (`lookLayout.js` / `lookCard.js`) from signed/CDN photo URLs; Option 4 chrome + Option 1 photo layers |
 
-Catalog (UC-01–03, UC-07, UC-18–21) lands Cognito + DynamoDB + media S3 + `/api/items*` / `/api/photos/backfill-thumbs` and `/api/attribute-options` on the API Lambda, with add/edit form field baselines aligned (UC-21) and client-side attribute filters above the catalog grid (UC-07). Suggest/collage (UC-04–06): `POST /api/suggest` returns three looks; MVP uses **random** role-slot assembly (Bedrock attrs+IDs later via the same route / `SUGGEST_ENGINE`); SPA renders flat-lay collages from signed photo URLs with no worn/like/reject recording. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
+Catalog (UC-01–03, UC-07, UC-18–21) lands Cognito + DynamoDB + media S3 + `/api/items*` / `/api/photos/backfill-thumbs` and `/api/attribute-options` on the API Lambda, with add/edit form field baselines aligned (UC-21) and client-side attribute filters above the catalog grid (UC-07). Suggest/collage (UC-04–06): `POST /api/suggest` returns three looks; MVP uses **random** role-slot assembly (Bedrock attrs+IDs later via the same route / `SUGGEST_ENGINE`); SPA renders per-look layered heroes + right authenticity strips from signed photo URLs (B1; cutouts B2) with no worn/like/reject recording. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
 
 ## What this repo owns
 

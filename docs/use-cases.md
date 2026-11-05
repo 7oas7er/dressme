@@ -41,8 +41,8 @@ As Frank, above the catalog grid I can filter items by attribute categories that
 ### UC-04 — Request outfit suggestions
 As Frank, before getting dressed, I enter a free-text occasion and (when relevant) manual weather, then receive exactly three outfit suggestions drawn only from my catalog, informed by classic menswear knowledge.
 
-### UC-05 — View a look as a flat-lay collage
-As Frank, for each of the three suggestions I see a collage/flat-lay of the actual item photos so I can judge the look visually.
+### UC-05 — View a look as a layered collage
+As Frank, for each of the three suggestions I see one outfit card: a layered hero (shoes→jacket bands) of the actual item photos plus a right-hand authenticity strip of original thumbs, so I can judge the look as a whole and still verify each piece.
 
 ### UC-06 — Pick among three looks (no in-app feedback)
 As Frank, I choose which look to wear mentally / offline; the app does not record worn, like, or reject in v1.
