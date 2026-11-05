@@ -23,6 +23,43 @@ const ATTR_FIELDS = [
   { key: "outfitRole", label: "Outfit role", placeholder: "outerwear, base…" },
 ];
 
+/** Unique non-empty attribute values present in the wardrobe (UC-07). */
+export function collectAttributeFilterValues(items) {
+  const out = {};
+  for (const field of ATTR_FIELDS) {
+    const seen = new Set();
+    for (const item of items || []) {
+      const value = String(item[field.key] || "").trim();
+      if (value) seen.add(value);
+    }
+    out[field.key] = Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }
+  return out;
+}
+
+/** AND across selected attribute categories (UC-07). Empty selection = any. */
+export function applyAttributeFilters(items, filters) {
+  const active = filters || {};
+  return (items || []).filter((item) => {
+    for (const field of ATTR_FIELDS) {
+      const selected = String(active[field.key] || "").trim();
+      if (!selected) continue;
+      if (String(item[field.key] || "").trim() !== selected) return false;
+    }
+    return true;
+  });
+}
+
+function filtersActive(filters) {
+  return ATTR_FIELDS.some((field) => String((filters || {})[field.key] || "").trim());
+}
+
+function emptyFilters() {
+  const next = {};
+  for (const field of ATTR_FIELDS) next[field.key] = "";
+  return next;
+}
+
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
@@ -51,6 +88,7 @@ export function renderCatalogApp(root, { onLogout }) {
   const state = {
     items: [],
     query: "",
+    filters: emptyFilters(),
     view: "list", // list | form | detail
     editing: null,
     status: "",
@@ -69,6 +107,37 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
+  function pruneStaleFilters() {
+    const options = collectAttributeFilterValues(state.items);
+    for (const field of ATTR_FIELDS) {
+      const selected = String(state.filters[field.key] || "").trim();
+      if (selected && !(options[field.key] || []).includes(selected)) {
+        state.filters[field.key] = "";
+      }
+    }
+  }
+
+  function visibleItems() {
+    return applyAttributeFilters(state.items, state.filters);
+  }
+
+  function updateStatusFromItems() {
+    const total = state.items.length;
+    if (!total) {
+      state.status = "No items yet — add your first piece.";
+      return;
+    }
+    const visible = visibleItems();
+    if (filtersActive(state.filters)) {
+      state.status =
+        visible.length === 0
+          ? "No items match these filters."
+          : `${visible.length} of ${total} item${total === 1 ? "" : "s"}`;
+      return;
+    }
+    state.status = `${total} item${total === 1 ? "" : "s"}`;
+  }
+
   async function refresh() {
     state.busy = true;
     state.error = "";
@@ -76,15 +145,20 @@ export function renderCatalogApp(root, { onLogout }) {
     try {
       const data = await api.listItems(state.query);
       state.items = data.items || [];
-      state.status = state.items.length
-        ? `${state.items.length} item${state.items.length === 1 ? "" : "s"}`
-        : "No items yet — add your first piece.";
+      pruneStaleFilters();
+      updateStatusFromItems();
     } catch (err) {
       state.error = err.message || "Could not load catalog.";
     } finally {
       state.busy = false;
       paint();
     }
+  }
+
+  function clearFilters() {
+    state.filters = emptyFilters();
+    updateStatusFromItems();
+    paint();
   }
 
   async function openCreate() {
@@ -284,6 +358,58 @@ export function renderCatalogApp(root, { onLogout }) {
     root.append(shell);
   }
 
+  function renderFilters() {
+    const options = collectAttributeFilterValues(state.items);
+    const bar = el("div", {
+      className: "filter-bar",
+      role: "group",
+      "aria-label": "Filter catalog by attributes",
+    });
+    const grid = el("div", { className: "filter-grid" });
+    for (const field of ATTR_FIELDS) {
+      const values = options[field.key] || [];
+      const select = el("select", {
+        name: `filter-${field.key}`,
+        "aria-label": `Filter by ${field.label}`,
+        disabled: state.busy || !state.items.length ? "disabled" : null,
+        onChange: (event) => {
+          state.filters[field.key] = event.target.value;
+          updateStatusFromItems();
+          paint();
+        },
+      });
+      select.append(
+        el("option", {
+          value: "",
+          text: `Any ${field.label.toLowerCase()}`,
+        })
+      );
+      for (const value of values) {
+        select.append(el("option", { value, text: value }));
+      }
+      select.value = state.filters[field.key] || "";
+      grid.append(
+        el("label", { className: "filter-field" }, [
+          el("span", { className: "field-title", text: field.label }),
+          select,
+        ])
+      );
+    }
+    bar.append(grid);
+    const actions = el("div", { className: "row filter-actions" }, [
+      el("button", {
+        type: "button",
+        className: "secondary",
+        text: "Clear filters",
+        disabled:
+          state.busy || !filtersActive(state.filters) ? "disabled" : null,
+        onClick: clearFilters,
+      }),
+    ]);
+    bar.append(actions);
+    return bar;
+  }
+
   function renderList() {
     const panel = el("section", { className: "panel stack" });
     const searchRow = el("div", { className: "row" }, [
@@ -309,7 +435,9 @@ export function renderCatalogApp(root, { onLogout }) {
       }),
     ]);
     panel.append(searchRow);
+    panel.append(renderFilters());
 
+    const visible = visibleItems();
     const grid = el("div", { className: "catalog-grid" });
     if (!state.items.length) {
       grid.append(
@@ -318,8 +446,15 @@ export function renderCatalogApp(root, { onLogout }) {
           text: "Your catalog is empty. Capture a piece with photos and attributes.",
         })
       );
+    } else if (!visible.length) {
+      grid.append(
+        el("p", {
+          className: "muted",
+          text: "No items match these filters. Clear filters to see everything again.",
+        })
+      );
     } else {
-      for (const item of state.items) {
+      for (const item of visible) {
         const url = thumbUrl(item);
         const card = el(
           "button",

@@ -64,3 +64,17 @@ test("add/edit form keeps Brand/model on shared row baseline (UC-21)", () => {
   assert.match(styles, /\.form-grid\s*>\s*label\s*\{[^}]*align-content:\s*start/s);
   assert.match(useCases, /UC-21 — Brand\/model field alignment/);
 });
+
+test("catalog list exposes attribute filters above the grid (UC-07)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(catalog, /collectAttributeFilterValues/);
+  assert.match(catalog, /applyAttributeFilters/);
+  assert.match(catalog, /Clear filters/);
+  assert.match(catalog, /Filter catalog by attributes/);
+  assert.match(catalog, /renderFilters/);
+  assert.match(styles, /\.filter-bar/);
+  assert.match(styles, /\.filter-grid/);
+  assert.match(useCases, /UC-07 — Filter the catalog by attributes/);
+});
