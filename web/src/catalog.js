@@ -213,7 +213,7 @@ export function renderCatalogApp(root, { onLogout }) {
 
   let cutoutBackfillStarted = false;
   /** Must match infra/lambda/cutouts.js CUTOUT_VERSION after each matte bump. */
-  const CUTOUT_ALGO_CLIENT = 2;
+  const CUTOUT_ALGO_CLIENT = 3;
   const CUTOUT_ALGO_STORAGE_KEY = "dressme.cutoutAlgo";
 
   async function maybeBackfillCutouts() {

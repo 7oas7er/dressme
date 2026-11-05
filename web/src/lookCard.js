@@ -3,7 +3,7 @@
  * Display-only strip/hero taps in B1.
  */
 
-import { buildLookVisual } from "./lookLayout.js";
+import { buildLookVisual, SLOT_COMPOSITE } from "./lookLayout.js";
 import { lookHeadline, lookSummary } from "./suggest.js";
 
 function el(tag, attrs = {}, children = []) {
@@ -27,15 +27,21 @@ function el(tag, attrs = {}, children = []) {
 function renderHeroLayer(layer) {
   const band = layer.band || { topPct: 30, heightPct: 30 };
   const inset = layer.inset || { leftPct: 8, rightPct: 8 };
+  const composite =
+    (layer.slotId && SLOT_COMPOSITE[layer.slotId]) || null;
+  const styleParts = [
+    `top:${band.topPct}%`,
+    `height:${band.heightPct}%`,
+    `left:${inset.leftPct}%`,
+    `right:${inset.rightPct}%`,
+    `z-index:${layer.zIndex}`,
+  ];
+  if (composite && composite.opacity != null) {
+    styleParts.push(`opacity:${composite.opacity}`);
+  }
   const node = el("div", {
     className: `look-layer look-layer--${layer.slotId || "other"}`,
-    style: [
-      `top:${band.topPct}%`,
-      `height:${band.heightPct}%`,
-      `left:${inset.leftPct}%`,
-      `right:${inset.rightPct}%`,
-      `z-index:${layer.zIndex}`,
-    ].join(";"),
+    style: styleParts.join(";"),
     "data-slot": layer.slotId || "",
     "data-item-id": layer.itemId || "",
   });

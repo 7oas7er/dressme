@@ -18,7 +18,7 @@ Routes (CloudFront `/api/*` → Function URL):
 
 Photo upload flow: `POST /api/items` (or update with `addPhotos`) returns presigned PUT URLs; client uploads directly to the media bucket; then `photos/complete`.
 
-On `photos/complete`, the API downloads each newly ready object, writes a ~400px-wide JPEG thumbnail next to it (`*.thumb.jpg`), and a transparent WebP cutout (`*.cutout.webp`) via a lean sharp edge-matte (corner-biased bg seed, hysteresis flood-fill, content crop — **not** rembg/ML, free-tier friendly). Stores `thumbKey` / `cutoutKey` / `cutoutVersion` on the photo metadata. Cutout failure is non-fatal (save still succeeds). `GET /api/items` signs **thumb** + **cutout** URLs for overview cards; `GET /api/items/{id}` still signs full-resolution URLs (plus `thumbUrl` / `cutoutUrl`).
+On `photos/complete`, the API downloads each newly ready object, writes a ~400px-wide JPEG thumbnail next to it (`*.thumb.jpg`), and a transparent WebP cutout (`*.cutout.webp`) via a lean sharp edge-matte (**v3**: multi-prototype border bg, shadow-tolerant flood, edge-aware stop, largest-component keep, content crop — **not** rembg/ML/ONNX, free-tier friendly). Stores `thumbKey` / `cutoutKey` / `cutoutVersion` on the photo metadata. Cutout failure is non-fatal (save still succeeds). `GET /api/items` signs **thumb** + **cutout** URLs for overview cards; `GET /api/items/{id}` still signs full-resolution URLs (plus `thumbUrl` / `cutoutUrl`).
 
 Update (`PUT /api/items/{id}`) may include `removePhotoIds: string[]` to drop specific photos (deletes the S3 object and its thumb/cutout when keyed, updates the DynamoDB photo list). Removals run before `addPhotos` so one request can replace photos.
 

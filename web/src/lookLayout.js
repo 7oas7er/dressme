@@ -21,12 +21,21 @@ const SLOT_Z = {
  * Vertical bands as % of the hero frame.
  * Tuned so shoes + lower trousers stay readable under a frontmost jacket
  * (design §3.1 with B3 polish — jacket no longer covers ~half the frame).
+ * v3 stopgap: shorter jacket band so multi-slot looks read even with imperfect mattes.
  */
 export const SLOT_BANDS = {
   shoes: { topPct: 70, heightPct: 30 },
   trousers: { topPct: 36, heightPct: 44 },
-  shirt: { topPct: 10, heightPct: 40 },
-  jacket: { topPct: 2, heightPct: 34 },
+  shirt: { topPct: 10, heightPct: 42 },
+  jacket: { topPct: 2, heightPct: 28 },
+};
+
+/**
+ * Per-slot compositor hints (opacity / blend) — jacket softstop while mattes improve.
+ * Option 4 chrome unchanged (hero left, authenticity strip right).
+ */
+export const SLOT_COMPOSITE = {
+  jacket: { opacity: 0.72 },
 };
 
 /**

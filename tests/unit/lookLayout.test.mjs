@@ -7,6 +7,7 @@ import {
   HERO_SLOT_ORDER,
   STRIP_SLOT_ORDER,
   SLOT_BANDS,
+  SLOT_COMPOSITE,
 } from "../../web/src/lookLayout.js";
 import { renderLookCard } from "../../web/src/lookCard.js";
 
@@ -124,6 +125,14 @@ test("hero bands leave shoes and lower trousers below jacket", () => {
     trousersBottom > jacketBottom,
     "trousers must peek below the jacket band"
   );
+  assert.ok(
+    SLOT_BANDS.jacket.heightPct <= 30,
+    "jacket band stay short so multi-slot looks read under imperfect mattes"
+  );
+  assert.ok(
+    SLOT_COMPOSITE.jacket && SLOT_COMPOSITE.jacket.opacity < 1,
+    "jacket softstop opacity < 1"
+  );
 });
 
 test("layerImageUrl: hero prefers cutout → full → thumb; strip uses thumb", () => {
@@ -209,5 +218,14 @@ test("renderLookCard DOM has hero + right strip structure", () => {
   const body = card.querySelector(".look-body");
   assert.equal(body.children[0].className, "look-hero");
   assert.equal(body.children[1].className, "look-strip");
+  const jacket = card.querySelectorAll(".look-layer").find(
+    (n) => (n.className || "").includes("look-layer--jacket")
+  );
+  assert.ok(jacket);
+  assert.match(
+    jacket.attributes.style || "",
+    /opacity:0\.72/,
+    "jacket softstop opacity applied inline"
+  );
   delete globalThis.document;
 });

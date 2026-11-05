@@ -538,6 +538,28 @@ label {
   object-position: center bottom;
 }
 
+/*
+ * Jacket softstop (cutout v3 companion): fade the frontmost plate at the hem
+ * so shirt/trousers stay readable when wardrobe mattes are still imperfect.
+ * Opacity also set inline from SLOT_COMPOSITE; mask is CSS-only.
+ */
+.look-layer--jacket {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 42%,
+    rgba(0, 0, 0, 0.65) 68%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 42%,
+    rgba(0, 0, 0, 0.65) 68%,
+    transparent 100%
+  );
+}
+
 .look-layer-empty {
   width: 70%;
   height: 70%;
