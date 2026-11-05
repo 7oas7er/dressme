@@ -1,9 +1,10 @@
 /**
- * UC-04–06 suggest UX helpers: collage photo pick + look rendering pieces.
+ * UC-04–06 suggest UX helpers: look headlines/summaries.
+ * Layered hero + authenticity strip live in lookLayout.js / lookCard.js.
  * No worn/like/reject recording in v1 (UC-06).
  */
 
-/** Prefer full-res for collage detail; fall back to overview thumb. */
+/** Prefer full-res for hero detail; fall back to overview thumb (legacy helper). */
 export function collagePhotoUrl(item) {
   const photo = (item.photos || []).find((p) => p.url || p.thumbUrl);
   if (!photo) return "";

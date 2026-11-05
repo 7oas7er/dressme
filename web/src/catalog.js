@@ -1,5 +1,5 @@
 import * as api from "./api.js";
-import { collagePhotoUrl, lookHeadline, lookSummary } from "./suggest.js";
+import { renderLookCard } from "./lookCard.js";
 
 /** Fields that use suggested values + free text (UC-19), including brand/model. */
 const SUGGESTION_KEYS = new Set([
@@ -809,56 +809,6 @@ export function renderCatalogApp(root, { onLogout }) {
     return panel;
   }
 
-  function renderLookCollage(look, index) {
-    const lookEl = el("article", {
-      className: "look-card",
-      "aria-label": lookHeadline(look, index),
-    });
-    lookEl.append(el("h2", { text: lookHeadline(look, index) }));
-    lookEl.append(
-      el("p", { className: "muted look-summary", text: lookSummary(look) })
-    );
-
-    const collage = el("div", {
-      className: "look-collage",
-      role: "group",
-      "aria-label": `${lookHeadline(look, index)} flat-lay`,
-    });
-    const pieces = look.items || [];
-    if (!pieces.length) {
-      collage.append(
-        el("p", {
-          className: "muted",
-          text: "Add more catalog pieces with outfit roles to fill this look.",
-        })
-      );
-    } else {
-      for (const item of pieces) {
-        const url = collagePhotoUrl(item);
-        const tile = el("figure", { className: "collage-tile" });
-        if (url) {
-          tile.append(
-            el("img", {
-              src: url,
-              alt: `${item.color || ""} ${item.type || "item"}`.trim(),
-              loading: "lazy",
-            })
-          );
-        } else {
-          tile.append(el("div", { className: "thumb", text: "No photo" }));
-        }
-        tile.append(
-          el("figcaption", {
-            text: `${item.type || "item"}${item.outfitRole ? ` · ${item.outfitRole}` : ""}`,
-          })
-        );
-        collage.append(tile);
-      }
-    }
-    lookEl.append(collage);
-    return lookEl;
-  }
-
   function renderSuggest() {
     const panel = el("section", { className: "panel stack suggest-panel" }, [
       el("h1", { text: "Suggest outfits" }),
@@ -932,7 +882,7 @@ export function renderCatalogApp(root, { onLogout }) {
         );
       }
       state.suggest.looks.forEach((look, index) => {
-        results.append(renderLookCollage(look, index));
+        results.append(renderLookCard(look, index));
       });
       panel.append(results);
     } else if (!state.items.length) {
