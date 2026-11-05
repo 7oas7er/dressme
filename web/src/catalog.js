@@ -1,10 +1,11 @@
 import * as api from "./api.js";
 
-/** Fields that use suggested values + free text (UC-19). brandModel stays plain text. */
+/** Fields that use suggested values + free text (UC-19), including brand/model. */
 const SUGGESTION_KEYS = new Set([
   "type",
   "color",
   "fabric",
+  "brandModel",
   "formality",
   "pattern",
   "season",
@@ -15,7 +16,7 @@ const ATTR_FIELDS = [
   { key: "type", label: "Type", placeholder: "jacket, shirt, shoes…" },
   { key: "color", label: "Color", placeholder: "navy" },
   { key: "fabric", label: "Fabric", placeholder: "wool" },
-  { key: "brandModel", label: "Brand / model", placeholder: "optional detail" },
+  { key: "brandModel", label: "Brand / model", placeholder: "maker or model" },
   { key: "formality", label: "Formality", placeholder: "business, casual…" },
   { key: "pattern", label: "Pattern", placeholder: "solid, stripe…" },
   { key: "season", label: "Season / climate", placeholder: "all-season" },
