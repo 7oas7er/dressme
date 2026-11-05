@@ -28,7 +28,7 @@ Frozen product/tech inputs: wardrobe catalog + suggest (UC-01–07, UC-18–21),
 | Suggest | Lambda → **Bedrock** (`eu-north-1`) with attrs+IDs; validate returned IDs |
 | Collage | **Client-side** from signed/CDN photo URLs |
 
-Catalog (UC-01–03, UC-18–21) lands Cognito + DynamoDB + media S3 + `/api/items*` / `/api/photos/backfill-thumbs` and `/api/attribute-options` on the API Lambda, with add/edit form field baselines aligned (UC-21); UC-07 filters + suggest/collage (UC-04–06) remain follow-up. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
+Catalog (UC-01–03, UC-07, UC-18–21) lands Cognito + DynamoDB + media S3 + `/api/items*` / `/api/photos/backfill-thumbs` and `/api/attribute-options` on the API Lambda, with add/edit form field baselines aligned (UC-21) and client-side attribute filters above the catalog grid (UC-07); suggest/collage (UC-04–06) remain follow-up. Domains: `dressme.7oas7er.com` / `dressme-stg.7oas7er.com`.
 
 ## What this repo owns
 
