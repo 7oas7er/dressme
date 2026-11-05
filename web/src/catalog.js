@@ -1,4 +1,5 @@
 import * as api from "./api.js";
+import { collagePhotoUrl, lookHeadline, lookSummary } from "./suggest.js";
 
 /** Fields that use suggested values + free text (UC-19), including brand/model. */
 const SUGGESTION_KEYS = new Set([
@@ -154,12 +155,19 @@ export function renderCatalogApp(root, { onLogout }) {
     items: [],
     query: "",
     filters: emptyFilters(),
-    view: "list", // list | form | detail
+    view: "list", // list | form | detail | suggest
     editing: null,
     status: "",
     error: "",
     busy: false,
     attributeOptions: {},
+    suggest: {
+      occasion: "",
+      weather: "",
+      looks: null,
+      engine: "",
+      suggestionId: "",
+    },
   };
 
   async function loadAttributeOptions() {
@@ -285,7 +293,47 @@ export function renderCatalogApp(root, { onLogout }) {
     state.view = "list";
     state.editing = null;
     state.error = "";
+    updateStatusFromItems();
     paint();
+  }
+
+  function openSuggest() {
+    state.view = "suggest";
+    state.editing = null;
+    state.error = "";
+    state.status =
+      "Enter an occasion (and optional weather). You’ll get three looks from your catalog.";
+    paint();
+  }
+
+  async function runSuggest(form) {
+    const occasion = String(form.elements.occasion.value || "").trim();
+    const weather = String(form.elements.weather.value || "").trim();
+    if (!occasion) {
+      state.error = "Occasion is required.";
+      paint();
+      return;
+    }
+    state.suggest.occasion = occasion;
+    state.suggest.weather = weather;
+    state.busy = true;
+    state.error = "";
+    state.status = "Assembling three looks…";
+    paint();
+    try {
+      const data = await api.suggestOutfits({ occasion, weather });
+      state.suggest.looks = data.looks || [];
+      state.suggest.engine = data.engine || "random";
+      state.suggest.suggestionId = data.suggestionId || "";
+      state.status =
+        "Three looks — pick one mentally. Nothing is recorded in the app.";
+    } catch (err) {
+      state.error = err.message || "Could not suggest outfits.";
+      state.suggest.looks = null;
+    } finally {
+      state.busy = false;
+      paint();
+    }
   }
 
   async function saveItem(form) {
@@ -379,27 +427,54 @@ export function renderCatalogApp(root, { onLogout }) {
     root.replaceChildren();
     const shell = el("main", { className: "shell stack" });
 
-    const top = el("div", { className: "topbar" }, [
-      el("div", {}, [
-        el("p", { className: "brand", text: "DressMe" }),
-        el("p", { className: "muted", text: "Wardrobe catalog" }),
-      ]),
-      el("div", { className: "topbar-actions" }, [
-        state.view === "list"
-          ? el("button", { type: "button", text: "Add item", onClick: openCreate })
-          : el("button", {
-              type: "button",
-              className: "secondary",
-              text: "Back",
-              onClick: backToList,
-            }),
+    const topActions = [];
+    if (state.view === "list") {
+      topActions.push(
+        el("button", {
+          type: "button",
+          text: "Suggest outfits",
+          onClick: openSuggest,
+        })
+      );
+      topActions.push(
         el("button", {
           type: "button",
           className: "secondary",
-          text: "Sign out",
-          onClick: onLogout,
+          text: "Add item",
+          onClick: openCreate,
+        })
+      );
+    } else {
+      topActions.push(
+        el("button", {
+          type: "button",
+          className: "secondary",
+          text: "Back to catalog",
+          onClick: backToList,
+        })
+      );
+    }
+    topActions.push(
+      el("button", {
+        type: "button",
+        className: "secondary",
+        text: "Sign out",
+        onClick: onLogout,
+      })
+    );
+
+    const top = el("div", { className: "topbar" }, [
+      el("div", {}, [
+        el("p", { className: "brand", text: "DressMe" }),
+        el("p", {
+          className: "muted",
+          text:
+            state.view === "suggest"
+              ? "Dress me — three looks"
+              : "Wardrobe catalog",
         }),
       ]),
+      el("div", { className: "topbar-actions" }, topActions),
     ]);
     shell.append(top);
 
@@ -415,6 +490,8 @@ export function renderCatalogApp(root, { onLogout }) {
       shell.append(renderForm());
     } else if (state.view === "detail" && state.editing) {
       shell.append(renderDetail(state.editing));
+    } else if (state.view === "suggest") {
+      shell.append(renderSuggest());
     }
 
     shell.append(
@@ -729,6 +806,144 @@ export function renderCatalogApp(root, { onLogout }) {
         }),
       ])
     );
+    return panel;
+  }
+
+  function renderLookCollage(look, index) {
+    const lookEl = el("article", {
+      className: "look-card",
+      "aria-label": lookHeadline(look, index),
+    });
+    lookEl.append(el("h2", { text: lookHeadline(look, index) }));
+    lookEl.append(
+      el("p", { className: "muted look-summary", text: lookSummary(look) })
+    );
+
+    const collage = el("div", {
+      className: "look-collage",
+      role: "group",
+      "aria-label": `${lookHeadline(look, index)} flat-lay`,
+    });
+    const pieces = look.items || [];
+    if (!pieces.length) {
+      collage.append(
+        el("p", {
+          className: "muted",
+          text: "Add more catalog pieces with outfit roles to fill this look.",
+        })
+      );
+    } else {
+      for (const item of pieces) {
+        const url = collagePhotoUrl(item);
+        const tile = el("figure", { className: "collage-tile" });
+        if (url) {
+          tile.append(
+            el("img", {
+              src: url,
+              alt: `${item.color || ""} ${item.type || "item"}`.trim(),
+              loading: "lazy",
+            })
+          );
+        } else {
+          tile.append(el("div", { className: "thumb", text: "No photo" }));
+        }
+        tile.append(
+          el("figcaption", {
+            text: `${item.type || "item"}${item.outfitRole ? ` · ${item.outfitRole}` : ""}`,
+          })
+        );
+        collage.append(tile);
+      }
+    }
+    lookEl.append(collage);
+    return lookEl;
+  }
+
+  function renderSuggest() {
+    const panel = el("section", { className: "panel stack suggest-panel" }, [
+      el("h1", { text: "Suggest outfits" }),
+      el("p", {
+        className: "lede",
+        text: "Occasion plus optional weather → exactly three looks from your wardrobe. Pick offline; the app does not record worn, like, or reject.",
+      }),
+    ]);
+
+    const form = el("form", {
+      className: "stack suggest-form",
+      onSubmit: (event) => {
+        event.preventDefault();
+        runSuggest(event.target);
+      },
+    });
+    form.append(
+      el("label", {}, [
+        el("span", { className: "field-title", text: "Occasion" }),
+        el("input", {
+          name: "occasion",
+          required: "required",
+          maxlength: "240",
+          placeholder: "e.g. client lunch, weekend market, evening drinks",
+          value: state.suggest.occasion || "",
+          autocomplete: "off",
+        }),
+      ])
+    );
+    form.append(
+      el("label", {}, [
+        el("span", { className: "field-title", text: "Weather (optional)" }),
+        el("input", {
+          name: "weather",
+          maxlength: "240",
+          placeholder: "e.g. cool and dry, warm evening",
+          value: state.suggest.weather || "",
+          autocomplete: "off",
+        }),
+      ])
+    );
+    form.append(
+      el("div", { className: "row" }, [
+        el("button", {
+          type: "submit",
+          text: state.busy
+            ? "Working…"
+            : state.suggest.looks
+              ? "Suggest again"
+              : "Dress me",
+          disabled: state.busy ? "disabled" : null,
+        }),
+      ])
+    );
+    panel.append(form);
+
+    if (state.suggest.looks) {
+      const results = el("div", {
+        className: "looks-grid",
+        "aria-live": "polite",
+      });
+      if (state.suggest.engine) {
+        results.append(
+          el("p", {
+            className: "muted suggest-engine",
+            text:
+              state.suggest.engine === "random"
+                ? "Random assembly from your catalog (AI suggestions come later)."
+                : `Engine: ${state.suggest.engine}`,
+          })
+        );
+      }
+      state.suggest.looks.forEach((look, index) => {
+        results.append(renderLookCollage(look, index));
+      });
+      panel.append(results);
+    } else if (!state.items.length) {
+      panel.append(
+        el("p", {
+          className: "muted",
+          text: "Your catalog is empty — add a few pieces first so looks have photos to show.",
+        })
+      );
+    }
+
     return panel;
   }
 

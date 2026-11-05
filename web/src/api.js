@@ -104,6 +104,16 @@ export function backfillThumbs() {
   });
 }
 
+/** UC-04: three outfit suggestions from the catalog (random MVP; Bedrock later). */
+export function suggestOutfits({ occasion, weather = "", engine } = {}) {
+  const body = { occasion, weather };
+  if (engine) body.engine = engine;
+  return request("/api/suggest", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function uploadFiles(uploads, files) {
   const ready = [];
   for (let i = 0; i < uploads.length; i++) {

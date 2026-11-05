@@ -5,6 +5,7 @@ var attributeOptions = require("./attributeOptions");
 var health = require("./health");
 var http = require("./http");
 var items = require("./items");
+var suggest = require("./suggest");
 
 /**
  * DressMe API router (Function URL behind CloudFront /api/*).
@@ -52,6 +53,14 @@ exports.handler = async function handler(event) {
       return http.json(405, { error: "method_not_allowed" });
     }
 
+    if (path === "/api/suggest" || path === "/suggest") {
+      var suggestUser = await auth.requireUser(event);
+      if (method === "POST") {
+        return respond(await suggest.suggestLooks(suggestUser, http.parseBody(event)));
+      }
+      return http.json(405, { error: "method_not_allowed" });
+    }
+
     var itemMatch = /^\/api\/items(?:\/([^/]+))?(?:\/(photos\/complete))?$/.exec(path);
     if (!itemMatch && /^\/items(?:\/([^/]+))?(?:\/(photos\/complete))?$/.exec(path)) {
       itemMatch = /^\/items(?:\/([^/]+))?(?:\/(photos\/complete))?$/.exec(path);
@@ -87,9 +96,12 @@ exports.handler = async function handler(event) {
   } catch (err) {
     var status = (err && err.statusCode) || 500;
     var code = (err && err.message) || "internal_error";
-    if (status >= 500) {
+    // Scrub unexpected 5xx messages; keep intentional 501 (e.g. Bedrock not wired).
+    if (status >= 500 && status !== 501) {
       console.error("api_error", code, err && err.stack ? err.stack : err);
       code = "internal_error";
+    } else if (status === 501) {
+      console.error("api_not_implemented", code);
     }
     return http.json(status, { error: code });
   }

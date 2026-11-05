@@ -431,6 +431,80 @@ label {
   color: var(--ink-soft);
 }
 
+/* UC-04–06: outfit suggestions + flat-lay collage */
+.suggest-panel h1 {
+  margin-bottom: 0.15rem;
+}
+
+.suggest-form {
+  max-width: 36rem;
+}
+
+.suggest-engine {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.looks-grid {
+  display: grid;
+  gap: 1.25rem;
+  animation: rise 420ms ease both;
+}
+
+.look-card {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.9rem 0.95rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.look-card h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.look-summary {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.look-collage {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.collage-tile {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.collage-tile img,
+.collage-tile .thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+  display: block;
+  background:
+    linear-gradient(135deg, rgba(31, 77, 109, 0.15), rgba(15, 122, 108, 0.12));
+}
+
+.collage-tile figcaption {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  line-height: 1.3;
+}
+
+@media (min-width: 720px) {
+  .look-collage {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+}
+
 @keyframes lightbox-in {
   from {
     opacity: 0;
