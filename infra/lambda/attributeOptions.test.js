@@ -86,10 +86,13 @@ test("attribute options returns classic menswear seeds", async function () {
   assert.equal(res.statusCode, 200);
   var body = JSON.parse(res.body);
   assert.ok(body.fields.includes("fabric"));
+  assert.ok(body.fields.includes("brandModel"));
   assert.ok(body.options.type.includes("blazer"));
   assert.ok(body.options.fabric.includes("tweed"));
   assert.ok(body.options.formality.includes("smart casual"));
+  assert.deepEqual(body.options.brandModel, []);
   assert.deepEqual(body.custom.fabric, []);
+  assert.deepEqual(body.custom.brandModel, []);
 });
 
 test("create/update remembers free-text values for later dropdowns", async function () {
@@ -99,7 +102,13 @@ test("create/update remembers free-text values for later dropdowns", async funct
   var created = await api.handler({
     rawPath: "/api/items",
     requestContext: { http: { method: "POST", path: "/api/items" } },
-    body: JSON.stringify(attrs({ fabric: "vintage hopsack", color: "petrol" })),
+    body: JSON.stringify(
+      attrs({
+        fabric: "vintage hopsack",
+        color: "petrol",
+        brandModel: "Drake's Donegal",
+      })
+    ),
   });
   assert.equal(created.statusCode, 201);
 
@@ -111,7 +120,9 @@ test("create/update remembers free-text values for later dropdowns", async funct
   var body = JSON.parse(options.body);
   assert.ok(body.options.fabric.includes("vintage hopsack"));
   assert.ok(body.options.color.includes("petrol"));
+  assert.ok(body.options.brandModel.includes("Drake's Donegal"));
   assert.ok(body.custom.fabric.includes("vintage hopsack"));
+  assert.ok(body.custom.brandModel.includes("Drake's Donegal"));
   // Seed values are not stored as custom.
   assert.ok(!body.custom.type.includes("jacket"));
 
@@ -119,7 +130,10 @@ test("create/update remembers free-text values for later dropdowns", async funct
   var updated = await api.handler({
     rawPath: "/api/items/" + itemId,
     requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
-    body: JSON.stringify({ outfitRole: "statement layer" }),
+    body: JSON.stringify({
+      outfitRole: "statement layer",
+      brandModel: "Crockett & Jones Audley",
+    }),
   });
   assert.equal(updated.statusCode, 200);
 
@@ -129,8 +143,10 @@ test("create/update remembers free-text values for later dropdowns", async funct
   });
   var againBody = JSON.parse(again.body);
   assert.ok(againBody.options.outfitRole.includes("statement layer"));
-  // Prior customs still present.
+  // Prior customs still present; new brand/model remembered.
   assert.ok(againBody.options.fabric.includes("vintage hopsack"));
+  assert.ok(againBody.options.brandModel.includes("Drake's Donegal"));
+  assert.ok(againBody.options.brandModel.includes("Crockett & Jones Audley"));
 });
 
 test("seed match is case-insensitive and does not duplicate customs", async function () {

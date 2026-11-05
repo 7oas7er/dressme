@@ -7,19 +7,24 @@ var {
   PutCommand,
 } = require("@aws-sdk/lib-dynamodb");
 
-/** Fields that offer suggested values + free text (UC-19). brandModel stays free-text only. */
+/** Fields that offer suggested values + free text (UC-19), including brand/model. */
 var SUGGESTION_FIELDS = [
   "type",
   "color",
   "fabric",
+  "brandModel",
   "formality",
   "pattern",
   "season",
   "outfitRole",
 ];
 
-/** Classic menswear-oriented seed suggestions per field. */
+/**
+ * Classic menswear-oriented seed suggestions per field.
+ * brandModel has no fixed seeds — wardrobe brands vary; every free-text value is remembered.
+ */
 var SEED_OPTIONS = {
+  brandModel: [],
   type: [
     "jacket",
     "blazer",

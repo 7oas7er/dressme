@@ -20,7 +20,7 @@ On `photos/complete`, the API downloads each newly ready object, writes a ~400px
 
 Update (`PUT /api/items/{id}`) may include `removePhotoIds: string[]` to drop specific photos (deletes the S3 object and its thumb when keyed, updates the DynamoDB photo list). Removals run before `addPhotos` so one request can replace photos.
 
-Attribute suggestions (UC-19): Add/Edit forms load `/api/attribute-options` (classic menswear seeds plus the user’s remembered free-text values). Creating or updating an item persists any non-seed values under DynamoDB `META#attrOptions` on the same items table (no schema change).
+Attribute suggestions (UC-19): Add/Edit forms load `/api/attribute-options` (classic menswear seeds plus the user’s remembered free-text values for type, color, fabric, brand/model, formality, pattern, season, outfit role). `brandModel` has no fixed seed list — every free-text value is remembered. Creating or updating an item persists any non-seed values under DynamoDB `META#attrOptions` on the same items table (no schema change).
 
 ### Staging backfill (existing photos)
 
