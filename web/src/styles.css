@@ -310,15 +310,28 @@ label {
 
 .detail-photos {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 0.6rem;
+  /* UC-23: clearly larger than catalog thumbs (minmax 150px). */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.85rem;
 }
 
 .detail-photos img {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
-  border-radius: 12px;
+  border-radius: 14px;
+  cursor: zoom-in;
+  display: block;
+}
+
+.detail-photos button.photo-open {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: zoom-in;
+  color: inherit;
 }
 
 .field-label {
@@ -335,8 +348,9 @@ label {
 
 .edit-photos {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 0.65rem;
+  /* UC-23: match detail step-up vs catalog thumbs. */
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.85rem;
 }
 
 .edit-photo {
@@ -349,7 +363,21 @@ label {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
-  border-radius: 12px;
+  border-radius: 14px;
+}
+
+.edit-photo button.photo-open {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: zoom-in;
+  color: inherit;
+}
+
+.edit-photo button.photo-open img {
+  cursor: zoom-in;
 }
 
 .edit-photo .photo-remove {
@@ -358,12 +386,58 @@ label {
   font-size: 0.85rem;
 }
 
+/* UC-23: full-res lightbox overlay */
+.photo-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(21, 32, 51, 0.82);
+  animation: lightbox-in 160ms ease both;
+}
+
+.photo-lightbox-inner {
+  position: relative;
+  max-width: min(960px, 100%);
+  max-height: min(92dvh, 100%);
+  display: grid;
+  gap: 0.75rem;
+  justify-items: end;
+}
+
+.photo-lightbox img {
+  display: block;
+  max-width: 100%;
+  max-height: min(84dvh, 100%);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: var(--shadow);
+}
+
+.photo-lightbox-close {
+  min-width: 2.5rem;
+}
+
 .hidden {
   display: none !important;
 }
 
 .meta a {
   color: var(--ink-soft);
+}
+
+@keyframes lightbox-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

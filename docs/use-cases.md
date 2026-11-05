@@ -2,7 +2,7 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–22).  
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23).  
 Last updated: 2026-11-05 (Europe/Berlin)
 
 ---
@@ -26,6 +26,9 @@ As Frank, when I add or edit an item, for fields such as fabric, outfit role, ty
 
 ### UC-20 — Fast catalog thumbnails
 As Frank, when I open the catalog overview, item photos load quickly via a low-resolution thumbnail for each picture; full-resolution images remain available when I open or edit an item. New uploads generate a thumbnail automatically; existing items get thumbnails so the overview stays fast without re-uploading.
+
+### UC-23 — Larger photos on item detail with click-to-enlarge
+As Frank, when I open an item, its photos are shown larger than the catalog thumbnails so I can judge the piece clearly; clicking a photo opens an even larger view (lightbox) that I can dismiss.
 
 ### UC-21 — Brand/model field alignment
 As Frank, on the add/edit item form, the Brand/model control sits on the same baseline as the other fields in its row (not shifted lower).
