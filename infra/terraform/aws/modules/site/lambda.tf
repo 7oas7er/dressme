@@ -18,6 +18,7 @@ data "archive_file" "high_scores" {
     "health.test.js",
     "items.test.js",
     "attributeOptions.test.js",
+    "thumbs.test.js",
     "package.json",
     "package-lock.json",
     "README.md",
@@ -41,8 +42,9 @@ resource "aws_lambda_function" "high_scores" {
   architectures    = ["arm64"]
   filename         = data.archive_file.high_scores.output_path
   source_code_hash = data.archive_file.high_scores.output_base64sha256
-  timeout          = 20
-  memory_size      = 256
+  # UC-20 thumbnail generation on photos/complete needs more headroom than CRUD.
+  timeout          = 60
+  memory_size      = 512
 
   environment {
     variables = {

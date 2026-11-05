@@ -2,8 +2,8 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19).  
-Last updated: 2026-10-26 (Europe/Berlin)
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–22).  
+Last updated: 2026-11-05 (Europe/Berlin)
 
 ---
 
@@ -22,7 +22,16 @@ As Frank, I update attributes/photos or delete an item so the catalog stays accu
 As Frank, when I open Edit item, I see the item’s current photos and can remove any of them (and still add new ones), so the catalog visuals stay accurate without deleting the whole item.
 
 ### UC-19 — Suggested values with free-text for item attributes
-As Frank, when I add or edit an item, for fields such as fabric, outfit role, type, color, formality, pattern, and season/climate I can pick from a dropdown of suggested values, or enter free text if none match; a new free-text value is remembered and appears in that field’s dropdown going forward.
+As Frank, when I add or edit an item, for fields such as fabric, outfit role, type, color, formality, pattern, season/climate, **and brand/model** I can pick from a dropdown of suggested values, or enter free text if none match; a new free-text value is remembered and appears in that field’s dropdown going forward.
+
+### UC-20 — Fast catalog thumbnails
+As Frank, when I open the catalog overview, item photos load quickly via a low-resolution thumbnail for each picture; full-resolution images remain available when I open or edit an item. New uploads generate a thumbnail automatically; existing items get thumbnails so the overview stays fast without re-uploading.
+
+### UC-21 — Brand/model field alignment
+As Frank, on the add/edit item form, the Brand/model control sits on the same baseline as the other fields in its row (not shifted lower).
+
+### UC-07 — Filter the catalog by attributes
+As Frank, above the catalog grid I can filter items by attribute categories that matter while browsing (at least type, color, fabric, formality, pattern, season/climate, outfit role, and brand/model), using the values present in my wardrobe; filters combine (AND), and I can clear them to see everything again.
 
 ### UC-04 — Request outfit suggestions
 As Frank, before getting dressed, I enter a free-text occasion and (when relevant) manual weather, then receive exactly three outfit suggestions drawn only from my catalog, informed by classic menswear knowledge.
@@ -38,9 +47,6 @@ As Frank, I choose which look to wear mentally / offline; the app does not recor
 ## Later — out of v1 scope
 
 Includes former “Should” candidates not pulled into the v1 contract.
-
-### UC-07 — Filter or group catalog by type / formality / season
-Narrow the catalog (e.g. jackets, black-tie suitable, summer).
 
 ### UC-08 — Dedicated “re-run with tweaked inputs” flow
 Beyond simply starting UC-04 again with new occasion/weather text.

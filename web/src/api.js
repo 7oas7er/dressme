@@ -96,6 +96,14 @@ export function confirmPhotos(itemId, photoIds) {
   });
 }
 
+/** UC-20: one-shot thumbnail backfill for the signed-in user's existing photos. */
+export function backfillThumbs() {
+  return request("/api/photos/backfill-thumbs", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 export async function uploadFiles(uploads, files) {
   const ready = [];
   for (let i = 0; i < uploads.length; i++) {
