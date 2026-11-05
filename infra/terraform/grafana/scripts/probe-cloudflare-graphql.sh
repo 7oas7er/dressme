@@ -65,3 +65,50 @@ if not groups.get("enabled"):
         file=sys.stderr,
     )
 '
+
+# Errors panels plot ratio.status4xx / status5xx (0–1 share of count per bucket).
+RATIO_BODY=$(CLOUDFLARE_ZONE_TAG="$CLOUDFLARE_ZONE_TAG" python3 - <<'PY'
+import json, os
+from datetime import datetime, timedelta, timezone
+now = datetime.now(timezone.utc).replace(microsecond=0)
+query = """query($zoneTag: String, $since: Time, $until: Time) {
+  viewer {
+    zones(filter: { zoneTag: $zoneTag }) {
+      httpRequestsAdaptiveGroups(
+        limit: 6
+        orderBy: [datetimeHour_DESC]
+        filter: { datetime_geq: $since, datetime_leq: $until }
+      ) {
+        count
+        ratio { status4xx status5xx }
+        dimensions { datetimeHour }
+      }
+    }
+  }
+}"""
+print(json.dumps({
+  "query": query,
+  "variables": {
+    "zoneTag": os.environ["CLOUDFLARE_ZONE_TAG"],
+    "since": (now - timedelta(hours=6)).isoformat().replace("+00:00", "Z"),
+    "until": now.isoformat().replace("+00:00", "Z"),
+  },
+}))
+PY
+)
+
+curl -sS "https://api.cloudflare.com/client/v4/graphql" \
+  -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "$RATIO_BODY" | python3 -c '
+import json, sys
+j = json.load(sys.stdin)
+if j.get("errors"):
+    print("ERROR: ratio { status4xx status5xx } query failed:", json.dumps(j["errors"]), file=sys.stderr)
+    sys.exit(1)
+rows = j["data"]["viewer"]["zones"][0]["httpRequestsAdaptiveGroups"]
+print("ratio sample (zone-wide, last 6h):")
+for r in rows:
+    t, ra = r["dimensions"]["datetimeHour"], r["ratio"]
+    print("  %s  count=%d  4xx=%.4f  5xx=%.4f" % (t, r["count"], ra["status4xx"], ra["status5xx"]))
+'

@@ -45,8 +45,8 @@ distribution `Name` tag, and synthetic probe jobs. Do not mix prod and stg serie
 
 Keep this order and these row titles (env-specific hostnames/jobs inside panels):
 
-1. **Traffic — requests** — five fixed windows (see below)
-2. **Errors — 4xx / 5xx (CF counts ≤30d; year = CloudWatch rates)**
+1. **Traffic — request rate (req/s)** — five fixed windows (see below). CF Adaptive: `count / bucket_seconds` (`datetimeMinute` → `/60`, `datetimeHour` → `/3600`); year CloudWatch: PromQL `rate(…[1h])` (already /s). Use rate, not absolute bucket counts, so hour/day/month y-scales are comparable.
+2. **Errors — 4xx / 5xx (% of requests; CF Adaptive ≤30d; year = CloudWatch)** — y-axis 0–100%. CF Adaptive: one query per panel selecting `ratio { status4xx status5xx }` (Cloudflare's `count(4xx|5xx) / count` per time bucket, 0–1) plotted with unit `percentunit`, no panel transforms. Do **not** split total/4xx/5xx into separate queries + `joinByField` + `calculateField`: the join suffixes field display names with the refId (`total A`, `4xx B`), the by-name lookup misses, and `parseFloat("4xx…")` = 4 yields a flat 400% (pinned at 100%). Year: CloudWatch `4xxErrorRate` / `5xxErrorRate` via Prom (already %).
 3. **Latency — origin (CloudFront) + CF `originResponseDurationMs`**
 4. **Synthetics — availability** — site + critical API uptime stats, success/latency charts, check logs
 5. **Cloudflare — volume** — bandwidth, visits, status mix
