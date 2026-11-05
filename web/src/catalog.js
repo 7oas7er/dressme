@@ -84,6 +84,71 @@ function thumbUrl(item) {
   return photo ? photo.thumbUrl || photo.url : "";
 }
 
+/** UC-23: full-res lightbox; dismiss via backdrop, close control, or Escape. */
+function openPhotoLightbox(url, alt) {
+  if (!url) return;
+  const existing = document.querySelector(".photo-lightbox");
+  if (existing) existing.remove();
+
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  }
+
+  function onKey(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    }
+  }
+
+  const closeBtn = el("button", {
+    type: "button",
+    className: "secondary photo-lightbox-close",
+    text: "Close",
+    "aria-label": "Close enlarged photo",
+    onClick: (event) => {
+      event.stopPropagation();
+      close();
+    },
+  });
+
+  const inner = el("div", { className: "photo-lightbox-inner" }, [
+    closeBtn,
+    el("img", { src: url, alt: alt || "Enlarged photo" }),
+  ]);
+  inner.addEventListener("click", (event) => event.stopPropagation());
+
+  const overlay = el(
+    "div",
+    {
+      className: "photo-lightbox",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-label": "Enlarged photo",
+      onClick: close,
+    },
+    [inner]
+  );
+
+  document.addEventListener("keydown", onKey);
+  document.body.append(overlay);
+  closeBtn.focus();
+}
+
+function photoOpenButton(url, alt) {
+  return el(
+    "button",
+    {
+      type: "button",
+      className: "photo-open",
+      "aria-label": "Enlarge photo",
+      onClick: () => openPhotoLightbox(url, alt),
+    },
+    [el("img", { src: url, alt: alt || "" })]
+  );
+}
+
 export function renderCatalogApp(root, { onLogout }) {
   const state = {
     items: [],
@@ -562,11 +627,9 @@ export function renderCatalogApp(root, { onLogout }) {
             "data-photo-id": photo.photoId,
           });
           if (photo.url) {
+            // Full-res URL on edit (UC-20); click opens lightbox (UC-23).
             tile.append(
-              el("img", {
-                src: photo.url,
-                alt: `${editing.type || "item"} photo`,
-              })
+              photoOpenButton(photo.url, `${editing.type || "item"} photo`)
             );
           } else {
             tile.append(
@@ -641,12 +704,13 @@ export function renderCatalogApp(root, { onLogout }) {
     ]);
 
     const photos = el("div", { className: "detail-photos" });
+    // Detail always uses full-res `url` from GET /items/{id} (not thumbUrl).
     const ready = (item.photos || []).filter((p) => p.url);
     if (!ready.length) {
       photos.append(el("p", { className: "muted", text: "No photos yet." }));
     } else {
       for (const photo of ready) {
-        photos.append(el("img", { src: photo.url, alt: item.type }));
+        photos.append(photoOpenButton(photo.url, item.type));
       }
     }
     panel.append(photos);

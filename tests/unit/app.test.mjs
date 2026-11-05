@@ -65,6 +65,20 @@ test("add/edit form keeps Brand/model on shared row baseline (UC-21)", () => {
   assert.match(useCases, /UC-21 — Brand\/model field alignment/);
 });
 
+test("item detail/edit photos are large with click-to-enlarge (UC-23)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(catalog, /function openPhotoLightbox/);
+  assert.match(catalog, /photoOpenButton/);
+  assert.match(catalog, /photo-lightbox/);
+  assert.match(catalog, /Escape/);
+  assert.match(styles, /\.detail-photos\s*\{[^}]*minmax\(280px/s);
+  assert.match(styles, /\.edit-photos\s*\{[^}]*minmax\(240px/s);
+  assert.match(styles, /\.photo-lightbox/);
+  assert.match(useCases, /UC-23 — Larger photos on item detail with click-to-enlarge/);
+});
+
 test("catalog list exposes attribute filters above the grid (UC-07)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
