@@ -257,14 +257,6 @@ label {
   display: block;
 }
 
-/* B2: cutouts sit on a calm neutral tile (contain, not cover crop). */
-.item-card img.catalog-cutout {
-  object-fit: contain;
-  padding: 0.35rem;
-  background:
-    linear-gradient(180deg, #eef2f6 0%, #e2e8ef 100%);
-}
-
 .item-card .meta {
   padding: 0 0.75rem 0.85rem;
 }
@@ -491,8 +483,33 @@ label {
   aspect-ratio: 3 / 4;
   overflow: hidden;
   border-radius: 12px;
-  background: #e6eaef;
+  background:
+    radial-gradient(ellipse at 50% 18%, #f2f5f8 0%, transparent 55%),
+    linear-gradient(165deg, #e8eef4 0%, #d5dde6 55%, #c8d0da 100%);
   min-height: 12rem;
+}
+
+.look-hero--mannequin {
+  display: grid;
+  place-items: center;
+  padding: 0.5rem 0.35rem;
+}
+
+.look-mannequin {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  display: block;
+}
+
+.mannequin-head,
+.mannequin-guide {
+  fill: rgba(21, 32, 51, 0.08);
+}
+
+.mannequin-panel {
+  stroke: rgba(21, 32, 51, 0.18);
+  stroke-width: 0.6;
 }
 
 .look-hero-empty {
@@ -503,72 +520,6 @@ label {
   margin: 0;
   padding: 1rem;
   text-align: center;
-}
-
-.look-layer {
-  position: absolute;
-  /* left/right come from SLOT_INSET inline styles for silhouette */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  box-sizing: border-box;
-}
-
-.look-layer img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: center center;
-  display: block;
-  filter: drop-shadow(0 2px 4px rgba(21, 32, 51, 0.18));
-}
-
-/* Anchor each garment in its band so the stack reads top→bottom as a body. */
-.look-layer--jacket img {
-  object-position: center top;
-}
-.look-layer--shirt img {
-  object-position: center 35%;
-}
-.look-layer--trousers img {
-  object-position: center bottom;
-}
-.look-layer--shoes img {
-  object-position: center bottom;
-}
-
-/*
- * Jacket softstop (cutout v3 companion): fade the frontmost plate at the hem
- * so shirt/trousers stay readable when wardrobe mattes are still imperfect.
- * Opacity also set inline from SLOT_COMPOSITE; mask is CSS-only.
- */
-.look-layer--jacket {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    #000 42%,
-    rgba(0, 0, 0, 0.65) 68%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    #000 42%,
-    rgba(0, 0, 0, 0.65) 68%,
-    transparent 100%
-  );
-}
-
-.look-layer-empty {
-  width: 70%;
-  height: 70%;
-  display: grid;
-  place-items: center;
-  font-size: 0.75rem;
-  color: var(--ink-soft);
-  background: rgba(255, 255, 255, 0.5);
-  border-radius: 8px;
 }
 
 .look-strip {

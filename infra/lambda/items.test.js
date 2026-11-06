@@ -137,10 +137,14 @@ test("catalog CRUD happy path", async function () {
   assert.ok(confirmedBody.item.photos[0].url);
   assert.ok(confirmedBody.item.photos[0].thumbUrl);
   assert.match(confirmedBody.item.photos[0].thumbUrl, /\.thumb\.jpg/);
-  assert.ok(confirmedBody.item.photos[0].cutoutUrl);
-  assert.match(confirmedBody.item.photos[0].cutoutUrl, /\.cutout\.webp/);
+  // Cutout generation stopped (Option D) — thumbs still required.
+  assert.equal(confirmedBody.item.photos[0].cutoutUrl, undefined);
   assert.ok(memory.objects.has(photoKey.replace(/\.[^.]+$/, "") + ".thumb.jpg"));
-  assert.ok(memory.objects.has(photoKey.replace(/\.[^.]+$/, "") + ".cutout.webp"));
+  assert.equal(
+    memory.objects.has(photoKey.replace(/\.[^.]+$/, "") + ".cutout.webp"),
+    false
+  );
+  assert.equal(items.CUTOUTS_ENABLED, false);
 
   var listed = await api.handler({
     rawPath: "/api/items",
@@ -243,10 +247,10 @@ test("update removes specific photos and deletes S3 objects", async function () 
   var removedBody = JSON.parse(removed.body);
   assert.equal(removedBody.item.photos.length, 1);
   assert.equal(removedBody.item.photos[0].photoId, photoB);
-  // Full + thumb + cutout deleted for removed photo.
+  // Full + thumb deleted for removed photo (cutout only if an old key existed).
   assert.ok(deletedKeys.filter(function (key) {
     return key.indexOf(photoA) >= 0;
-  }).length >= 3);
+  }).length >= 2);
   assert.match(deletedKeys[0], new RegExp(photoA));
 
   var combined = await api.handler({
@@ -325,7 +329,7 @@ test("backfill generates thumbs for ready photos missing thumbKey", async functi
   assert.ok(photoId);
 });
 
-test("confirm and backfill generate cutouts for ready photos", async function () {
+test("cutout backfill noops while CUTOUTS_ENABLED=false", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);
 
@@ -344,7 +348,7 @@ test("confirm and backfill generate cutouts for ready photos", async function ()
   var photoKey = createdBody.uploads[0].uploadUrl.replace("https://upload.example/", "");
   memory.objects.set(photoKey, Buffer.from("legacy-full-cutout"));
 
-  // Simulate a pre-B2 ready photo (thumb present, no cutoutKey).
+  // Simulate a ready photo with thumb but no cutout (legacy).
   var itemKey = "USER#test-user|ITEM#" + itemId;
   var stored = memory.store.get(itemKey);
   stored.photos[0].status = "ready";
@@ -362,30 +366,14 @@ test("confirm and backfill generate cutouts for ready photos", async function ()
   });
   assert.equal(backfill.statusCode, 200);
   var body = JSON.parse(backfill.body);
-  assert.equal(body.processed, 1);
-  assert.equal(body.updatedItems, 1);
-  assert.ok(memory.objects.has(photoKey.replace(/\.[^.]+$/, "") + ".cutout.webp"));
-
-  var listed = await api.handler({
-    rawPath: "/api/items",
-    requestContext: { http: { method: "GET", path: "/api/items" } },
-  });
-  var listBody = JSON.parse(listed.body);
-  assert.match(listBody.items[0].photos[0].cutoutUrl, /\.cutout\.webp/);
-
-  var again = await api.handler({
-    rawPath: "/api/photos/backfill-cutouts",
-    requestContext: {
-      http: { method: "POST", path: "/api/photos/backfill-cutouts" },
-    },
-    body: JSON.stringify({}),
-  });
-  var againBody = JSON.parse(again.body);
-  assert.equal(againBody.processed, 0);
-  assert.equal(againBody.cutoutVersion, require("./cutouts").CUTOUT_VERSION);
+  assert.equal(body.processed, 0);
+  assert.equal(body.disabled, true);
+  assert.equal(
+    memory.objects.has(photoKey.replace(/\.[^.]+$/, "") + ".cutout.webp"),
+    false
+  );
   assert.ok(photoId);
 
-  // Force regenerates in place (same key) and counts as processed.
   var forced = await api.handler({
     rawPath: "/api/photos/backfill-cutouts",
     requestContext: {
@@ -394,10 +382,11 @@ test("confirm and backfill generate cutouts for ready photos", async function ()
     body: JSON.stringify({ force: true }),
   });
   assert.equal(forced.statusCode, 200);
-  assert.equal(JSON.parse(forced.body).processed, 1);
+  assert.equal(JSON.parse(forced.body).processed, 0);
+  assert.equal(JSON.parse(forced.body).disabled, true);
 });
 
-test("cutout failure does not block photos/complete", async function () {
+test("photos/complete still succeeds without cutouts", async function () {
   var memory = makeMemoryDeps();
   memory.makeCutout = async function () {
     throw new Error("matte_boom");

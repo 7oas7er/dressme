@@ -54,25 +54,22 @@ test("catalog overview prefers thumbUrl (UC-20)", () => {
   assert.match(useCases, /UC-20 — Fast catalog thumbnails/);
 });
 
-test("catalog cutouts B2: prefer cutoutUrl + backfill endpoint", () => {
+test("cutouts stopped: originals preferred; backfill endpoint noops", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
   const lookLayout = fs.readFileSync(path.join(root, "web/src/lookLayout.js"), "utf8");
   const lambdaApi = fs.readFileSync(path.join(root, "infra/lambda/api.js"), "utf8");
+  const itemsSrc = fs.readFileSync(path.join(root, "infra/lambda/items.js"), "utf8");
   const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
-  assert.match(lookLayout, /cutoutUrl/);
+  assert.match(lookLayout, /never prefer cutout/);
   assert.match(lookLayout, /purpose === "strip"/);
-  assert.match(catalog, /backfillCutouts|maybeBackfillCutouts/);
-  assert.match(catalog, /catalog-cutout/);
-  assert.match(catalog, /CUTOUT_ALGO_CLIENT = 3/);
+  assert.doesNotMatch(catalog, /maybeBackfillCutouts/);
+  assert.doesNotMatch(catalog, /catalog-cutout/);
   assert.match(apiSrc, /\/api\/photos\/backfill-cutouts/);
   assert.match(lambdaApi, /backfill-cutouts/);
-  assert.match(useCases, /UC-24 — Catalog cutouts/);
-  const cutoutsSrc = fs.readFileSync(
-    path.join(root, "infra/lambda/cutouts.js"),
-    "utf8"
-  );
-  assert.match(cutoutsSrc, /CUTOUT_VERSION = 3/);
+  assert.match(itemsSrc, /CUTOUTS_ENABLED = false/);
+  assert.match(useCases, /UC-24/);
+  assert.match(useCases, /not required|Later|demoted|optional/i);
 });
 
 test("add/edit form keeps Brand/model on shared row baseline (UC-21)", () => {
@@ -114,11 +111,15 @@ test("catalog list exposes attribute filters above the grid (UC-07)", () => {
   assert.match(useCases, /UC-07 — Filter the catalog by attributes/);
 });
 
-test("suggest outfits flow and layered look cards (UC-04–06)", () => {
+test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const suggest = fs.readFileSync(path.join(root, "web/src/suggest.js"), "utf8");
   const lookLayout = fs.readFileSync(path.join(root, "web/src/lookLayout.js"), "utf8");
   const lookCard = fs.readFileSync(path.join(root, "web/src/lookCard.js"), "utf8");
+  const mannequinColor = fs.readFileSync(
+    path.join(root, "web/src/mannequinColor.js"),
+    "utf8"
+  );
   const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
   const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
   const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
@@ -131,13 +132,15 @@ test("suggest outfits flow and layered look cards (UC-04–06)", () => {
   assert.match(catalog, /name: "weather"/);
   assert.match(suggest, /lookHeadline|lookSummary/);
   assert.match(lookLayout, /itemToSlot|buildLookVisual|layerImageUrl/);
-  assert.match(lookCard, /look-hero|look-strip/);
+  assert.match(lookCard, /look-hero|look-strip|look-mannequin/);
+  assert.match(mannequinColor, /resolveFillColor|resolvePatternHint/);
   assert.match(apiSrc, /\/api\/suggest/);
   assert.match(apiSrc, /suggestOutfits/);
   assert.match(styles, /\.look-hero/);
+  assert.match(styles, /\.look-mannequin/);
   assert.match(styles, /\.look-strip/);
   assert.match(styles, /\.looks-grid/);
   assert.match(useCases, /UC-04 — Request outfit suggestions/);
-  assert.match(useCases, /UC-05 — View a look as a layered collage/);
+  assert.match(useCases, /UC-05 — View a look as an SVG mannequin/);
   assert.match(useCases, /UC-06 — Pick among three looks/);
 });
