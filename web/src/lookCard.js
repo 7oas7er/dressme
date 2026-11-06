@@ -1,10 +1,12 @@
 /**
  * Presentational look card: Option D SVG mannequin hero (left) +
  * authenticity strip of photographic thumbs (right).
+ * Phase 1: elongated male croquis, soft washes, optional thumb color/texture.
  */
 
 import { buildLookVisual } from "./lookLayout.js";
 import { lookHeadline, lookSummary } from "./suggest.js";
+import { sampleThumb } from "./thumbSample.js";
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -37,73 +39,245 @@ function svgEl(tag, attrs = {}, children = []) {
   return node;
 }
 
+/** Parse #rgb / #rrggbb → [r,g,b]; null when unparseable. */
+function parseHex(color) {
+  const s = String(color || "").trim();
+  const m3 = /^#([0-9a-f]{3})$/i.exec(s);
+  if (m3) {
+    const h = m3[1];
+    return [
+      parseInt(h[0] + h[0], 16),
+      parseInt(h[1] + h[1], 16),
+      parseInt(h[2] + h[2], 16),
+    ];
+  }
+  const m6 = /^#([0-9a-f]{6})$/i.exec(s);
+  if (m6) {
+    const h = m6[1];
+    return [
+      parseInt(h.slice(0, 2), 16),
+      parseInt(h.slice(2, 4), 16),
+      parseInt(h.slice(4, 6), 16),
+    ];
+  }
+  return null;
+}
+
+function toHex(r, g, b) {
+  const h = (n) =>
+    Math.max(0, Math.min(255, Math.round(n)))
+      .toString(16)
+      .padStart(2, "0");
+  return `#${h(r)}${h(g)}${h(b)}`;
+}
+
+/** amount ∈ [-1,1]; positive lightens. */
+function shiftColor(color, amount) {
+  const rgb = parseHex(color);
+  if (!rgb) return color;
+  const [r, g, b] = rgb;
+  if (amount >= 0) {
+    return toHex(
+      r + (255 - r) * amount,
+      g + (255 - g) * amount,
+      b + (255 - b) * amount
+    );
+  }
+  const f = 1 + amount;
+  return toHex(r * f, g * f, b * f);
+}
+
 function patternId(lookIndex, slotId, hint) {
   return `mn-pat-${lookIndex}-${slotId}-${hint || "solid"}`;
 }
 
-function ensurePatternDefs(defs, lookIndex, layer) {
+function washId(lookIndex, slotId) {
+  return `mn-wash-${lookIndex}-${slotId}`;
+}
+
+function grainId(lookIndex) {
+  return `mn-grain-${lookIndex}`;
+}
+
+function texPatId(lookIndex, slotId) {
+  return `mn-tex-${lookIndex}-${slotId}`;
+}
+
+function ensureGrainFilter(defs, lookIndex) {
+  const id = grainId(lookIndex);
+  if (defs.querySelector(`#${id}`)) return id;
+  defs.append(
+    svgEl("filter", {
+      id,
+      x: "-5%",
+      y: "-5%",
+      width: "110%",
+      height: "110%",
+      "color-interpolation-filters": "sRGB",
+    }, [
+      svgEl("feTurbulence", {
+        type: "fractalNoise",
+        baseFrequency: "0.9",
+        numOctaves: "2",
+        seed: String(3 + (lookIndex % 5)),
+        result: "noise",
+      }),
+      svgEl("feColorMatrix", {
+        in: "noise",
+        type: "matrix",
+        values: "0 0 0 0 0.55  0 0 0 0 0.55  0 0 0 0 0.55  0 0 0 0.22 0",
+        result: "softNoise",
+      }),
+      svgEl("feBlend", {
+        in: "SourceGraphic",
+        in2: "softNoise",
+        mode: "multiply",
+      }),
+    ])
+  );
+  return id;
+}
+
+function ensureWashGradient(defs, lookIndex, slotId, baseColor) {
+  const id = washId(lookIndex, slotId);
+  const existing = defs.querySelector(`#${id}`);
+  const light = shiftColor(baseColor, 0.22);
+  const mid = baseColor;
+  const deep = shiftColor(baseColor, -0.28);
+  if (existing) {
+    const stops = existing.querySelectorAll("stop");
+    if (stops[0]) stops[0].setAttribute("stop-color", light);
+    if (stops[1]) stops[1].setAttribute("stop-color", mid);
+    if (stops[2]) stops[2].setAttribute("stop-color", deep);
+    return `url(#${id})`;
+  }
+  const grad = svgEl(
+    "linearGradient",
+    {
+      id,
+      x1: "12%",
+      y1: "8%",
+      x2: "88%",
+      y2: "95%",
+    },
+    [
+      svgEl("stop", { offset: "0%", "stop-color": light }),
+      svgEl("stop", { offset: "48%", "stop-color": mid }),
+      svgEl("stop", { offset: "100%", "stop-color": deep }),
+    ]
+  );
+  defs.append(grad);
+  return `url(#${id})`;
+}
+
+function ensurePatternDefs(defs, lookIndex, layer, baseColor) {
   if (!layer || !layer.patternHint || layer.patternHint === "solid") return null;
   const id = patternId(lookIndex, layer.slotId, layer.patternHint);
-  // Avoid CSS.escape — keep ids simple ([A-Za-z0-9_-]) for DOM stubs / older engines.
-  if (defs.querySelector(`#${id}`)) return `url(#${id})`;
-  const fill = layer.fillColor || "#9aa3ad";
+  const existing = defs.querySelector(`#${id}`);
+  if (existing) {
+    const rect = existing.querySelector("rect");
+    if (rect) rect.setAttribute("fill", baseColor);
+    return `url(#${id})`;
+  }
+  const fill = baseColor || "#9aa3ad";
   if (layer.patternHint === "stripe") {
     defs.append(
-      svgEl("pattern", {
-        id,
-        width: "8",
-        height: "8",
-        patternUnits: "userSpaceOnUse",
-        patternTransform: "rotate(28)",
-      }, [
-        svgEl("rect", { width: "8", height: "8", fill }),
-        svgEl("rect", {
-          x: "0",
-          y: "0",
-          width: "3",
+      svgEl(
+        "pattern",
+        {
+          id,
+          width: "8",
           height: "8",
-          fill: "rgba(255,255,255,0.28)",
-        }),
-      ])
+          patternUnits: "userSpaceOnUse",
+          patternTransform: "rotate(28)",
+        },
+        [
+          svgEl("rect", { width: "8", height: "8", fill }),
+          svgEl("rect", {
+            x: "0",
+            y: "0",
+            width: "3",
+            height: "8",
+            fill: "rgba(255,255,255,0.28)",
+          }),
+        ]
+      )
     );
   } else if (layer.patternHint === "check") {
     defs.append(
-      svgEl("pattern", {
-        id,
-        width: "10",
-        height: "10",
-        patternUnits: "userSpaceOnUse",
-      }, [
-        svgEl("rect", { width: "10", height: "10", fill }),
-        svgEl("rect", {
-          x: "0",
-          y: "0",
-          width: "5",
-          height: "5",
-          fill: "rgba(0,0,0,0.18)",
-        }),
-        svgEl("rect", {
-          x: "5",
-          y: "5",
-          width: "5",
-          height: "5",
-          fill: "rgba(0,0,0,0.18)",
-        }),
-      ])
+      svgEl(
+        "pattern",
+        {
+          id,
+          width: "10",
+          height: "10",
+          patternUnits: "userSpaceOnUse",
+        },
+        [
+          svgEl("rect", { width: "10", height: "10", fill }),
+          svgEl("rect", {
+            x: "0",
+            y: "0",
+            width: "5",
+            height: "5",
+            fill: "rgba(0,0,0,0.18)",
+          }),
+          svgEl("rect", {
+            x: "5",
+            y: "5",
+            width: "5",
+            height: "5",
+            fill: "rgba(0,0,0,0.18)",
+          }),
+        ]
+      )
     );
   }
   return `url(#${id})`;
 }
 
-function panelFill(defs, lookIndex, layer) {
+function ensureTexturePattern(defs, lookIndex, slotId, dataUrl) {
+  if (!dataUrl) return null;
+  const id = texPatId(lookIndex, slotId);
+  const existing = defs.querySelector(`#${id}`);
+  if (existing) {
+    const img = existing.querySelector("image");
+    if (img) img.setAttribute("href", dataUrl);
+    return `url(#${id})`;
+  }
+  defs.append(
+    svgEl(
+      "pattern",
+      {
+        id,
+        width: "28",
+        height: "28",
+        patternUnits: "userSpaceOnUse",
+      },
+      [
+        svgEl("image", {
+          href: dataUrl,
+          width: "28",
+          height: "28",
+          preserveAspectRatio: "xMidYMid slice",
+        }),
+      ]
+    )
+  );
+  return `url(#${id})`;
+}
+
+function panelBaseFill(defs, lookIndex, layer, baseColor) {
   if (!layer) return "transparent";
-  const pat = ensurePatternDefs(defs, lookIndex, layer);
-  return pat || layer.fillColor || "#9aa3ad";
+  const pat = ensurePatternDefs(defs, lookIndex, layer, baseColor);
+  if (pat) return pat;
+  return ensureWashGradient(defs, lookIndex, layer.slotId, baseColor);
 }
 
 /**
- * Standing silhouette with role-shaped panels.
- * Paint order (depth): shoes → trousers → shirt → jacket; belt in trousers band.
+ * Elongated male croquis (~9-head fashion proportion) with role panels.
+ * Blank/minimal face. Paint order: shoes → trousers → shirt → jacket; belt in waist.
+ * viewBox taller than Phase 0 toy figure.
  */
 function renderMannequinSvg(visual, lookIndex) {
   const bySlot = Object.fromEntries(
@@ -111,109 +285,196 @@ function renderMannequinSvg(visual, lookIndex) {
   );
   const svg = svgEl("svg", {
     className: "look-mannequin",
-    viewBox: "0 0 120 200",
+    viewBox: "0 0 100 240",
     role: "img",
     "aria-label": "Outfit silhouette",
   });
   const defs = svgEl("defs");
   svg.append(defs);
+  const grain = ensureGrainFilter(defs, lookIndex);
 
-  // Subtle body guide (never the glance signal).
-  svg.append(
+  const figure = svgEl("g", {
+    className: "mannequin-figure",
+    filter: `url(#${grain})`,
+  });
+
+  // Blank oval head + soft neck (no facial features).
+  figure.append(
     svgEl("ellipse", {
       className: "mannequin-head",
-      cx: "60",
-      cy: "16",
-      rx: "11",
-      ry: "13",
+      cx: "50",
+      cy: "14",
+      rx: "7.5",
+      ry: "9",
     })
   );
-  svg.append(
+  figure.append(
     svgEl("path", {
       className: "mannequin-guide",
-      d: "M48 30 C48 28 72 28 72 30 L76 48 L44 48 Z",
+      d: "M42 24 C42 22 58 22 58 24 L61 34 L39 34 Z",
     })
   );
 
-  // Shoes (back-most of garments visually at feet).
+  /** @type {Map<string, { panel: Element, washOverlay: Element | null, texOverlay: Element | null, pathD: string }>} */
+  const panelRefs = new Map();
+
+  function addPanel(slotId, layer, pathD, extraAttrs = {}) {
+    if (!layer) return;
+    const base = layer.fillColor || "#9aa3ad";
+    // Keep wash gradient available even when pattern is the base fill.
+    ensureWashGradient(defs, lookIndex, slotId, base);
+    const fill = panelBaseFill(defs, lookIndex, layer, base);
+    const panel = svgEl("path", {
+      className: `mannequin-panel mannequin-${slotId}`,
+      "data-slot": slotId,
+      "data-item-id": layer.itemId || "",
+      fill,
+      d: pathD,
+      ...extraAttrs,
+    });
+    figure.append(panel);
+
+    let washOverlay = null;
+    if (layer.patternHint && layer.patternHint !== "solid") {
+      washOverlay = svgEl("path", {
+        className: "mannequin-wash",
+        "data-slot": slotId,
+        d: pathD,
+        fill: `url(#${washId(lookIndex, slotId)})`,
+        "fill-opacity": "0.38",
+        style: "mix-blend-mode: multiply",
+        "pointer-events": "none",
+      });
+      figure.append(washOverlay);
+    }
+
+    const texOverlay = svgEl("path", {
+      className: "mannequin-tex",
+      "data-slot": slotId,
+      d: pathD,
+      fill: "none",
+      "fill-opacity": "0",
+      style: "mix-blend-mode: multiply",
+      "pointer-events": "none",
+    });
+    figure.append(texOverlay);
+
+    panelRefs.set(slotId, { panel, washOverlay, texOverlay, pathD, layer });
+  }
+
+  // Shoes — side profile with heel (left + right).
   if (bySlot.shoes) {
-    const fill = panelFill(defs, lookIndex, bySlot.shoes);
-    svg.append(
-      svgEl("path", {
-        className: "mannequin-panel mannequin-shoes",
-        "data-slot": "shoes",
-        "data-item-id": bySlot.shoes.itemId || "",
-        fill,
-        d: "M28 178 C28 170 42 168 48 172 L52 188 C40 192 26 190 28 178 Z M92 178 C92 170 78 168 72 172 L68 188 C80 192 94 190 92 178 Z",
-      })
+    addPanel(
+      "shoes",
+      bySlot.shoes,
+      "M22 214 C22 208 30 205 38 207 L48 212 C50 214 49 218 46 220 L28 222 C22 221 20 218 22 214 Z M78 214 C78 208 70 205 62 207 L52 212 C50 214 51 218 54 220 L72 222 C78 221 80 218 78 214 Z"
     );
   }
 
-  // Trousers.
+  // Trousers — elongated legs, slight break at hem.
   if (bySlot.trousers) {
-    const fill = panelFill(defs, lookIndex, bySlot.trousers);
-    svg.append(
-      svgEl("path", {
-        className: "mannequin-panel mannequin-trousers",
-        "data-slot": "trousers",
-        "data-item-id": bySlot.trousers.itemId || "",
-        fill,
-        d: "M42 88 L78 88 L82 170 L66 174 L60 118 L54 174 L38 170 Z",
-      })
+    addPanel(
+      "trousers",
+      bySlot.trousers,
+      "M36 98 L64 98 L68 208 C66 214 58 216 54 212 L50 130 L46 212 C42 216 34 214 32 208 Z"
     );
   }
 
-  // Belt in trousers waist band (attribute color when present).
+  // Belt in waist band.
   const beltLayer = visual.belt || null;
   if (bySlot.trousers || beltLayer) {
+    const beltBase =
+      (beltLayer && beltLayer.fillColor) || "rgba(30,30,30,0.45)";
+    if (beltLayer) {
+      ensureWashGradient(defs, lookIndex, "belt", beltLayer.fillColor || "#1a1a1a");
+    }
     const beltFill = beltLayer
-      ? panelFill(defs, lookIndex, beltLayer)
-      : "rgba(30,30,30,0.35)";
-    svg.append(
-      svgEl("rect", {
-        className: "mannequin-panel mannequin-belt",
-        "data-slot": "belt",
-        "data-item-id": (beltLayer && beltLayer.itemId) || "",
-        x: "41",
-        y: "86",
-        width: "38",
-        height: "6",
-        rx: "1.5",
-        fill: beltFill,
-      })
-    );
+      ? panelBaseFill(defs, lookIndex, beltLayer, beltLayer.fillColor || "#1a1a1a")
+      : beltBase;
+    const belt = svgEl("rect", {
+      className: "mannequin-panel mannequin-belt",
+      "data-slot": "belt",
+      "data-item-id": (beltLayer && beltLayer.itemId) || "",
+      x: "35",
+      y: "95",
+      width: "30",
+      height: "5",
+      rx: "1.2",
+      fill: beltFill,
+    });
+    figure.append(belt);
+    if (beltLayer) {
+      panelRefs.set("belt", {
+        panel: belt,
+        washOverlay: null,
+        texOverlay: null,
+        pathD: null,
+        layer: beltLayer,
+      });
+    }
   }
 
-  // Shirt (under jacket).
+  // Shirt — collar V hint, elongated torso under jacket.
   if (bySlot.shirt) {
-    const fill = panelFill(defs, lookIndex, bySlot.shirt);
-    svg.append(
-      svgEl("path", {
-        className: "mannequin-panel mannequin-shirt",
-        "data-slot": "shirt",
-        "data-item-id": bySlot.shirt.itemId || "",
-        fill,
-        d: "M46 32 L74 32 L78 90 L42 90 Z",
-      })
+    addPanel(
+      "shirt",
+      bySlot.shirt,
+      "M40 36 L50 42 L60 36 L64 100 L36 100 Z"
     );
   }
 
-  // Jacket (front-most torso).
+  // Jacket — open fronts with lapel notches + soft shoulder.
   if (bySlot.jacket) {
-    const fill = panelFill(defs, lookIndex, bySlot.jacket);
-    svg.append(
-      svgEl("path", {
-        className: "mannequin-panel mannequin-jacket",
-        "data-slot": "jacket",
-        "data-item-id": bySlot.jacket.itemId || "",
-        fill,
-        d: "M38 30 L50 30 L54 48 L50 92 L34 88 L30 52 Z M82 30 L70 30 L66 48 L70 92 L86 88 L90 52 Z M50 30 L70 30 L72 48 L48 48 Z",
-        "fill-opacity": "0.92",
-      })
+    addPanel(
+      "jacket",
+      bySlot.jacket,
+      // Left flap + lapel, right flap + lapel, shoulder bridge
+      "M30 34 L42 34 L46 52 L42 108 L28 102 L24 56 Z M42 34 L48 38 L46 52 Z M70 34 L58 34 L54 52 L58 108 L72 102 L76 56 Z M58 34 L52 38 L54 52 Z M42 34 L58 34 L60 48 L40 48 Z",
+      { "fill-opacity": "0.94" }
     );
   }
+
+  svg.append(figure);
+
+  // Async Path 4a: sample strip thumbs → update washes + light texture overlay.
+  applyThumbSamples(defs, lookIndex, panelRefs);
 
   return svg;
+}
+
+function applyThumbSamples(defs, lookIndex, panelRefs) {
+  for (const [slotId, ref] of panelRefs) {
+    const url = ref.layer && ref.layer.thumbUrl;
+    if (!url) continue;
+    sampleThumb(url).then((sample) => {
+      if (!sample || !sample.dominantHex) return;
+      const color = sample.dominantHex;
+      ref.layer.fillColor = color;
+      ensureWashGradient(defs, lookIndex, slotId, color);
+      const fill = panelBaseFill(defs, lookIndex, ref.layer, color);
+      if (ref.panel) ref.panel.setAttribute("fill", fill);
+      if (ref.washOverlay) {
+        ref.washOverlay.setAttribute(
+          "fill",
+          `url(#${washId(lookIndex, slotId)})`
+        );
+      }
+      if (ref.texOverlay && sample.textureDataUrl && ref.pathD) {
+        const tex = ensureTexturePattern(
+          defs,
+          lookIndex,
+          slotId,
+          sample.textureDataUrl
+        );
+        if (tex) {
+          ref.texOverlay.setAttribute("fill", tex);
+          ref.texOverlay.setAttribute("fill-opacity", "0.28");
+        }
+      }
+    }).catch(() => {
+      /* attribute-map fill already painted */
+    });
+  }
 }
 
 function renderStripThumb(layer) {

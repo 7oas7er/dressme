@@ -1,7 +1,8 @@
 /**
  * Layered look layout (Option 4 chrome + Option D SVG mannequin hero).
  * Slot synonyms + hero/strip view-model for suggest cards.
- * Hero uses attribute fills (color + cheap pattern hint); strip stays photographic.
+ * Hero uses attribute fills (color + cheap pattern hint) as the instant baseline;
+ * lookCard may refine fills from a client thumb sample. Strip stays photographic.
  * Cutouts are no longer preferred (generation stopped; existing keys left in place).
  */
 

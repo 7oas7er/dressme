@@ -42,7 +42,7 @@ As Frank, above the catalog grid I can filter items by attribute categories that
 As Frank, before getting dressed, I enter a free-text occasion and (when relevant) manual weather, then receive exactly three outfit suggestions drawn only from my catalog, informed by classic menswear knowledge.
 
 ### UC-05 — View a look as an SVG mannequin (Option D)
-As Frank, for each of the three suggestions I see one outfit card: a left-hand SVG mannequin hero with role-shaped panels filled from item color (and a cheap pattern hint when attributes allow), painted shoes→trousers→shirt→jacket with belt in the trousers band, plus a right-hand authenticity strip of original photographic thumbs, so I can judge color/silhouette/depth at a glance and still verify each piece.
+As Frank, for each of the three suggestions I see one outfit card: a left-hand elongated male SVG croquis with soft value washes and role-shaped panels (lapel / trouser break / shoe profile hints), filled from item color or an optional client-side thumb sample (cheap pattern hint when attributes allow), painted shoes→trousers→shirt→jacket with belt in the trousers band, plus a right-hand authenticity strip of original photographic thumbs, so I can judge color harmony and jacket/shirt/trousers as an outfit at a glance and still verify each piece.
 
 ### UC-06 — Pick among three looks (no in-app feedback)
 As Frank, I choose which look to wear mentally / offline; the app does not record worn, like, or reject in v1.

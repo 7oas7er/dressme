@@ -1,6 +1,7 @@
 /**
  * Option D — map free-text wardrobe color/pattern attrs to SVG fills.
- * Cheap client-side only (no sampling, no rembg).
+ * Attribute map is the instant fallback; lookCard may override with a
+ * client-side thumb dominant-color sample (Phase 1 / Path 4a).
  */
 
 /** Classic menswear seed colors → CSS. Unknown names fall back below. */

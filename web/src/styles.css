@@ -504,12 +504,19 @@ label {
 
 .mannequin-head,
 .mannequin-guide {
-  fill: rgba(21, 32, 51, 0.08);
+  fill: rgba(21, 32, 51, 0.07);
 }
 
 .mannequin-panel {
-  stroke: rgba(21, 32, 51, 0.18);
-  stroke-width: 0.6;
+  stroke: rgba(21, 32, 51, 0.22);
+  stroke-width: 0.55;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.mannequin-wash,
+.mannequin-tex {
+  stroke: none;
 }
 
 .look-hero-empty {

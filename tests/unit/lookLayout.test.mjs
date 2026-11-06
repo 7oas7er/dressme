@@ -13,6 +13,7 @@ import {
   resolvePatternHint,
 } from "../../web/src/mannequinColor.js";
 import { renderLookCard } from "../../web/src/lookCard.js";
+import { sampleThumb } from "../../web/src/thumbSample.js";
 
 function photo(full, thumb, cutout) {
   const p = {};
@@ -210,7 +211,7 @@ test("unmapped items are strip-only; duplicate slots keep first for hero", () =>
   assert.equal(visual.strip.find((l) => l.itemId === "acc").slotId, null);
 });
 
-test("renderLookCard DOM has SVG mannequin hero + right strip structure", () => {
+test("renderLookCard DOM has elongated SVG mannequin + right strip + washes", () => {
   installDomStub();
   const look = {
     lookId: "1",
@@ -227,7 +228,9 @@ test("renderLookCard DOM has SVG mannequin hero + right strip structure", () => 
   assert.ok(card.querySelector(".look-body"));
   assert.ok(card.querySelector(".look-hero"));
   assert.ok(card.querySelector(".look-strip"));
-  assert.ok(card.querySelector(".look-mannequin"));
+  const mannequin = card.querySelector(".look-mannequin");
+  assert.ok(mannequin);
+  assert.equal(mannequin.attributes.viewBox, "0 0 100 240");
   assert.equal(card.querySelectorAll(".mannequin-panel").length >= 4, true);
   assert.equal(card.querySelectorAll(".look-strip-thumb").length, 5);
   const body = card.querySelector(".look-body");
@@ -237,6 +240,19 @@ test("renderLookCard DOM has SVG mannequin hero + right strip structure", () => 
     (n) => (n.attributes["data-slot"] || "") === "jacket"
   );
   assert.ok(jacket);
-  assert.equal(jacket.attributes.fill, "#1e3a5f");
+  // Phase 1: solid panels use soft wash gradients (attr color as stops).
+  assert.equal(jacket.attributes.fill, "url(#mn-wash-0-jacket)");
+  assert.ok(card.querySelector("#mn-wash-0-jacket"));
+  assert.ok(card.querySelector("#mn-grain-0"));
+  const trousers = card.querySelectorAll(".mannequin-panel").find(
+    (n) => (n.attributes["data-slot"] || "") === "trousers"
+  );
+  assert.ok(trousers);
+  assert.match(trousers.attributes.d || "", /208|212|216/);
   delete globalThis.document;
+});
+
+test("sampleThumb no-ops without canvas/Image (Node unit)", async () => {
+  const result = await sampleThumb("https://t.example/a.jpg");
+  assert.equal(result, null);
 });
