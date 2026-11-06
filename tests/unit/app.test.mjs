@@ -133,7 +133,12 @@ test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   assert.match(suggest, /lookHeadline|lookSummary/);
   assert.match(lookLayout, /itemToSlot|buildLookVisual|layerImageUrl/);
   assert.match(lookCard, /look-hero|look-strip|look-mannequin/);
+  assert.match(lookCard, /mn-wash|sampleThumb|100 240/);
   assert.match(mannequinColor, /resolveFillColor|resolvePatternHint/);
+  assert.ok(
+    fs.existsSync(path.join(root, "web/src/thumbSample.js")),
+    "Phase 1 thumb sample helper"
+  );
   assert.match(apiSrc, /\/api\/suggest/);
   assert.match(apiSrc, /suggestOutfits/);
   assert.match(styles, /\.look-hero/);
