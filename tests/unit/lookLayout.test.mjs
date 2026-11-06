@@ -7,8 +7,11 @@ import {
   HERO_SLOT_ORDER,
   STRIP_SLOT_ORDER,
   SLOT_BANDS,
-  SLOT_COMPOSITE,
 } from "../../web/src/lookLayout.js";
+import {
+  resolveFillColor,
+  resolvePatternHint,
+} from "../../web/src/mannequinColor.js";
 import { renderLookCard } from "../../web/src/lookCard.js";
 
 function photo(full, thumb, cutout) {
@@ -25,6 +28,7 @@ function item(partial) {
     type: partial.type || "",
     outfitRole: partial.outfitRole || "",
     color: partial.color || "",
+    pattern: partial.pattern || "",
     brandModel: partial.brandModel || "",
     photos: partial.photos || [photo("https://f.example/a.jpg", "https://t.example/a.jpg")],
     ...partial,
@@ -66,6 +70,9 @@ function installDomStub() {
     if (sel.startsWith(".")) {
       return (node.className || "").split(/\s+/).includes(sel.slice(1));
     }
+    if (sel.startsWith("#")) {
+      return node.attributes && node.attributes.id === sel.slice(1);
+    }
     return node.tagName === sel.toUpperCase();
   }
 
@@ -80,6 +87,7 @@ function installDomStub() {
     }
     setAttribute(key, value) {
       this.attributes[key] = String(value);
+      if (key === "class") this.className = String(value);
     }
     getAttribute(key) {
       return this.attributes[key] ?? null;
@@ -93,6 +101,9 @@ function installDomStub() {
     createElement(tag) {
       return new El(tag);
     },
+    createElementNS(_ns, tag) {
+      return new El(tag);
+    },
     createTextNode(text) {
       return { nodeType: 3, textContent: String(text) };
     },
@@ -104,6 +115,7 @@ test("itemToSlot prefers outfitRole synonyms then type", () => {
   assert.equal(itemToSlot({ outfitRole: "base", type: "oxford" }), "shirt");
   assert.equal(itemToSlot({ outfitRole: "footwear", type: "derby" }), "shoes");
   assert.equal(itemToSlot({ outfitRole: "bottoms", type: "chinos" }), "trousers");
+  assert.equal(itemToSlot({ outfitRole: "belt", type: "belt" }), "belt");
   assert.equal(itemToSlot({ outfitRole: "", type: "sneakers" }), "shoes");
   assert.equal(itemToSlot({ outfitRole: "", type: "trainers" }), "shoes");
   assert.equal(itemToSlot({ outfitRole: "", type: "denim" }), "trousers");
@@ -112,34 +124,29 @@ test("itemToSlot prefers outfitRole synonyms then type", () => {
   assert.equal(itemToSlot({ outfitRole: "misc", type: "watch" }), null);
 });
 
-test("hero bands leave shoes and lower trousers below jacket", () => {
+test("hero bands keep shoes below jacket (SVG depth order)", () => {
   const jacketBottom = SLOT_BANDS.jacket.topPct + SLOT_BANDS.jacket.heightPct;
   const shoesTop = SLOT_BANDS.shoes.topPct;
-  const trousersBottom =
-    SLOT_BANDS.trousers.topPct + SLOT_BANDS.trousers.heightPct;
   assert.ok(
     jacketBottom < shoesTop,
-    "jacket must not cover the shoe band"
-  );
-  assert.ok(
-    trousersBottom > jacketBottom,
-    "trousers must peek below the jacket band"
-  );
-  assert.ok(
-    SLOT_BANDS.jacket.heightPct <= 30,
-    "jacket band stay short so multi-slot looks read under imperfect mattes"
-  );
-  assert.ok(
-    SLOT_COMPOSITE.jacket && SLOT_COMPOSITE.jacket.opacity < 1,
-    "jacket softstop opacity < 1"
+    "jacket band must not cover the shoe band"
   );
 });
 
-test("layerImageUrl: hero prefers cutout → full → thumb; strip uses thumb", () => {
+test("resolveFillColor maps wardrobe names; resolvePatternHint is cheap", () => {
+  assert.equal(resolveFillColor("navy"), "#1e3a5f");
+  assert.equal(resolveFillColor("#abc"), "#abc");
+  assert.equal(resolvePatternHint("pinstripe"), "stripe");
+  assert.equal(resolvePatternHint("glen check"), "check");
+  assert.equal(resolvePatternHint("solid"), "solid");
+});
+
+test("layerImageUrl: hero/catalog prefer full → thumb (never cutout); strip uses thumb", () => {
   const withCutout = item({
     photos: [photo("https://f.example/a.jpg", "https://t.example/a.jpg", "https://c.example/a.webp")],
   });
-  assert.equal(layerImageUrl(withCutout, { purpose: "hero" }), "https://c.example/a.webp");
+  assert.equal(layerImageUrl(withCutout, { purpose: "hero" }), "https://f.example/a.jpg");
+  assert.equal(layerImageUrl(withCutout, { purpose: "catalog" }), "https://f.example/a.jpg");
   assert.equal(layerImageUrl(withCutout, { purpose: "strip" }), "https://t.example/a.jpg");
 
   const fullOnly = item({ photos: [photo("https://f.example/b.jpg", "https://t.example/b.jpg")] });
@@ -150,13 +157,14 @@ test("layerImageUrl: hero prefers cutout → full → thumb; strip uses thumb", 
   assert.equal(layerImageUrl(thumbOnly, { purpose: "hero" }), "https://t.example/c.jpg");
 });
 
-test("buildLookVisual orders hero by z-index and strip top-down", () => {
+test("buildLookVisual orders hero by z-index and strip top-down; fills from color", () => {
   const look = {
     items: [
-      item({ itemId: "sh", outfitRole: "footwear", type: "shoes" }),
-      item({ itemId: "tr", outfitRole: "trousers", type: "pants" }),
-      item({ itemId: "si", outfitRole: "shirt", type: "oxford" }),
-      item({ itemId: "jk", outfitRole: "outerwear", type: "blazer" }),
+      item({ itemId: "sh", outfitRole: "footwear", type: "shoes", color: "brown" }),
+      item({ itemId: "tr", outfitRole: "trousers", type: "pants", color: "grey", pattern: "solid" }),
+      item({ itemId: "si", outfitRole: "shirt", type: "oxford", color: "white", pattern: "stripe" }),
+      item({ itemId: "jk", outfitRole: "outerwear", type: "blazer", color: "navy" }),
+      item({ itemId: "be", outfitRole: "belt", type: "belt", color: "black" }),
     ],
   };
   const visual = buildLookVisual(look, 0);
@@ -167,10 +175,15 @@ test("buildLookVisual orders hero by z-index and strip top-down", () => {
   assert.ok(visual.layers[0].zIndex < visual.layers[3].zIndex);
   assert.deepEqual(
     visual.strip.map((l) => l.slotId),
-    STRIP_SLOT_ORDER
+    [...STRIP_SLOT_ORDER, "belt"]
   );
   assert.equal(visual.layers[3].imageUrl, "https://f.example/a.jpg");
   assert.equal(visual.strip[0].thumbUrl, "https://t.example/a.jpg");
+  assert.equal(visual.layers.find((l) => l.slotId === "jacket").fillColor, "#1e3a5f");
+  assert.equal(visual.layers.find((l) => l.slotId === "shirt").patternHint, "stripe");
+  assert.ok(visual.belt);
+  assert.equal(visual.belt.itemId, "be");
+  assert.equal(visual.belt.fillColor, "#1a1a1a");
 });
 
 test("unmapped items are strip-only; duplicate slots keep first for hero", () => {
@@ -197,15 +210,16 @@ test("unmapped items are strip-only; duplicate slots keep first for hero", () =>
   assert.equal(visual.strip.find((l) => l.itemId === "acc").slotId, null);
 });
 
-test("renderLookCard DOM has hero + right strip structure", () => {
+test("renderLookCard DOM has SVG mannequin hero + right strip structure", () => {
   installDomStub();
   const look = {
     lookId: "1",
     items: [
       item({ itemId: "jk", outfitRole: "outerwear", type: "blazer", color: "navy" }),
-      item({ itemId: "si", outfitRole: "shirt", type: "oxford", color: "white" }),
+      item({ itemId: "si", outfitRole: "shirt", type: "oxford", color: "white", pattern: "stripe" }),
       item({ itemId: "tr", outfitRole: "trousers", type: "pants", color: "grey" }),
       item({ itemId: "sh", outfitRole: "footwear", type: "shoes", color: "brown" }),
+      item({ itemId: "be", outfitRole: "belt", type: "belt", color: "black" }),
     ],
   };
   const card = renderLookCard(look, 0);
@@ -213,19 +227,16 @@ test("renderLookCard DOM has hero + right strip structure", () => {
   assert.ok(card.querySelector(".look-body"));
   assert.ok(card.querySelector(".look-hero"));
   assert.ok(card.querySelector(".look-strip"));
-  assert.equal(card.querySelectorAll(".look-layer").length, 4);
-  assert.equal(card.querySelectorAll(".look-strip-thumb").length, 4);
+  assert.ok(card.querySelector(".look-mannequin"));
+  assert.equal(card.querySelectorAll(".mannequin-panel").length >= 4, true);
+  assert.equal(card.querySelectorAll(".look-strip-thumb").length, 5);
   const body = card.querySelector(".look-body");
-  assert.equal(body.children[0].className, "look-hero");
+  assert.match(body.children[0].className, /look-hero/);
   assert.equal(body.children[1].className, "look-strip");
-  const jacket = card.querySelectorAll(".look-layer").find(
-    (n) => (n.className || "").includes("look-layer--jacket")
+  const jacket = card.querySelectorAll(".mannequin-panel").find(
+    (n) => (n.attributes["data-slot"] || "") === "jacket"
   );
   assert.ok(jacket);
-  assert.match(
-    jacket.attributes.style || "",
-    /opacity:0\.72/,
-    "jacket softstop opacity applied inline"
-  );
+  assert.equal(jacket.attributes.fill, "#1e3a5f");
   delete globalThis.document;
 });

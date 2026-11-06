@@ -105,8 +105,8 @@ export function backfillThumbs() {
 }
 
 /**
- * B2: cutout backfill for the signed-in user's existing photos.
- * Pass `{ force: true }` (or `upgrade: true`) to regenerate after a matte algo bump.
+ * Cutout backfill endpoint retained but Lambda noops (CUTOUTS_ENABLED=false).
+ * SPA no longer auto-calls this; kept for manual ops / future AI categorization.
  */
 export function backfillCutouts({ force = false, upgrade = false } = {}) {
   const body = {};

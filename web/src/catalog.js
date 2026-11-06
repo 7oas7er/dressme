@@ -81,7 +81,7 @@ function el(tag, attrs = {}, children = []) {
 }
 
 function thumbUrl(item) {
-  // B2 / §4.3: catalog prefers cutout when present; else UC-20 thumb / full.
+  // Option D: catalog uses photographic thumbs/originals (cutouts no longer preferred).
   return layerImageUrl(item, { purpose: "catalog" });
 }
 
@@ -211,70 +211,6 @@ export function renderCatalogApp(root, { onLogout }) {
     state.status = `${total} item${total === 1 ? "" : "s"}`;
   }
 
-  let cutoutBackfillStarted = false;
-  /** Must match infra/lambda/cutouts.js CUTOUT_VERSION after each matte bump. */
-  const CUTOUT_ALGO_CLIENT = 3;
-  const CUTOUT_ALGO_STORAGE_KEY = "dressme.cutoutAlgo";
-
-  async function maybeBackfillCutouts() {
-    if (cutoutBackfillStarted) return;
-    const needsMissing = (state.items || []).some((item) =>
-      (item.photos || []).some(
-        (photo) => photo && photo.status === "ready" && !photo.cutoutUrl
-      )
-    );
-    let storedAlgo = null;
-    try {
-      storedAlgo = localStorage.getItem(CUTOUT_ALGO_STORAGE_KEY);
-    } catch {
-      storedAlgo = null;
-    }
-    const needsUpgrade = storedAlgo !== String(CUTOUT_ALGO_CLIENT);
-    if (!needsMissing && !needsUpgrade) return;
-    cutoutBackfillStarted = true;
-    try {
-      state.status = needsUpgrade
-        ? "Refreshing cutouts…"
-        : "Generating cutouts for existing photos…";
-      paint();
-      const result = await api.backfillCutouts({
-        force: needsUpgrade,
-        upgrade: needsUpgrade,
-      });
-      const processed = (result && result.processed) || 0;
-      const serverVersion = (result && result.cutoutVersion) || 0;
-      if (processed > 0) {
-        const data = await api.listItems(state.query);
-        state.items = data.items || [];
-        pruneStaleFilters();
-      }
-      // Only pin the client algo marker once the deployed Lambda speaks this version
-      // (avoids marking "done" before stg terraform apply ships CUTOUT_VERSION).
-      if (serverVersion === CUTOUT_ALGO_CLIENT) {
-        try {
-          localStorage.setItem(
-            CUTOUT_ALGO_STORAGE_KEY,
-            String(CUTOUT_ALGO_CLIENT)
-          );
-        } catch {
-          /* ignore quota / private mode */
-        }
-      }
-      updateStatusFromItems();
-      if (processed > 0) {
-        state.status =
-          (state.status ? state.status + " · " : "") +
-          `Cutouts ready (${processed}).`;
-      }
-    } catch (err) {
-      // Non-fatal: catalog still works with photographic thumbs.
-      console.warn("cutout_backfill_failed", err);
-      updateStatusFromItems();
-    } finally {
-      paint();
-    }
-  }
-
   async function refresh() {
     state.busy = true;
     state.error = "";
@@ -289,7 +225,6 @@ export function renderCatalogApp(root, { onLogout }) {
     } finally {
       state.busy = false;
       paint();
-      maybeBackfillCutouts();
     }
   }
 
@@ -663,7 +598,6 @@ export function renderCatalogApp(root, { onLogout }) {
     } else {
       for (const item of visible) {
         const url = thumbUrl(item);
-        const hasCutout = (item.photos || []).some((p) => p && p.cutoutUrl);
         const card = el(
           "button",
           {
@@ -676,7 +610,6 @@ export function renderCatalogApp(root, { onLogout }) {
               ? el("img", {
                   src: url,
                   alt: `${item.type} ${item.color}`,
-                  className: hasCutout ? "catalog-cutout" : null,
                 })
               : el("div", { className: "thumb", text: "No photo" }),
             el("div", { className: "meta" }, [

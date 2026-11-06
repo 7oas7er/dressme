@@ -1,8 +1,11 @@
 /**
- * Layered look layout (Option 4 chrome + Option 1 photo bands).
+ * Layered look layout (Option 4 chrome + Option D SVG mannequin hero).
  * Slot synonyms + hero/strip view-model for suggest cards.
- * Cutout preference (B2/UC-24): hero/catalog use cutoutUrl when present.
+ * Hero uses attribute fills (color + cheap pattern hint); strip stays photographic.
+ * Cutouts are no longer preferred (generation stopped; existing keys left in place).
  */
+
+import { resolveFillColor, resolvePatternHint } from "./mannequinColor.js";
 
 /** Bottom → top paint / low → high z-index. */
 export const HERO_SLOT_ORDER = ["shoes", "trousers", "shirt", "jacket"];
@@ -18,29 +21,21 @@ const SLOT_Z = {
 };
 
 /**
- * Vertical bands as % of the hero frame.
- * Tuned so shoes + lower trousers stay readable under a frontmost jacket
- * (design §3.1 with B3 polish — jacket no longer covers ~half the frame).
- * v3 stopgap: shorter jacket band so multi-slot looks read even with imperfect mattes.
+ * Vertical bands as % of the hero frame (kept for tests / legacy layout notes).
+ * SVG mannequin uses its own path geometry; bands are no longer photo crop guides.
  */
 export const SLOT_BANDS = {
-  shoes: { topPct: 70, heightPct: 30 },
-  trousers: { topPct: 36, heightPct: 44 },
-  shirt: { topPct: 10, heightPct: 42 },
-  jacket: { topPct: 2, heightPct: 28 },
+  shoes: { topPct: 78, heightPct: 20 },
+  trousers: { topPct: 42, heightPct: 42 },
+  shirt: { topPct: 14, heightPct: 40 },
+  jacket: { topPct: 10, heightPct: 46 },
 };
 
-/**
- * Per-slot compositor hints (opacity / blend) — jacket softstop while mattes improve.
- * Option 4 chrome unchanged (hero left, authenticity strip right).
- */
-export const SLOT_COMPOSITE = {
-  jacket: { opacity: 0.72 },
-};
+/** @deprecated Option D does not use photo-layer softstop. */
+export const SLOT_COMPOSITE = {};
 
 /**
- * Horizontal inset (% of hero width) — silhouette so shoes sit narrower
- * than jacket/shirt and the stack reads as one body.
+ * Horizontal inset (% of hero width) — kept for API stability; SVG uses paths.
  */
 export const SLOT_INSET = {
   shoes: { leftPct: 22, rightPct: 22 },
@@ -115,6 +110,11 @@ const SLOT_SYNONYMS = [
       /vest/,
     ],
   },
+  {
+    slotId: "belt",
+    roles: ["belt"],
+    types: [/\bbelt\b/],
+  },
 ];
 
 function normalize(value) {
@@ -126,6 +126,7 @@ function normalize(value) {
 /**
  * Map a catalog item to a hero slot, or null when unmapped (strip-only).
  * Prefers outfitRole substring/synonym, then type regex.
+ * Belt is a hero accessory (drawn in the trousers waist band), not strip-only.
  */
 export function itemToSlot(item) {
   const role = normalize(item && item.outfitRole);
@@ -152,7 +153,7 @@ export function itemToSlot(item) {
 
 function firstPhoto(item) {
   return ((item && item.photos) || []).find(
-    (p) => p && (p.cutoutUrl || p.url || p.thumbUrl)
+    (p) => p && (p.url || p.thumbUrl || p.cutoutUrl)
   );
 }
 
@@ -163,9 +164,9 @@ function stripThumbUrl(item) {
 }
 
 /**
- * Image URL policy (design §4.3 / §7).
- * hero/catalog → cutout if present, else full, else thumb.
- * strip → always photographic thumb / original (not matte).
+ * Image URL policy (Option D / stop cutouts).
+ * hero/catalog → photographic full, else thumb (never prefer cutout).
+ * strip → always photographic thumb / original.
  */
 export function layerImageUrl(item, { purpose = "hero" } = {}) {
   if (purpose === "strip") {
@@ -173,7 +174,7 @@ export function layerImageUrl(item, { purpose = "hero" } = {}) {
   }
   const photo = firstPhoto(item);
   if (!photo) return "";
-  if (photo.cutoutUrl) return photo.cutoutUrl;
+  // Prefer originals/thumbs everywhere cutouts were preferred.
   return photo.url || photo.thumbUrl || "";
 }
 
@@ -188,12 +189,17 @@ function itemLabel(item) {
 function makeLayer(item, slotId, { hero }) {
   const band = slotId && SLOT_BANDS[slotId] ? { ...SLOT_BANDS[slotId] } : null;
   const inset = slotId && SLOT_INSET[slotId] ? { ...SLOT_INSET[slotId] } : null;
+  const colorRaw = String((item && item.color) || "").trim();
+  const patternRaw = String((item && item.pattern) || "").trim();
   return {
     itemId: String((item && (item.itemId || item.id)) || ""),
     slotId,
-    zIndex: slotId ? SLOT_Z[slotId] : 0,
+    zIndex: slotId && SLOT_Z[slotId] != null ? SLOT_Z[slotId] : 0,
     imageUrl: layerImageUrl(item, { purpose: "hero" }),
     thumbUrl: layerImageUrl(item, { purpose: "strip" }),
+    fillColor: resolveFillColor(colorRaw),
+    patternHint: resolvePatternHint(patternRaw),
+    colorLabel: colorRaw,
     label: itemLabel(item),
     band,
     inset,
@@ -204,17 +210,27 @@ function makeLayer(item, slotId, { hero }) {
 /**
  * Build hero layers + authenticity strip for one suggest look.
  * Duplicate slots: first wins for hero; losers and unmapped go strip-only.
+ * Belt (if present) is exposed as `belt` for the trousers waist band.
  */
 export function buildLookVisual(look, lookIndex = 0) {
   const items = (look && look.items) || [];
   const claimed = new Set();
   const layersBySlot = {};
   const stripOnly = [];
+  let belt = null;
 
   for (const item of items) {
     const slotId = itemToSlot(item);
     if (!slotId) {
       stripOnly.push(makeLayer(item, null, { hero: false }));
+      continue;
+    }
+    if (slotId === "belt") {
+      if (!belt) {
+        belt = makeLayer(item, "belt", { hero: true });
+      } else {
+        stripOnly.push(makeLayer(item, "belt", { hero: false }));
+      }
       continue;
     }
     if (claimed.has(slotId)) {
@@ -231,6 +247,7 @@ export function buildLookVisual(look, lookIndex = 0) {
   for (const id of STRIP_SLOT_ORDER) {
     if (layersBySlot[id]) strip.push(layersBySlot[id]);
   }
+  if (belt) strip.push(belt);
   for (const extra of stripOnly) {
     strip.push(extra);
   }
@@ -239,5 +256,6 @@ export function buildLookVisual(look, lookIndex = 0) {
     lookIndex,
     layers,
     strip,
+    belt,
   };
 }

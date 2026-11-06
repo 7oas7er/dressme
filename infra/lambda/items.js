@@ -31,6 +31,13 @@ var ATTR_KEYS = [
   "outfitRole",
 ];
 
+/**
+ * Option D spike: stop generating / backfilling cutouts.
+ * Existing *.cutout.webp + Dynamo cutoutKey values are left in place (no delete).
+ * SPA prefers originals/thumbs; may revisit cutouts later for AI categorization.
+ */
+var CUTOUTS_ENABLED = false;
+
 var MAX_PHOTOS = 8;
 var MAX_ATTR_LEN = 120;
 var PRESIGN_PUT_SECONDS = 900;
@@ -282,6 +289,9 @@ async function ensureThumbForPhoto(photo, cachedBuffer) {
 }
 
 async function ensureCutoutForPhoto(photo, cachedBuffer, options) {
+  if (!CUTOUTS_ENABLED) {
+    return photo;
+  }
   if (!photo || photo.status !== "ready" || !photo.key) {
     return photo;
   }
@@ -323,6 +333,7 @@ async function ensureCutoutForPhoto(photo, cachedBuffer, options) {
 }
 
 function photoNeedsCutout(photo, force) {
+  if (!CUTOUTS_ENABLED) return false;
   if (!photo || photo.status !== "ready" || !photo.key) return false;
   if (force) return true;
   if (!photo.cutoutKey) return true;
@@ -599,7 +610,7 @@ async function confirmPhotos(user, itemId, body) {
     }
     return photo;
   });
-  // UC-20 thumbs + B2 cutouts for newly ready photos (cutout failure is non-fatal).
+  // UC-20 thumbs for newly ready photos. Cutout generation stopped (Option D).
   photos = await ensureDerivativesForPhotos(photos);
   var next = Object.assign({}, existing, {
     photos: photos,
@@ -749,6 +760,20 @@ async function backfillThumbs(user) {
 }
 
 async function backfillCutouts(user, body) {
+  if (!CUTOUTS_ENABLED) {
+    // Noop: leave existing keys; SPA no longer auto-calls this.
+    return {
+      statusCode: 200,
+      body: {
+        processed: 0,
+        skipped: 0,
+        failed: 0,
+        updatedItems: 0,
+        cutoutVersion: cutouts.CUTOUT_VERSION,
+        disabled: true,
+      },
+    };
+  }
   var force = Boolean(body && (body.force || body.upgrade));
   return backfillDerivative(user, "cutouts", { force: force });
 }
@@ -787,4 +812,5 @@ exports.signedFullUrls = signedFullUrls;
 exports.signedThumbUrls = signedThumbUrls;
 exports.signedCutoutUrls = signedCutoutUrls;
 exports.ATTR_KEYS = ATTR_KEYS;
+exports.CUTOUTS_ENABLED = CUTOUTS_ENABLED;
 exports.resetDepsForTests = resetDepsForTests;
