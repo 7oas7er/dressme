@@ -498,7 +498,7 @@ export function renderCatalogApp(root, { onLogout }) {
       ) {
         state.error =
           "Outfit suggestions are temporarily unavailable. Try again in a moment.";
-      } else if (code === "missing_context") {
+      } else if (code === "missing_context" || code === "missing_occasion") {
         state.error = "Context is required.";
       } else {
         state.error = code || "Could not suggest outfits.";

@@ -31,7 +31,7 @@ test("look helpers summarize pieces without feedback UI", () => {
   assert.match(lookSummary({ items: [] }), /No pieces/);
 });
 
-test("suggestOutfits posts context (not occasion/weather)", async () => {
+test("suggestOutfits posts context and dual-writes occasion for deploy window", async () => {
   const calls = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options = {}) => {
@@ -56,7 +56,8 @@ test("suggestOutfits posts context (not occasion/weather)", async () => {
     assert.equal(calls[0].url, "/api/suggest");
     const body = JSON.parse(calls[0].options.body);
     assert.equal(body.context, "opera tonight, rainy");
-    assert.equal(body.occasion, undefined);
+    // Dual-write: live Lambda may still require occasion until TF apply.
+    assert.equal(body.occasion, "opera tonight, rainy");
     assert.equal(body.weather, undefined);
   } finally {
     globalThis.fetch = originalFetch;
