@@ -188,7 +188,6 @@ function emptyAssist() {
   return {
     proposal: null,
     analyzing: false,
-    answers: "",
   };
 }
 
@@ -370,43 +369,34 @@ export function renderCatalogApp(root, { onLogout }) {
   }
 
   /** Merge a proposal into the main form draft (empty proposal values keep current). */
-  function draftFromProposal(proposal, answers) {
+  function draftFromProposal(proposal) {
     const attrs = (proposal && proposal.attributes) || {};
     const draft = {};
     for (const field of ATTR_FIELDS) {
       const value = String(attrs[field.key] || "").trim();
       draft[field.key] = value || fieldValue(field.key);
     }
-    const fromAnswers = String(answers || "").trim();
-    const pieces = [(proposal && proposal.aiContext) || "", fromAnswers].filter(
-      Boolean
-    );
-    draft.aiContext = pieces.join("\n").slice(0, 2000);
+    const proposed = String((proposal && proposal.aiContext) || "").trim();
+    draft.aiContext = (proposed || fieldValue("aiContext")).slice(0, 2000);
     return draft;
   }
 
   async function runAnalyze(form) {
     const fileInput = form.elements.photos;
     const files = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
-    const answers = String(
-      (form.elements.assistAnswers && form.elements.assistAnswers.value) ||
-        state.assist.answers ||
-        ""
-    ).trim();
-    state.assist.answers = answers;
+    const aiContext = form.elements.aiContext
+      ? String(form.elements.aiContext.value || "").trim()
+      : fieldValue("aiContext");
 
     const attributes = readFormAttributes(form);
     // Survive paint() while analyzing.
-    state.formDraft = Object.assign({}, attributes, {
-      aiContext: form.elements.aiContext
-        ? String(form.elements.aiContext.value || "").trim()
-        : fieldValue("aiContext"),
-    });
+    state.formDraft = Object.assign({}, attributes, { aiContext });
 
+    // Send current AI context as hints/answers when present (same durable field).
     const payload = {
       attributes,
-      answers,
-      hints: answers,
+      answers: aiContext,
+      hints: aiContext,
     };
 
     state.assist.analyzing = true;
@@ -443,7 +433,7 @@ export function renderCatalogApp(root, { onLogout }) {
       state.assist.proposal = proposal;
       // Apply directly into the main add/edit fields — no second editable copy.
       if (proposal) {
-        state.formDraft = draftFromProposal(proposal, answers);
+        state.formDraft = draftFromProposal(proposal);
         state.status =
           "Filled the form from the photo — tweak anything, then Save item.";
       } else {
@@ -826,13 +816,19 @@ export function renderCatalogApp(root, { onLogout }) {
       el("label", {}, [
         el("span", {
           className: "field-title",
-          text: "Notes / answers for the assistant",
+          text: "AI context (edit anytime; Analyze fills/updates from the photo)",
         }),
         el("textarea", {
-          name: "assistAnswers",
-          rows: "2",
-          placeholder: "e.g. board meetings; no brown belt with this",
-          text: state.assist.answers || "",
+          name: "aiContext",
+          rows: "3",
+          maxlength: "2000",
+          placeholder:
+            "Optional: when you wear it, pairing notes, or hints before Analyze…",
+          text: fieldValue("aiContext"),
+        }),
+        el("span", {
+          className: "field-hint",
+          text: "Saved with the item for later outfit suggest. Analyze sends this text as hints, then writes its proposal back here.",
         }),
       ]),
       el("div", { className: "row" }, [
@@ -850,7 +846,7 @@ export function renderCatalogApp(root, { onLogout }) {
       return block;
     }
 
-    // Short read-only summary only — attrs + aiContext live in the main form.
+    // Short read-only summary only — attrs + aiContext live in the form fields.
     block.append(
       el("p", {
         className: "assist-label",
@@ -874,7 +870,7 @@ export function renderCatalogApp(root, { onLogout }) {
       block.append(
         el("p", {
           className: "muted",
-          text: "Add answers above and re-analyze, or edit the form fields directly.",
+          text: "Edit AI context above and re-analyze, or edit the form fields directly.",
         })
       );
     }
@@ -1005,23 +1001,6 @@ export function renderCatalogApp(root, { onLogout }) {
     form.append(grid);
 
     form.append(
-      el("label", {}, [
-        el("span", { className: "field-title", text: "AI context (for later suggest)" }),
-        el("textarea", {
-          name: "aiContext",
-          rows: "3",
-          maxlength: "2000",
-          placeholder: "Optional notes the AI (or you) leave for outfit recommendations…",
-          text: fieldValue("aiContext"),
-        }),
-        el("span", {
-          className: "field-hint",
-          text: "Saved with the item. Used later for text-based outfit suggest. Analyze fills this when it has a proposal.",
-        }),
-      ])
-    );
-
-    form.append(
       el("div", { className: "row" }, [
         el("button", {
           type: "submit",
@@ -1051,10 +1030,13 @@ export function renderCatalogApp(root, { onLogout }) {
         text: `${item.color} · ${item.fabric} · ${item.formality} · ${item.season}`,
       }),
       item.aiContext
-        ? el("p", {
-            className: "ai-context",
-            text: item.aiContext,
-          })
+        ? el("div", { className: "stack ai-context-block" }, [
+            el("p", { className: "field-label", text: "AI context" }),
+            el("p", {
+              className: "ai-context",
+              text: item.aiContext,
+            }),
+          ])
         : null,
       el("p", {
         className: "muted",
