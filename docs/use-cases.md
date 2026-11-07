@@ -2,7 +2,7 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist; UC-04–06 suggest UX ships with random assembly before Bedrock text suggest).  
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice).  
 Last updated: 2026-11-07 (Europe/Berlin)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
@@ -15,7 +15,7 @@ Synced from Project store use cases where they diverge; Must list below is autho
 As Frank, when I acquire a new piece, I capture photos and attributes (type, color, fabric, brand/model, formality, pattern, season/climate, outfit role) in about 3 minutes, so it appears in my catalog. Optional add-time AI assist (UC-25) may propose attributes and a short context note; Frank always reviews/edits before save.
 
 ### UC-25 — Add-time AI catalog assist
-As Frank, when I add or edit an item, I can run **Analyze photo** so the server (Bedrock multimodal) proposes type/attrs, a short **aiContext** for later outfit suggest, and optional follow-up questions; I edit and confirm before anything is saved. One analyze call per click; never auto-commit invented facts. Outfit suggest remains random until a later Bedrock text-suggest slice.
+As Frank, when I add or edit an item, I can run **Analyze photo** so the server (Bedrock multimodal) proposes type/attrs, a short **aiContext** for later outfit suggest, and optional follow-up questions; I edit and confirm before anything is saved. One analyze call per click; never auto-commit invented facts.
 
 ### UC-02 — Browse and look up the catalog
 As Frank, I browse/search my items (with photos) so I can see what I own — including opening the app while shopping for a quick visual check (no gap analysis, no near-duplicate detection).
@@ -42,13 +42,16 @@ As Frank, on the add/edit item form, the Brand/model control sits on the same ba
 As Frank, above the catalog grid I can filter items by attribute categories that matter while browsing (at least type, color, fabric, formality, pattern, season/climate, outfit role, and brand/model), using the values present in my wardrobe; filters combine (AND), and I can clear them to see everything again.
 
 ### UC-04 — Request outfit suggestions
-As Frank, before getting dressed, I enter a free-text occasion and (when relevant) manual weather, then receive exactly three outfit suggestions drawn only from my catalog, informed by classic menswear knowledge.
+As Frank, before getting dressed, I enter a free-text **context** (event, weather, or anything else that matters), then receive exactly three outfit suggestions drawn only from my catalog via Bedrock text suggest (attrs + `aiContext`; no photos), informed by classic menswear knowledge. `SUGGEST_ENGINE=random` remains available as a Terraform rollback.
 
 ### UC-05 — View a look as an SVG mannequin (Option D)
 As Frank, for each of the three suggestions I see one outfit card: a left-hand elongated male SVG croquis with soft value washes and role-shaped panels (lapel / trouser break / shoe profile hints), filled from item color or an optional client-side thumb sample (cheap pattern hint when attributes allow), painted shoes→trousers→shirt→jacket with belt in the trousers band, plus a right-hand authenticity strip of original photographic thumbs, so I can judge color harmony and jacket/shirt/trousers as an outfit at a glance and still verify each piece.
 
 ### UC-06 — Pick among three looks (no in-app feedback)
 As Frank, I choose which look to wear mentally / offline; the app does not record worn, like, or reject in v1.
+
+### UC-09 — Short rationale per look
+As Frank, under each Option D look card I see a short Bedrock rationale (1–3 sentences) explaining why the pieces fit this context — glance composition first, then why. Empty rationales (e.g. random engine) omit the element.
 
 ---
 
@@ -60,10 +63,7 @@ Includes former “Should” candidates not pulled into the v1 contract.
 Previously: transparent cutout derivatives on upload for catalog + hero. **Not required** for Option D — generation stopped; existing `*.cutout.webp` / Dynamo keys left in place. May revisit later for AI categorization, not as a hero/catalog product must.
 
 ### UC-08 — Dedicated “re-run with tweaked inputs” flow
-Beyond simply starting UC-04 again with new occasion/weather text.
-
-### UC-09 — Short rationale per look
-Brief “why this works” copy for each suggestion (supports the on-rules success signal; not required in v1 UI).
+Beyond simply starting UC-04 again with new context text.
 
 ### UC-10 — Travel packing optimization
 Suggest a minimal multi-day packing list from the wardrobe.

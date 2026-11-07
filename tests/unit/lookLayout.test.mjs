@@ -215,6 +215,7 @@ test("renderLookCard DOM has elongated SVG mannequin + right strip + washes", ()
   installDomStub();
   const look = {
     lookId: "1",
+    rationale: "Navy blazer over a white oxford keeps the lunch formal without black-tie overreach.",
     items: [
       item({ itemId: "jk", outfitRole: "outerwear", type: "blazer", color: "navy" }),
       item({ itemId: "si", outfitRole: "shirt", type: "oxford", color: "white", pattern: "stripe" }),
@@ -228,6 +229,11 @@ test("renderLookCard DOM has elongated SVG mannequin + right strip + washes", ()
   assert.ok(card.querySelector(".look-body"));
   assert.ok(card.querySelector(".look-hero"));
   assert.ok(card.querySelector(".look-strip"));
+  const rationale = card.querySelector(".look-rationale");
+  assert.ok(rationale);
+  assert.match(rationale.textContent || "", /Navy blazer/);
+  // Rationale is a sibling below look-body, not inside the hero.
+  assert.equal(card.querySelector(".look-hero .look-rationale"), null);
   const mannequin = card.querySelector(".look-mannequin");
   assert.ok(mannequin);
   assert.equal(mannequin.attributes.viewBox, "0 0 100 240");
@@ -249,6 +255,9 @@ test("renderLookCard DOM has elongated SVG mannequin + right strip + washes", ()
   );
   assert.ok(trousers);
   assert.match(trousers.attributes.d || "", /208|212|216/);
+
+  const noRationale = renderLookCard({ lookId: "2", items: look.items }, 1);
+  assert.equal(noRationale.querySelector(".look-rationale"), null);
   delete globalThis.document;
 });
 

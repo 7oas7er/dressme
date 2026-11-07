@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { collagePhotoUrl, lookHeadline, lookSummary } from "../../web/src/suggest.js";
+import { suggestOutfits } from "../../web/src/api.js";
 
 test("collagePhotoUrl prefers full-res over thumb", () => {
   assert.equal(
@@ -28,4 +29,36 @@ test("look helpers summarize pieces without feedback UI", () => {
     "navy outerwear · white shirt"
   );
   assert.match(lookSummary({ items: [] }), /No pieces/);
+});
+
+test("suggestOutfits posts context (not occasion/weather)", async () => {
+  const calls = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({
+          engine: "bedrock",
+          context: "opera tonight, rainy",
+          looks: [],
+          suggestionId: "sid",
+        });
+      },
+    };
+  };
+  try {
+    const data = await suggestOutfits({ context: "opera tonight, rainy" });
+    assert.equal(data.engine, "bedrock");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "/api/suggest");
+    const body = JSON.parse(calls[0].options.body);
+    assert.equal(body.context, "opera tonight, rainy");
+    assert.equal(body.occasion, undefined);
+    assert.equal(body.weather, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

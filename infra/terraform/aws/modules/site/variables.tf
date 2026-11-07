@@ -86,7 +86,12 @@ variable "bedrock_model_id" {
 }
 
 variable "suggest_engine" {
-  description = "Default UC-04 suggest engine (random until DM-44 Bedrock text suggest)."
+  description = "Default UC-04 suggest engine: bedrock (Haiku text) or random (TF rollback)."
   type        = string
   default     = "random"
+
+  validation {
+    condition     = contains(["bedrock", "random"], var.suggest_engine)
+    error_message = "suggest_engine must be \"bedrock\" or \"random\"."
+  }
 }

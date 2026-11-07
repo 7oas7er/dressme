@@ -44,4 +44,4 @@ Only after Frank asks to promote `staging` → `main`, then the same apply under
 
 ## Cost note
 
-One multimodal call per Analyze click. Outfit suggest stays random (`SUGGEST_ENGINE=random`) until DM-44. Successful Analyze emits a CloudWatch log line with `modelId` + token counts only (see ADR 0009).
+One multimodal call per Analyze click. Outfit suggest uses the same model/IAM; flip with `SUGGEST_ENGINE=bedrock` per [`bedrock-suggest.md`](./bedrock-suggest.md). Successful Analyze emits a CloudWatch log line with `modelId` + token counts only (see ADR 0009).

@@ -210,8 +210,7 @@ export function renderCatalogApp(root, { onLogout }) {
     assist: emptyAssist(),
     formDraft: emptyFormDraft(),
     suggest: {
-      occasion: "",
-      weather: "",
+      context: "",
       looks: null,
       engine: "",
       suggestionId: "",
@@ -465,33 +464,45 @@ export function renderCatalogApp(root, { onLogout }) {
     state.editing = null;
     state.error = "";
     state.status =
-      "Enter an occasion (and optional weather). You’ll get three looks from your catalog.";
+      "Describe the event, weather, or anything else that matters — you’ll get three looks from your wardrobe.";
     paint();
   }
 
   async function runSuggest(form) {
-    const occasion = String(form.elements.occasion.value || "").trim();
-    const weather = String(form.elements.weather.value || "").trim();
-    if (!occasion) {
-      state.error = "Occasion is required.";
+    const context = String(form.elements.context.value || "").trim();
+    if (!context) {
+      state.error = "Context is required.";
       paint();
       return;
     }
-    state.suggest.occasion = occasion;
-    state.suggest.weather = weather;
+    state.suggest.context = context;
     state.busy = true;
     state.error = "";
     state.status = "Assembling three looks…";
     paint();
     try {
-      const data = await api.suggestOutfits({ occasion, weather });
+      const data = await api.suggestOutfits({ context });
       state.suggest.looks = data.looks || [];
       state.suggest.engine = data.engine || "random";
       state.suggest.suggestionId = data.suggestionId || "";
       state.status =
         "Three looks — pick one mentally. Nothing is recorded in the app.";
     } catch (err) {
-      state.error = err.message || "Could not suggest outfits.";
+      const code = err && err.message ? String(err.message) : "";
+      if (
+        code === "suggest_unavailable" ||
+        code === "suggest_invalid_model_json" ||
+        code === "suggest_invalid_item_ids" ||
+        code === "http_502" ||
+        code === "http_503"
+      ) {
+        state.error =
+          "Outfit suggestions are temporarily unavailable. Try again in a moment.";
+      } else if (code === "missing_context") {
+        state.error = "Context is required.";
+      } else {
+        state.error = code || "Could not suggest outfits.";
+      }
       state.suggest.looks = null;
     } finally {
       state.busy = false;
@@ -1078,7 +1089,7 @@ export function renderCatalogApp(root, { onLogout }) {
       el("h1", { text: "Suggest outfits" }),
       el("p", {
         className: "lede",
-        text: "Occasion plus optional weather → exactly three looks from your wardrobe. Pick offline; the app does not record worn, like, or reject.",
+        text: "Describe the event, weather, or anything else that matters — you’ll get three looks from your wardrobe. Pick offline; the app does not record worn, like, or reject.",
       }),
     ]);
 
@@ -1091,25 +1102,13 @@ export function renderCatalogApp(root, { onLogout }) {
     });
     form.append(
       el("label", {}, [
-        el("span", { className: "field-title", text: "Occasion" }),
+        el("span", { className: "field-title", text: "Context" }),
         el("input", {
-          name: "occasion",
+          name: "context",
           required: "required",
-          maxlength: "240",
-          placeholder: "e.g. client lunch, weekend market, evening drinks",
-          value: state.suggest.occasion || "",
-          autocomplete: "off",
-        }),
-      ])
-    );
-    form.append(
-      el("label", {}, [
-        el("span", { className: "field-title", text: "Weather (optional)" }),
-        el("input", {
-          name: "weather",
-          maxlength: "240",
-          placeholder: "e.g. cool and dry, warm evening",
-          value: state.suggest.weather || "",
+          maxlength: "480",
+          placeholder: "e.g. client lunch, cool and dry",
+          value: state.suggest.context || "",
           autocomplete: "off",
         }),
       ])
@@ -1139,9 +1138,11 @@ export function renderCatalogApp(root, { onLogout }) {
           el("p", {
             className: "muted suggest-engine",
             text:
-              state.suggest.engine === "random"
-                ? "Random assembly from your catalog (AI suggestions come later)."
-                : `Engine: ${state.suggest.engine}`,
+              state.suggest.engine === "bedrock"
+                ? "AI suggestions from your catalog"
+                : state.suggest.engine === "random"
+                  ? "Random assembly from your catalog."
+                  : `Engine: ${state.suggest.engine}`,
           })
         );
       }
