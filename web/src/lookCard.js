@@ -553,5 +553,17 @@ export function renderLookCard(look, index = 0) {
 
   body.append(hero, strip);
   lookEl.append(body);
+
+  // UC-09: Bedrock rationale below hero+strip (never overlay the SVG).
+  const rationale = String((look && look.rationale) || "").trim().slice(0, 400);
+  if (rationale) {
+    lookEl.append(
+      el("p", {
+        className: "look-rationale",
+        text: rationale,
+      })
+    );
+  }
+
   return lookEl;
 }

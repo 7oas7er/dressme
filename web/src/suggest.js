@@ -1,6 +1,7 @@
 /**
  * UC-04–06 suggest UX helpers: look headlines/summaries.
  * Layered hero + authenticity strip live in lookLayout.js / lookCard.js.
+ * UC-09 rationale is rendered under the look body in lookCard.js.
  * No worn/like/reject recording in v1 (UC-06).
  */
 

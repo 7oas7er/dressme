@@ -6,6 +6,8 @@ var assert = require("node:assert/strict");
 process.env.AUTH_DISABLED = "true";
 process.env.ITEMS_TABLE = "test-items";
 process.env.MEDIA_BUCKET = "test-media";
+process.env.BEDROCK_MODEL_ID = "test-suggest-model";
+process.env.SUGGEST_ENGINE = "random";
 
 var items = require("./items");
 var api = require("./api");
@@ -93,6 +95,87 @@ function seedItem(memory, attrs) {
   return record;
 }
 
+function seedClassicCatalog(memory) {
+  seedItem(memory, {
+    itemId: "shoes-1",
+    type: "loafers",
+    color: "brown",
+    fabric: "leather",
+    brandModel: "Alden",
+    formality: "business",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "footwear",
+    aiContext: "Good for client lunches; pairs with navy.",
+  });
+  seedItem(memory, {
+    itemId: "pants-1",
+    type: "chinos",
+    color: "khaki",
+    fabric: "cotton",
+    brandModel: "Incotex",
+    formality: "smart casual",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "trousers",
+  });
+  seedItem(memory, {
+    itemId: "shirt-1",
+    type: "oxford",
+    color: "white",
+    fabric: "cotton",
+    brandModel: "Gitman",
+    formality: "business",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "shirt",
+  });
+  seedItem(memory, {
+    itemId: "blazer-1",
+    type: "blazer",
+    color: "navy",
+    fabric: "wool",
+    brandModel: "Ring Jacket",
+    formality: "business",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "outerwear",
+  });
+}
+
+function mockBedrockLooks(overrides) {
+  var looks = [
+    {
+      lookId: "1",
+      itemIds: ["shoes-1", "pants-1", "shirt-1", "blazer-1"],
+      rationale: "Navy blazer and white oxford suit a boardroom lunch.",
+    },
+    {
+      lookId: "2",
+      itemIds: ["shoes-1", "pants-1", "shirt-1"],
+      rationale: "Drop the jacket for a softer smart-casual read.",
+    },
+    {
+      lookId: "3",
+      itemIds: ["pants-1", "shirt-1", "blazer-1"],
+      rationale: "Same palette, jacket without loafers listed as optional.",
+    },
+  ];
+  if (overrides) {
+    for (var i = 0; i < overrides.length; i++) {
+      looks[i] = Object.assign({}, looks[i], overrides[i]);
+    }
+  }
+  return {
+    output: {
+      message: {
+        content: [{ text: JSON.stringify({ looks: looks }) }],
+      },
+    },
+    usage: { inputTokens: 1200, outputTokens: 280 },
+  };
+}
+
 test("classifySlot maps outfitRole/type into menswear slots", function () {
   assert.equal(suggest.classifySlot({ outfitRole: "footwear", type: "boots" }), "footwear");
   assert.equal(suggest.classifySlot({ outfitRole: "trousers", type: "chinos" }), "trousers");
@@ -137,43 +220,93 @@ test("assembleRandomLooks returns exactly three looks and skips empty slots", fu
   assert.ok(new Set(allIds).size >= 4, "prefer variety across looks when catalog allows");
 });
 
-test("POST /api/suggest requires occasion and returns three enriched looks", async function () {
+test("resolveContext prefers context and shims occasion/weather", function () {
+  assert.equal(
+    suggest.resolveContext({ context: "opera tonight, rainy" }),
+    "opera tonight, rainy"
+  );
+  assert.equal(
+    suggest.resolveContext({
+      occasion: "client lunch",
+      weather: "cool and dry",
+    }),
+    "client lunch; cool and dry"
+  );
+  assert.equal(suggest.resolveContext({ occasion: "weekend" }), "weekend");
+  assert.equal(suggest.resolveContext({ weather: "only weather" }), "");
+  assert.equal(suggest.resolveContext({}), "");
+  assert.ok(suggest.resolveContext({ context: "x".repeat(600) }).length <= 480);
+});
+
+test("serializeCatalogForPrompt omits photos/URLs and clamps aiContext", function () {
+  var longCtx = "note ".repeat(100);
+  var rows = suggest.serializeCatalogForPrompt([
+    {
+      itemId: "a1",
+      type: "shirt",
+      color: "white",
+      fabric: "cotton",
+      brandModel: "Gitman",
+      formality: "business",
+      pattern: "solid",
+      season: "all-season",
+      outfitRole: "shirt",
+      aiContext: longCtx,
+      photos: [
+        {
+          photoId: "p1",
+          key: "users/u/items/a1/p.jpg",
+          url: "https://evil.example/secret.jpg",
+          thumbUrl: "https://evil.example/thumb.jpg",
+        },
+      ],
+      pk: "USER#u",
+      sk: "ITEM#a1",
+    },
+  ]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].id, "a1");
+  assert.equal(rows[0].type, "shirt");
+  assert.ok(rows[0].aiContext.length <= 300);
+  assert.equal(rows[0].photos, undefined);
+  assert.equal(rows[0].url, undefined);
+  assert.equal(rows[0].pk, undefined);
+  var dumped = JSON.stringify(rows);
+  assert.ok(!/https?:\/\//i.test(dumped));
+  assert.ok(!/photos/i.test(dumped));
+  assert.ok(!/base64/i.test(dumped));
+});
+
+test("validateLookPayload drops unknown IDs and tracks empty looks", function () {
+  var allowed = new Set(["a", "b", "c"]);
+  var result = suggest.validateLookPayload(
+    {
+      looks: [
+        { lookId: "1", itemIds: ["a", "ghost", "b"], rationale: "ok" },
+        { lookId: "2", itemIds: ["nope"], rationale: "bad" },
+        { lookId: "3", itemIds: ["c"], rationale: "solo" },
+      ],
+    },
+    allowed
+  );
+  assert.deepEqual(result.looks[0].itemIds, ["a", "b"]);
+  assert.deepEqual(result.looks[1].itemIds, []);
+  assert.deepEqual(result.looks[2].itemIds, ["c"]);
+  assert.equal(result.emptyLookCount, 1);
+  assert.ok(result.looks[0].rationale.length <= 400);
+});
+
+test("parseJsonObject strips markdown fences", function () {
+  var parsed = suggest.parseJsonObject(
+    "```json\n{\"looks\":[{\"lookId\":\"1\",\"itemIds\":[\"a\"],\"rationale\":\"x\"}]}\n```"
+  );
+  assert.equal(parsed.looks[0].itemIds[0], "a");
+});
+
+test("POST /api/suggest requires context and returns three enriched looks", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);
-
-  seedItem(memory, {
-    itemId: "shoes-1",
-    type: "loafers",
-    color: "brown",
-    fabric: "leather",
-    brandModel: "Alden",
-    formality: "business",
-    pattern: "solid",
-    season: "all-season",
-    outfitRole: "footwear",
-  });
-  seedItem(memory, {
-    itemId: "pants-1",
-    type: "chinos",
-    color: "khaki",
-    fabric: "cotton",
-    brandModel: "Incotex",
-    formality: "smart casual",
-    pattern: "solid",
-    season: "all-season",
-    outfitRole: "trousers",
-  });
-  seedItem(memory, {
-    itemId: "shirt-1",
-    type: "oxford",
-    color: "white",
-    fabric: "cotton",
-    brandModel: "Gitman",
-    formality: "business",
-    pattern: "solid",
-    season: "all-season",
-    outfitRole: "shirt",
-  });
+  seedClassicCatalog(memory);
 
   var missing = await api.handler({
     rawPath: "/api/suggest",
@@ -181,7 +314,33 @@ test("POST /api/suggest requires occasion and returns three enriched looks", asy
     body: JSON.stringify({ weather: "cool" }),
   });
   assert.equal(missing.statusCode, 400);
-  assert.equal(JSON.parse(missing.body).error, "missing_occasion");
+  assert.equal(JSON.parse(missing.body).error, "missing_context");
+
+  var ok = await api.handler({
+    rawPath: "/api/suggest",
+    requestContext: { http: { method: "POST", path: "/api/suggest" } },
+    body: JSON.stringify({
+      context: "Tuesday client lunch, cool and dry",
+    }),
+  });
+  assert.equal(ok.statusCode, 200);
+  var body = JSON.parse(ok.body);
+  assert.equal(body.engine, "random");
+  assert.equal(body.context, "Tuesday client lunch, cool and dry");
+  assert.equal(body.occasion, undefined);
+  assert.equal(body.weather, undefined);
+  assert.equal(body.looks.length, 3);
+  assert.ok(body.suggestionId);
+  var first = body.looks[0];
+  assert.ok(first.items.length >= 1);
+  assert.ok(first.items[0].photos[0].url);
+  assert.match(first.items[0].photos[0].url, /^https:\/\/read\.example\//);
+});
+
+test("legacy occasion/weather shim still works for random engine", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedClassicCatalog(memory);
 
   var ok = await api.handler({
     rawPath: "/api/suggest",
@@ -193,37 +352,195 @@ test("POST /api/suggest requires occasion and returns three enriched looks", asy
   });
   assert.equal(ok.statusCode, 200);
   var body = JSON.parse(ok.body);
-  assert.equal(body.engine, "random");
-  assert.equal(body.occasion, "Tuesday client lunch");
-  assert.equal(body.weather, "cool and dry");
+  assert.equal(body.context, "Tuesday client lunch; cool and dry");
   assert.equal(body.looks.length, 3);
-  assert.ok(body.suggestionId);
-  var first = body.looks[0];
-  assert.ok(first.items.length >= 1);
-  assert.ok(first.items[0].photos[0].url);
-  assert.match(first.items[0].photos[0].url, /^https:\/\/read\.example\//);
 });
 
-test("Bedrock engine extension point returns 501 until wired", async function () {
+test("Bedrock engine returns three looks with rationale and logs tokens", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);
-  seedItem(memory, {
-    itemId: "only",
-    type: "shirt",
-    color: "blue",
-    fabric: "cotton",
-    brandModel: "x",
-    formality: "casual",
-    pattern: "solid",
-    season: "summer",
-    outfitRole: "shirt",
+  seedClassicCatalog(memory);
+
+  var calls = [];
+  suggest.resetDepsForTests({
+    converse: async function (input) {
+      calls.push(input);
+      assert.equal(input.modelId, "test-suggest-model");
+      assert.equal(input.inferenceConfig.temperature, 0.3);
+      var userText = input.messages[0].content[0].text;
+      assert.match(userText, /Catalog JSON:/);
+      assert.ok(!/https?:\/\//i.test(userText));
+      assert.ok(!/"photos"/i.test(userText));
+      return mockBedrockLooks();
+    },
   });
 
-  var res = await api.handler({
-    rawPath: "/api/suggest",
-    requestContext: { http: { method: "POST", path: "/api/suggest" } },
-    body: JSON.stringify({ occasion: "weekend", engine: "bedrock" }),
+  var logs = [];
+  var originalLog = console.log;
+  console.log = function () {
+    logs.push(Array.prototype.slice.call(arguments).join(" "));
+  };
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({
+        context: "board meeting tomorrow morning, cool and dry",
+        engine: "bedrock",
+      }),
+    });
+  } finally {
+    console.log = originalLog;
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 200);
+  var body = JSON.parse(res.body);
+  assert.equal(body.engine, "bedrock");
+  assert.equal(body.modelId, "test-suggest-model");
+  assert.equal(body.context, "board meeting tomorrow morning, cool and dry");
+  assert.equal(body.looks.length, 3);
+  assert.match(body.looks[0].rationale, /Navy blazer/);
+  assert.ok(body.looks[0].items.length >= 1);
+  assert.ok(body.looks[0].items[0].photos[0].thumbUrl || body.looks[0].items[0].photos[0].url);
+  assert.equal(calls.length, 1);
+
+  var successLine = logs.find(function (line) {
+    return line.indexOf("suggest_success") >= 0;
   });
-  assert.equal(res.statusCode, 501);
-  assert.equal(JSON.parse(res.body).error, "suggest_engine_unavailable");
+  assert.ok(successLine);
+  var parsedLog = JSON.parse(successLine);
+  assert.equal(parsedLog.event, "suggest_success");
+  assert.equal(parsedLog.modelId, "test-suggest-model");
+  assert.equal(parsedLog.inputTokens, 1200);
+  assert.equal(parsedLog.outputTokens, 280);
+  assert.equal(parsedLog.lookCount, 3);
+  assert.ok(parsedLog.suggestionId);
+  assert.equal(parsedLog.context, undefined);
+});
+
+test("Bedrock drops hallucinated IDs and repairs empty looks", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedClassicCatalog(memory);
+
+  var call = 0;
+  suggest.resetDepsForTests({
+    converse: async function () {
+      call += 1;
+      if (call === 1) {
+        return {
+          output: {
+            message: {
+              content: [
+                {
+                  text: JSON.stringify({
+                    looks: [
+                      {
+                        lookId: "1",
+                        itemIds: ["shoes-1", "not-real"],
+                        rationale: "first",
+                      },
+                      { lookId: "2", itemIds: ["invented"], rationale: "empty" },
+                      {
+                        lookId: "3",
+                        itemIds: ["shirt-1", "pants-1"],
+                        rationale: "third",
+                      },
+                    ],
+                  }),
+                },
+              ],
+            },
+          },
+          usage: { inputTokens: 10, outputTokens: 10 },
+        };
+      }
+      return mockBedrockLooks();
+    },
+  });
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({ context: "weekend market", engine: "bedrock" }),
+    });
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(call, 2);
+  var body = JSON.parse(res.body);
+  assert.equal(body.looks.length, 3);
+  for (var i = 0; i < body.looks.length; i++) {
+    assert.ok(body.looks[i].items.length >= 1);
+    for (var j = 0; j < body.looks[i].items.length; j++) {
+      assert.ok(
+        ["shoes-1", "pants-1", "shirt-1", "blazer-1"].includes(
+          body.looks[i].items[j].itemId
+        )
+      );
+    }
+  }
+});
+
+test("Bedrock failure returns suggest_unavailable without random fallback", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedClassicCatalog(memory);
+
+  suggest.resetDepsForTests({
+    converse: async function () {
+      var err = new Error("boom");
+      err.name = "AccessDeniedException";
+      throw err;
+    },
+  });
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({ context: "opera", engine: "bedrock" }),
+    });
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 503);
+  assert.equal(JSON.parse(res.body).error, "suggest_unavailable");
+});
+
+test("Bedrock empty catalog skips model and returns empty looks", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  suggest.resetDepsForTests({
+    converse: async function () {
+      throw new Error("should not call bedrock");
+    },
+  });
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({ context: "anything", engine: "bedrock" }),
+    });
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 200);
+  var body = JSON.parse(res.body);
+  assert.equal(body.engine, "bedrock");
+  assert.equal(body.looks.length, 3);
+  assert.equal(body.looks[0].items.length, 0);
+  assert.equal(body.modelId, undefined);
 });

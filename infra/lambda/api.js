@@ -121,12 +121,23 @@ exports.handler = async function handler(event) {
   } catch (err) {
     var status = (err && err.statusCode) || 500;
     var code = (err && err.message) || "internal_error";
-    // Scrub unexpected 5xx messages; keep intentional 501 (e.g. Bedrock not wired).
-    if (status >= 500 && status !== 501) {
+    // Scrub unexpected 5xx messages; keep intentional Bedrock / suggest codes.
+    var keepCodes = {
+      analyze_unavailable: true,
+      bedrock_analyze_failed: true,
+      analyze_empty_model_response: true,
+      analyze_invalid_model_json: true,
+      suggest_unavailable: true,
+      suggest_invalid_model_json: true,
+      suggest_invalid_item_ids: true,
+      suggest_empty_model_response: true,
+      suggest_engine_unavailable: true,
+    };
+    if (status >= 500 && !keepCodes[code]) {
       console.error("api_error", code, err && err.stack ? err.stack : err);
       code = "internal_error";
-    } else if (status === 501) {
-      console.error("api_not_implemented", code);
+    } else if (status >= 500) {
+      console.error("api_upstream", code);
     }
     return http.json(status, { error: code });
   }

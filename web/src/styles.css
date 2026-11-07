@@ -515,6 +515,13 @@ textarea {
   font-size: 0.92rem;
 }
 
+.look-rationale {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
 .look-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

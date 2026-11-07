@@ -154,11 +154,14 @@ test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   assert.match(catalog, /runSuggest/);
   assert.match(catalog, /renderLookCard/);
   assert.match(catalog, /Nothing is recorded|does not record worn/);
-  assert.match(catalog, /name: "occasion"/);
-  assert.match(catalog, /name: "weather"/);
+  assert.match(catalog, /name: "context"/);
+  assert.doesNotMatch(catalog, /name: "occasion"/);
+  assert.doesNotMatch(catalog, /name: "weather"/);
+  assert.match(catalog, /AI suggestions from your catalog/);
   assert.match(suggest, /lookHeadline|lookSummary/);
   assert.match(lookLayout, /itemToSlot|buildLookVisual|layerImageUrl/);
   assert.match(lookCard, /look-hero|look-strip|look-mannequin/);
+  assert.match(lookCard, /look-rationale/);
   assert.match(lookCard, /mn-wash|sampleThumb|100 240/);
   assert.match(mannequinColor, /resolveFillColor|resolvePatternHint/);
   assert.ok(
@@ -167,11 +170,14 @@ test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   );
   assert.match(apiSrc, /\/api\/suggest/);
   assert.match(apiSrc, /suggestOutfits/);
+  assert.match(apiSrc, /context/);
   assert.match(styles, /\.look-hero/);
   assert.match(styles, /\.look-mannequin/);
   assert.match(styles, /\.look-strip/);
+  assert.match(styles, /\.look-rationale/);
   assert.match(styles, /\.looks-grid/);
   assert.match(useCases, /UC-04 — Request outfit suggestions/);
   assert.match(useCases, /UC-05 — View a look as an SVG mannequin/);
   assert.match(useCases, /UC-06 — Pick among three looks/);
+  assert.match(useCases, /UC-09 — Short rationale per look/);
 });

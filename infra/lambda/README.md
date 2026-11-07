@@ -15,7 +15,7 @@ Routes (CloudFront `/api/*` → Function URL):
 | POST | `/api/photos/backfill-cutouts` | Cognito JWT | **Noop** while `CUTOUTS_ENABLED=false` (returns `{ disabled: true }`). Existing S3/Dynamo cutout keys left in place. |
 | GET | `/api/attribute-options` | Cognito JWT | Seed + per-user custom attribute suggestions (UC-19) |
 | POST | `/api/items/analyze` | Cognito JWT | UC-25 add-time AI assist: one Bedrock multimodal call → proposed attrs + `aiContext` (no Dynamo write) |
-| POST | `/api/suggest` | Cognito JWT | Exactly three outfit looks from the catalog (UC-04–06); random assembly MVP, Bedrock text suggest later (DM-44) |
+| POST | `/api/suggest` | Cognito JWT | Exactly three outfit looks + rationale (UC-04–06, UC-09); Bedrock text or random via `SUGGEST_ENGINE` |
 
 Photo upload flow: `POST /api/items` (or update with `addPhotos`) returns presigned PUT URLs; client uploads directly to the media bucket; then `photos/complete`.
 
@@ -27,7 +27,7 @@ Attribute suggestions (UC-19): Add/Edit forms load `/api/attribute-options` (cla
 
 Add-time AI assist (UC-25): `POST /api/items/analyze` with either `{ imageBase64, contentType? }` (new upload) or `{ itemId, photoId? }` (existing ready photo; prefers thumb). Optional `hints` / `answers` / partial `attributes`. Returns a proposal Frank must apply and save — analyze never writes Dynamo. On success, Lambda logs one JSON line (`analyze_success` + `modelId` + input/output token counts only — never prompts, images, or `aiContext`). Requires Bedrock model access + Lambda IAM (see `infra/terraform/docs/bedrock-catalog-assist.md`, ADR 0009).
 
-Outfit suggestions (UC-04–06): `POST /api/suggest` with `{ occasion, weather? }` returns exactly three looks, each a list of catalog items with signed photo URLs. SPA renders an **Option D SVG mannequin** hero (color/pattern fills) plus a right authenticity strip of photographic thumbs. v1 uses **random** role-slot assembly (`outfitRole` / `type`); empty slots are skipped. Set `engine: "bedrock"` (or `SUGGEST_ENGINE=bedrock`) later for attrs+IDs+`aiContext` Bedrock — not wired yet (returns 501). No worn/like/reject persistence.
+Outfit suggestions (UC-04–06 + UC-09): `POST /api/suggest` with `{ context }` (≤480 chars; legacy `{ occasion, weather? }` shim concatenates) returns exactly three looks, each with `rationale` + catalog items with signed photo URLs. Default engine = Lambda `SUGGEST_ENGINE` (`bedrock` \| `random`); body `engine` overrides for smoke. Bedrock path: text Converse over attrs + `aiContext` only (no photos); validates item IDs; hard-fails on model errors (no silent random fallback). Success logs `suggest_success` + `suggestionId` + `modelId` + token counts. SPA: Option D SVG mannequin + authenticity strip; rationale below the look body. See `infra/terraform/docs/bedrock-suggest.md`. No worn/like/reject persistence.
 
 Item field `aiContext` (optional string, ≤2000 chars) stores durable notes from assist for later text suggest.
 
