@@ -123,7 +123,13 @@ test("add/edit form exposes Analyze photo assist (UC-25)", () => {
   assert.match(catalog, /Filled the form from the photo/);
   assert.doesNotMatch(catalog, /Apply to form/);
   assert.doesNotMatch(catalog, /assistAiContext|name: `assist-/);
-  assert.match(catalog, /aiContext/);
+  assert.doesNotMatch(catalog, /assistAnswers|Notes \/ answers for the assistant/);
+  assert.match(
+    catalog,
+    /AI context \(edit anytime; Analyze fills\/updates from the photo\)/
+  );
+  assert.match(catalog, /name: "aiContext"/);
+  assert.match(catalog, /hints: aiContext/);
   assert.match(catalog, /runAnalyze|analyzeItemPhoto/);
   assert.match(apiSrc, /\/api\/items\/analyze/);
   assert.match(lambdaApi, /items\/analyze/);
