@@ -106,9 +106,16 @@ test("catalog list exposes attribute filters above the grid (UC-07)", () => {
   assert.match(catalog, /Clear filters/);
   assert.match(catalog, /Filter catalog by attributes/);
   assert.match(catalog, /renderFilters/);
+  assert.match(catalog, /dressme\.catalog\.filtersOpen/);
+  assert.match(catalog, /readFiltersOpen|filtersOpen/);
+  assert.match(catalog, /Hide filters|Filters/);
+  assert.match(catalog, /filter-fold-toggle/);
+  assert.match(styles, /\.filter-fold/);
   assert.match(styles, /\.filter-bar/);
   assert.match(styles, /\.filter-grid/);
+  assert.match(styles, /\.topbar-actions[\s\S]*margin-inline-end/);
   assert.match(useCases, /UC-07 — Filter the catalog by attributes/);
+  assert.match(useCases, /foldable filter pane/);
 });
 
 test("add/edit form exposes Analyze photo assist (UC-25)", () => {

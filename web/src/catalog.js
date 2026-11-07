@@ -62,6 +62,25 @@ function emptyFilters() {
   return next;
 }
 
+const FILTERS_OPEN_KEY = "dressme.catalog.filtersOpen";
+
+/** Folded by default; sessionStorage remembers expand/collapse for the tab. */
+function readFiltersOpen() {
+  try {
+    return sessionStorage.getItem(FILTERS_OPEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeFiltersOpen(open) {
+  try {
+    sessionStorage.setItem(FILTERS_OPEN_KEY, open ? "1" : "0");
+  } catch {
+    // Private mode / quota — fold state stays in-memory only.
+  }
+}
+
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
@@ -220,6 +239,8 @@ export function renderCatalogApp(root, { onLogout }) {
     items: [],
     query: "",
     filters: emptyFilters(),
+    /** Attribute filter pane; folded by default (sessionStorage). */
+    filtersOpen: readFiltersOpen(),
     view: "list", // list | form | detail | suggest
     editing: null,
     status: "",
@@ -770,8 +791,37 @@ export function renderCatalogApp(root, { onLogout }) {
   }
 
   function renderFilters() {
+    const activeCount = ATTR_FIELDS.filter((field) =>
+      String(state.filters[field.key] || "").trim()
+    ).length;
+    const open = state.filtersOpen;
+    const toggleLabel = open
+      ? "Hide filters"
+      : activeCount
+        ? `Filters (${activeCount})`
+        : "Filters";
+
+    const fold = el("div", { className: "filter-fold" });
+    fold.append(
+      el("button", {
+        type: "button",
+        className: "secondary filter-fold-toggle",
+        text: toggleLabel,
+        "aria-expanded": open ? "true" : "false",
+        "aria-controls": "catalog-filters",
+        onClick: () => {
+          state.filtersOpen = !state.filtersOpen;
+          writeFiltersOpen(state.filtersOpen);
+          paint();
+        },
+      })
+    );
+
+    if (!open) return fold;
+
     const options = collectAttributeFilterValues(state.items);
     const bar = el("div", {
+      id: "catalog-filters",
       className: "filter-bar",
       role: "group",
       "aria-label": "Filter catalog by attributes",
@@ -818,7 +868,8 @@ export function renderCatalogApp(root, { onLogout }) {
       }),
     ]);
     bar.append(actions);
-    return bar;
+    fold.append(bar);
+    return fold;
   }
 
   function renderList() {
