@@ -111,6 +111,22 @@ test("catalog list exposes attribute filters above the grid (UC-07)", () => {
   assert.match(useCases, /UC-07 — Filter the catalog by attributes/);
 });
 
+test("add/edit form exposes Analyze photo assist (UC-25)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
+  const lambdaApi = fs.readFileSync(path.join(root, "infra/lambda/api.js"), "utf8");
+  const analyzeSrc = fs.readFileSync(path.join(root, "infra/lambda/analyze.js"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(catalog, /Analyze photo/);
+  assert.match(catalog, /Apply to form/);
+  assert.match(catalog, /aiContext/);
+  assert.match(catalog, /runAnalyze|analyzeItemPhoto/);
+  assert.match(apiSrc, /\/api\/items\/analyze/);
+  assert.match(lambdaApi, /items\/analyze/);
+  assert.match(analyzeSrc, /ConverseCommand|bedrock/i);
+  assert.match(useCases, /UC-25 — Add-time AI catalog assist/);
+});
+
 test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const suggest = fs.readFileSync(path.join(root, "web/src/suggest.js"), "utf8");

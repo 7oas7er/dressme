@@ -1,6 +1,7 @@
 "use strict";
 
 var auth = require("./auth");
+var analyze = require("./analyze");
 var attributeOptions = require("./attributeOptions");
 var health = require("./health");
 var http = require("./http");
@@ -73,6 +74,14 @@ exports.handler = async function handler(event) {
       var suggestUser = await auth.requireUser(event);
       if (method === "POST") {
         return respond(await suggest.suggestLooks(suggestUser, http.parseBody(event)));
+      }
+      return http.json(405, { error: "method_not_allowed" });
+    }
+
+    if (path === "/api/items/analyze" || path === "/items/analyze") {
+      var analyzeUser = await auth.requireUser(event);
+      if (method === "POST") {
+        return respond(await analyze.analyzeItem(analyzeUser, http.parseBody(event)));
       }
       return http.json(405, { error: "method_not_allowed" });
     }

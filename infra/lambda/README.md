@@ -14,7 +14,8 @@ Routes (CloudFront `/api/*` → Function URL):
 | POST | `/api/photos/backfill-thumbs` | Cognito JWT | One-shot: generate missing thumbs for the caller’s items |
 | POST | `/api/photos/backfill-cutouts` | Cognito JWT | **Noop** while `CUTOUTS_ENABLED=false` (returns `{ disabled: true }`). Existing S3/Dynamo cutout keys left in place. |
 | GET | `/api/attribute-options` | Cognito JWT | Seed + per-user custom attribute suggestions (UC-19) |
-| POST | `/api/suggest` | Cognito JWT | Exactly three outfit looks from the catalog (UC-04–06); random assembly MVP, Bedrock later |
+| POST | `/api/items/analyze` | Cognito JWT | UC-25 add-time AI assist: one Bedrock multimodal call → proposed attrs + `aiContext` (no Dynamo write) |
+| POST | `/api/suggest` | Cognito JWT | Exactly three outfit looks from the catalog (UC-04–06); random assembly MVP, Bedrock text suggest later (DM-44) |
 
 Photo upload flow: `POST /api/items` (or update with `addPhotos`) returns presigned PUT URLs; client uploads directly to the media bucket; then `photos/complete`.
 
@@ -24,7 +25,11 @@ Update (`PUT /api/items/{id}`) may include `removePhotoIds: string[]` to drop sp
 
 Attribute suggestions (UC-19): Add/Edit forms load `/api/attribute-options` (classic menswear seeds plus the user’s remembered free-text values for type, color, fabric, brand/model, formality, pattern, season, outfit role). `brandModel` has no fixed seed list — every free-text value is remembered. Creating or updating an item persists any non-seed values under DynamoDB `META#attrOptions` on the same items table (no schema change).
 
-Outfit suggestions (UC-04–06): `POST /api/suggest` with `{ occasion, weather? }` returns exactly three looks, each a list of catalog items with signed photo URLs. SPA renders an **Option D SVG mannequin** hero (color/pattern fills) plus a right authenticity strip of photographic thumbs. v1 uses **random** role-slot assembly (`outfitRole` / `type`); empty slots are skipped. Set `engine: "bedrock"` (or `SUGGEST_ENGINE=bedrock`) later to swap in attrs+IDs Bedrock — not wired yet (returns 501). No worn/like/reject persistence.
+Add-time AI assist (UC-25): `POST /api/items/analyze` with either `{ imageBase64, contentType? }` (new upload) or `{ itemId, photoId? }` (existing ready photo; prefers thumb). Optional `hints` / `answers` / partial `attributes`. Returns a proposal Frank must apply and save — analyze never writes Dynamo. Requires Bedrock model access + Lambda IAM (see `infra/terraform/docs/bedrock-catalog-assist.md`).
+
+Outfit suggestions (UC-04–06): `POST /api/suggest` with `{ occasion, weather? }` returns exactly three looks, each a list of catalog items with signed photo URLs. SPA renders an **Option D SVG mannequin** hero (color/pattern fills) plus a right authenticity strip of photographic thumbs. v1 uses **random** role-slot assembly (`outfitRole` / `type`); empty slots are skipped. Set `engine: "bedrock"` (or `SUGGEST_ENGINE=bedrock`) later for attrs+IDs+`aiContext` Bedrock — not wired yet (returns 501). No worn/like/reject persistence.
+
+Item field `aiContext` (optional string, ≤2000 chars) stores durable notes from assist for later text suggest.
 
 ### Staging thumbs backfill (existing photos)
 

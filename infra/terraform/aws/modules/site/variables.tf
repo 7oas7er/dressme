@@ -78,3 +78,15 @@ variable "cognito_owner_email" {
   default     = null
   nullable    = true
 }
+
+variable "bedrock_model_id" {
+  description = "Bedrock model or inference profile ID for UC-25 add-time catalog assist (eu-north-1)."
+  type        = string
+  default     = "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+}
+
+variable "suggest_engine" {
+  description = "Default UC-04 suggest engine (random until DM-44 Bedrock text suggest)."
+  type        = string
+  default     = "random"
+}

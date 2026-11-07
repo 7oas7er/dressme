@@ -128,6 +128,17 @@ export function suggestOutfits({ occasion, weather = "", engine } = {}) {
   });
 }
 
+/**
+ * UC-25: add-time AI catalog assist (Bedrock multimodal via Lambda).
+ * Pass either imageBase64 (+ contentType) or itemId (+ optional photoId).
+ */
+export function analyzeItemPhoto(payload) {
+  return request("/api/items/analyze", {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+  });
+}
+
 export async function uploadFiles(uploads, files) {
   const ready = [];
   for (let i = 0; i < uploads.length; i++) {

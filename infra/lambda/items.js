@@ -40,6 +40,8 @@ var CUTOUTS_ENABLED = false;
 
 var MAX_PHOTOS = 8;
 var MAX_ATTR_LEN = 120;
+/** Durable free-text context for later Bedrock text suggest (UC-25). */
+var MAX_AI_CONTEXT = 2000;
 var PRESIGN_PUT_SECONDS = 900;
 var PRESIGN_GET_SECONDS = 3600;
 
@@ -144,17 +146,39 @@ function normalizeAttributes(input, partial) {
   return out;
 }
 
+function normalizeAiContext(value) {
+  if (value == null) return "";
+  return String(value).trim().slice(0, MAX_AI_CONTEXT);
+}
+
+function applyAiContext(target, body, partial) {
+  if (!body || !Object.prototype.hasOwnProperty.call(body, "aiContext")) {
+    if (!partial) {
+      // Create without aiContext: leave unset.
+      return target;
+    }
+    return target;
+  }
+  var text = normalizeAiContext(body.aiContext);
+  if (text) {
+    target.aiContext = text;
+  } else {
+    delete target.aiContext;
+  }
+  return target;
+}
+
 function buildSearchText(item) {
   return ATTR_KEYS.map(function (key) {
     return item[key] || "";
   })
-    .concat([item.itemId || ""])
+    .concat([item.aiContext || "", item.itemId || ""])
     .join(" ")
     .toLowerCase();
 }
 
 function publicItem(item, photoUrls, thumbUrls, cutoutUrls) {
-  return {
+  var out = {
     itemId: item.itemId,
     type: item.type,
     color: item.color,
@@ -184,6 +208,10 @@ function publicItem(item, photoUrls, thumbUrls, cutoutUrls) {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
+  if (item.aiContext) {
+    out.aiContext = item.aiContext;
+  }
+  return out;
 }
 
 async function signKey(key) {
@@ -507,6 +535,7 @@ async function createItem(user, body) {
     createdAt: ts,
     updatedAt: ts,
   });
+  applyAiContext(item, body, false);
   item.searchText = buildSearchText(item);
 
   await docClient().send(
@@ -537,6 +566,7 @@ async function updateItem(user, itemId, body) {
 
   var attrs = normalizeAttributes(body, true);
   var next = Object.assign({}, existing, attrs, { updatedAt: nowIso() });
+  applyAiContext(next, body, true);
   var uploads = [];
 
   // Removals first so a single PUT can drop photos and request new upload slots.
@@ -800,6 +830,7 @@ async function deleteItem(user, itemId) {
 
 exports.listItems = listItems;
 exports.listItemRecords = listItemRecords;
+exports.getItemRecord = getItemRecord;
 exports.getItem = getItem;
 exports.createItem = createItem;
 exports.updateItem = updateItem;
@@ -811,6 +842,8 @@ exports.publicItem = publicItem;
 exports.signedFullUrls = signedFullUrls;
 exports.signedThumbUrls = signedThumbUrls;
 exports.signedCutoutUrls = signedCutoutUrls;
+exports.loadPhotoBuffer = loadPhotoBuffer;
 exports.ATTR_KEYS = ATTR_KEYS;
+exports.MAX_AI_CONTEXT = MAX_AI_CONTEXT;
 exports.CUTOUTS_ENABLED = CUTOUTS_ENABLED;
 exports.resetDepsForTests = resetDepsForTests;
