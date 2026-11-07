@@ -283,21 +283,36 @@ export function renderCatalogApp(root, { onLogout }) {
     return applyAttributeFilters(state.items, state.filters);
   }
 
-  function updateStatusFromItems() {
+  function itemCountLabel() {
     const total = state.items.length;
-    if (!total) {
-      state.status = "No items yet — add your first piece.";
-      return;
-    }
+    if (!total) return "0 items";
     const visible = visibleItems();
     if (filtersActive(state.filters)) {
-      state.status =
-        visible.length === 0
-          ? "No items match these filters."
-          : `${visible.length} of ${total} item${total === 1 ? "" : "s"}`;
-      return;
+      return `${visible.length} of ${total} item${total === 1 ? "" : "s"}`;
     }
-    state.status = `${total} item${total === 1 ? "" : "s"}`;
+    return `${total} item${total === 1 ? "" : "s"}`;
+  }
+
+  function updateStatusFromItems() {
+    // Item count lives bottom-right on the catalog pane; status is for ops messages.
+    state.status = "";
+  }
+
+  function activeNavKey() {
+    if (state.view === "suggest") return "dressme";
+    if (state.view === "form" && !state.editing) return "add";
+    return "catalog";
+  }
+
+  function navButton(key, label, onClick) {
+    const active = activeNavKey() === key;
+    return el("button", {
+      type: "button",
+      className: active ? "" : "secondary",
+      text: label,
+      "aria-current": active ? "page" : null,
+      onClick,
+    });
   }
 
   async function refresh() {
@@ -484,14 +499,14 @@ export function renderCatalogApp(root, { onLogout }) {
     state.assist.analyzing = true;
     state.busy = true;
     state.error = "";
-    state.status = "Analyzing…";
+    state.status = "Appraising…";
     paint();
 
     try {
       if (files.length) {
         // MVP: one Bedrock image per click (first file). Extra shots stay for Save.
         if (files.length > 1) {
-          state.status = `Analyzing first of ${files.length} photos…`;
+          state.status = `Appraising first of ${files.length} photos…`;
           paint();
         }
         const compressed = await compressImageFile(files[0]);
@@ -502,12 +517,12 @@ export function renderCatalogApp(root, { onLogout }) {
           (photo) => photo.status === "ready"
         );
         if (!ready) {
-          throw new Error("Add a photo first (or take one to analyze).");
+          throw new Error("Add a photo first (or take one to appraise).");
         }
         payload.itemId = state.editing.itemId;
         payload.photoId = ready.photoId;
       } else {
-        throw new Error("Take or add a photo to analyze first.");
+        throw new Error("Take or add a photo to appraise first.");
       }
 
       const data = await api.analyzeItemPhoto(payload);
@@ -519,7 +534,7 @@ export function renderCatalogApp(root, { onLogout }) {
         state.status =
           "Filled the form from the photo — tweak anything, then Save item.";
       } else {
-        state.status = "Analyze returned no proposal. Fill attributes manually.";
+        state.status = "Appraise returned no proposal. Fill attributes manually.";
       }
     } catch (err) {
       const code = err && err.message ? String(err.message) : "";
@@ -530,9 +545,9 @@ export function renderCatalogApp(root, { onLogout }) {
         code === "http_503"
       ) {
         state.error =
-          "Photo analyze is temporarily unavailable. Fill attributes manually or try again.";
+          "Photo appraise is temporarily unavailable. Fill attributes manually or try again.";
       } else {
-        state.error = code || "Analyze failed.";
+        state.error = code || "Appraise failed.";
       }
       state.assist.proposal = null;
     } finally {
@@ -546,8 +561,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.view = "suggest";
     state.editing = null;
     state.error = "";
-    state.status =
-      "Describe the event, weather, or anything else that matters — you’ll get three looks from your wardrobe.";
+    state.status = "";
     paint();
   }
 
@@ -717,60 +731,18 @@ export function renderCatalogApp(root, { onLogout }) {
     root.replaceChildren();
     const shell = el("main", { className: "shell stack" });
 
-    const topActions = [];
-    if (state.view === "list") {
-      topActions.push(
-        el("button", {
-          type: "button",
-          text: "Suggest outfits",
-          onClick: openSuggest,
-        })
-      );
-      topActions.push(
-        el("button", {
-          type: "button",
-          className: "secondary",
-          text: "Add item",
-          onClick: openCreate,
-        })
-      );
-    } else {
-      topActions.push(
-        el("button", {
-          type: "button",
-          className: "secondary",
-          text: "Back to catalog",
-          onClick: backToList,
-        })
-      );
-    }
-    topActions.push(
-      el("button", {
-        type: "button",
-        className: "secondary",
-        text: "Sign out",
-        onClick: onLogout,
-      })
-    );
-
     const top = el("div", { className: "topbar" }, [
-      el("div", {}, [
-        el("p", { className: "brand", text: "DressMe" }),
-        el("p", {
-          className: "muted",
-          text:
-            state.view === "suggest"
-              ? "Dress me — three looks"
-              : "Wardrobe catalog",
-        }),
+      el("nav", { className: "topbar-actions", "aria-label": "Primary" }, [
+        navButton("dressme", "DressMe", openSuggest),
+        navButton("catalog", "Catalog", backToList),
+        navButton("add", "Add item", () => openCreate()),
       ]),
-      el("div", { className: "topbar-actions" }, topActions),
     ]);
     shell.append(top);
 
     if (state.error) {
       shell.append(el("p", { className: "status error", role: "status", text: state.error }));
-    } else {
+    } else if (state.status) {
       shell.append(el("p", { className: "status", role: "status", text: state.status }));
     }
 
@@ -785,7 +757,17 @@ export function renderCatalogApp(root, { onLogout }) {
     }
 
     shell.append(
-      el("p", { className: "meta" }, [el("a", { href: "/imprint.html", text: "Imprint" })])
+      el("div", { className: "page-footer stack" }, [
+        el("button", {
+          type: "button",
+          className: "secondary sign-out",
+          text: "Sign out",
+          onClick: onLogout,
+        }),
+        el("p", { className: "meta" }, [
+          el("a", { href: "/imprint.html", text: "Imprint" }),
+        ]),
+      ])
     );
     root.append(shell);
   }
@@ -945,40 +927,37 @@ export function renderCatalogApp(root, { onLogout }) {
       }
     }
     panel.append(grid);
+    panel.append(
+      el("p", {
+        className: "catalog-count",
+        role: "status",
+        text: itemCountLabel(),
+      })
+    );
     return panel;
   }
 
   function analyzeButtonLabel() {
-    if (state.assist.analyzing) return "Analyzing…";
-    if (state.assist.proposal) return "Re-analyze";
-    return "Analyze photo";
+    if (state.assist.analyzing) return "Appraising…";
+    if (state.assist.proposal) return "Re-appraise";
+    return "Appraise";
   }
 
   function renderAssistPanel(form) {
     const proposal = state.assist.proposal;
     const canAnalyze = hasAnalyzablePhoto();
     const block = el("div", { className: "assist-panel stack" }, [
-      el("h2", { text: "AI assist" }),
-      el("p", {
-        className: "muted",
-        text: "Optional — tap Analyze as soon as a photo is ready. No need to fill fields first. Skip anytime and type attributes yourself.",
-      }),
       el("label", {}, [
         el("span", {
           className: "field-title",
-          text: "AI context (edit anytime; Analyze fills/updates from the photo)",
+          text: "AI context",
         }),
         el("textarea", {
           name: "aiContext",
           rows: "3",
           maxlength: "2000",
-          placeholder:
-            "Optional: when you wear it, pairing notes, or hints before Analyze…",
+          placeholder: "When you wear it, pairing notes…",
           text: fieldValue("aiContext"),
-        }),
-        el("span", {
-          className: "field-hint",
-          text: "Saved with the item for later outfit suggest. Analyze sends this text as hints, then writes its proposal back here.",
         }),
       ]),
       el("div", { className: "row assist-early-actions" }, [
@@ -992,12 +971,6 @@ export function renderCatalogApp(root, { onLogout }) {
               : null,
           onClick: () => runAnalyze(form),
         }),
-        !canAnalyze
-          ? el("span", {
-              className: "muted field-hint",
-              text: "Add a photo to enable Analyze.",
-            })
-          : null,
       ]),
     ]);
 
@@ -1006,7 +979,7 @@ export function renderCatalogApp(root, { onLogout }) {
         el("p", {
           className: "assist-progress",
           role: "status",
-          text: state.status || "Analyzing…",
+          text: state.status || "Appraising…",
         })
       );
     }
@@ -1033,15 +1006,9 @@ export function renderCatalogApp(root, { onLogout }) {
         qList.append(el("li", { text: q }));
       }
       block.append(
-        el("p", { className: "field-label", text: "Follow-up ideas (optional)" })
+        el("p", { className: "field-label", text: "Follow-up ideas" })
       );
       block.append(qList);
-      block.append(
-        el("p", {
-          className: "muted",
-          text: "Edit AI context above and re-analyze, or edit the form fields directly.",
-        })
-      );
     }
     return block;
   }
@@ -1116,12 +1083,6 @@ export function renderCatalogApp(root, { onLogout }) {
         className: "field-label",
         text: editing ? "Add photos" : "Photos",
       }),
-      el("p", {
-        className: "muted",
-        text: editing
-          ? "Take more shots or pick from the library. Remove a shot from the strip before Save."
-          : "Camera-first: take several shots, then Analyze or fill attributes. Remove any shot from the strip.",
-      }),
       el("div", { className: "row photo-capture-actions" }, [
         el("button", {
           type: "button",
@@ -1143,14 +1104,6 @@ export function renderCatalogApp(root, { onLogout }) {
 
     const strip = renderPendingPhotoStrip();
     if (strip) block.append(strip);
-    else {
-      block.append(
-        el("p", {
-          className: "muted field-hint",
-          text: "No new shots yet.",
-        })
-      );
-    }
     return block;
   }
 
@@ -1159,7 +1112,7 @@ export function renderCatalogApp(root, { onLogout }) {
     const bar = el("div", {
       className: "form-sticky-actions",
       role: "group",
-      "aria-label": "Save and analyze",
+      "aria-label": "Save and appraise",
     });
     bar.append(
       el("button", {
@@ -1201,15 +1154,7 @@ export function renderCatalogApp(root, { onLogout }) {
 
   function renderForm() {
     const editing = state.editing;
-    const panel = el("section", { className: "panel stack form-panel" }, [
-      el("h1", {
-        text: editing ? "Edit item" : "Add item",
-      }),
-      el("p", {
-        className: "lede",
-        text: "Camera → Analyze (optional) → Save. Aim for about three minutes per piece.",
-      }),
-    ]);
+    const panel = el("section", { className: "panel stack form-panel" });
 
     const form = el("form", {
       className: "stack item-form",
@@ -1228,7 +1173,7 @@ export function renderCatalogApp(root, { onLogout }) {
         photoBlock.append(
           el("p", {
             className: "muted",
-            text: "No photos on this item yet. Add some below.",
+            text: "No photos yet.",
           })
         );
       } else {
@@ -1284,7 +1229,6 @@ export function renderCatalogApp(root, { onLogout }) {
         value: fieldValue(field.key),
         autocomplete: useSuggestions ? "off" : null,
         list: listId,
-        "aria-describedby": useSuggestions ? `hint-${field.key}` : null,
       });
       // Explicit title node keeps row baselines stable (UC-21) across wrapping labels.
       const children = [
@@ -1298,13 +1242,6 @@ export function renderCatalogApp(root, { onLogout }) {
           datalist.append(el("option", { value }));
         }
         children.push(datalist);
-        children.push(
-          el("span", {
-            id: `hint-${field.key}`,
-            className: "field-hint",
-            text: "Suggested values — or type your own.",
-          })
-        );
       }
       grid.append(el("label", {}, children));
     }
@@ -1366,13 +1303,7 @@ export function renderCatalogApp(root, { onLogout }) {
   }
 
   function renderSuggest() {
-    const panel = el("section", { className: "panel stack suggest-panel" }, [
-      el("h1", { text: "Suggest outfits" }),
-      el("p", {
-        className: "lede",
-        text: "Describe the event, weather, or anything else that matters — you’ll get three looks from your wardrobe. Pick offline; the app does not record worn, like, or reject.",
-      }),
-    ]);
+    const panel = el("section", { className: "panel stack suggest-panel" });
 
     const form = el("form", {
       className: "stack suggest-form",

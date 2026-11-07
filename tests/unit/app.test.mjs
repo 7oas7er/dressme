@@ -37,7 +37,7 @@ test("add/edit forms use suggested values with free text (UC-19)", () => {
   assert.match(catalog, /"brandModel"/);
   assert.match(catalog, /datalist/);
   assert.match(catalog, /listAttributeOptions/);
-  assert.match(catalog, /Suggested values — or type your own/);
+  assert.match(catalog, /pick or type/);
   assert.match(apiSrc, /\/api\/attribute-options/);
   const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
   assert.match(useCases, /UC-19 — Suggested values with free-text/);
@@ -113,28 +113,43 @@ test("catalog list exposes attribute filters above the grid (UC-07)", () => {
   assert.match(styles, /\.filter-fold/);
   assert.match(styles, /\.filter-bar/);
   assert.match(styles, /\.filter-grid/);
-  assert.match(styles, /\.topbar-actions[\s\S]*margin-inline-end/);
+  assert.match(styles, /\.topbar-actions[\s\S]*margin-inline-start/);
   assert.match(useCases, /UC-07 — Filter the catalog by attributes/);
   assert.match(useCases, /foldable filter pane/);
 });
 
-test("add/edit form exposes Analyze photo assist (UC-25)", () => {
+test("catalog chrome: DressMe / Catalog / Add item nav, Sign out bottom, Appraise", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  assert.match(catalog, /navButton\("dressme", "DressMe"/);
+  assert.match(catalog, /navButton\("catalog", "Catalog"/);
+  assert.match(catalog, /navButton\("add", "Add item"/);
+  assert.match(catalog, /className: "secondary sign-out"/);
+  assert.match(catalog, /catalog-count/);
+  assert.match(catalog, /itemCountLabel/);
+  assert.doesNotMatch(catalog, /Wardrobe catalog/);
+  assert.doesNotMatch(catalog, /Back to catalog/);
+  assert.doesNotMatch(catalog, /Analyze photo/);
+  assert.match(catalog, /return "Appraise"/);
+  assert.match(styles, /\.catalog-count/);
+  assert.match(styles, /\.page-footer/);
+});
+
+test("add/edit form exposes Appraise assist (UC-25)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
   const lambdaApi = fs.readFileSync(path.join(root, "infra/lambda/api.js"), "utf8");
   const analyzeSrc = fs.readFileSync(path.join(root, "infra/lambda/analyze.js"), "utf8");
   const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
-  assert.match(catalog, /Analyze photo/);
-  assert.match(catalog, /Re-analyze/);
+  assert.match(catalog, /text: "Appraise"|return "Appraise"/);
+  assert.match(catalog, /Re-appraise/);
+  assert.doesNotMatch(catalog, /Analyze photo/);
   assert.match(catalog, /draftFromProposal/);
   assert.match(catalog, /Filled the form from the photo/);
   assert.doesNotMatch(catalog, /Apply to form/);
   assert.doesNotMatch(catalog, /assistAiContext|name: `assist-/);
   assert.doesNotMatch(catalog, /assistAnswers|Notes \/ answers for the assistant/);
-  assert.match(
-    catalog,
-    /AI context \(edit anytime; Analyze fills\/updates from the photo\)/
-  );
+  assert.match(catalog, /text: "AI context"/);
   assert.match(catalog, /name: "aiContext"/);
   assert.match(catalog, /hints: aiContext/);
   assert.match(catalog, /runAnalyze|analyzeItemPhoto/);
@@ -142,6 +157,7 @@ test("add/edit form exposes Analyze photo assist (UC-25)", () => {
   assert.match(lambdaApi, /items\/analyze/);
   assert.match(analyzeSrc, /ConverseCommand|bedrock/i);
   assert.match(useCases, /UC-25 — Add-time AI catalog assist/);
+  assert.match(useCases, /Appraise/);
 });
 
 test("mobile add UX: camera-first, sticky Save, Add next (UC-01 phone)", () => {
@@ -180,7 +196,7 @@ test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
   const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
   const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
-  assert.match(catalog, /Suggest outfits/);
+  assert.match(catalog, /navButton\("dressme", "DressMe"/);
   assert.match(catalog, /openSuggest|view === "suggest"/);
   assert.match(catalog, /runSuggest/);
   assert.match(catalog, /renderLookCard/);
