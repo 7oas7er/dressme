@@ -59,7 +59,7 @@ Renaming named resources (buckets, roles, functions, OACs) forces Terraform to r
 2. Create/validate an ACM certificate in `us-east-1` for `dressme-stg.7oas7er.com` and set `site_certificate_arn` in `envs/stg/terraform.tfvars`.
 3. Apply **stg**.
 4. Apply Cloudflare with `stg_cloudfront_domain_name` set to the stg `distribution_domain_name` output.
-5. Apply **prod**.
+5. Create/validate ACM for `dressme.7oas7er.com`, set `site_certificate_arn` in `envs/prod/terraform.tfvars` (required; no default), then apply **prod**.
 6. Point Cloudflare `prod_cloudfront_domain_name` at the prod distribution.
 7. Put Terraform deploy outputs into GitHub Environments: `staging` ← stg outputs, `production` ← prod outputs (`AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, `AWS_SITE_BUCKET`, `AWS_DISTRIBUTION_ID`). Also set `SITE_HOST` (`dressme-stg.7oas7er.com` / `dressme.7oas7er.com`), `CLOUDFLARE_ZONE_ID` (Cloudflare `zone_id` output), and secret `CLOUDFLARE_API_TOKEN` (Zone Cache Purge) so deploy can purge the Cloudflare edge.
 8. Deploy path: merge to `staging` for stg; merge `staging` → `main` for prod. OIDC subjects match the GitHub Environments (`…:environment:staging` / `…:environment:production`); lock Environments to those branches in GitHub deployment rules.
