@@ -20,7 +20,11 @@ locals {
   lambda_timeout_seconds             = 90
   lambda_duration_alarm_threshold_ms = floor(local.lambda_timeout_seconds * 1000 * 0.8)
   # Geographic CRIS profile IDs are "{eu|us}.<foundation-model-id>"; strip for FM ARNs.
-  bedrock_foundation_model_id = regexreplace(var.bedrock_model_id, "^(eu|us)\\.", "")
+  bedrock_foundation_model_id = (
+    startswith(var.bedrock_model_id, "eu.") ? trimprefix(var.bedrock_model_id, "eu.") :
+    startswith(var.bedrock_model_id, "us.") ? trimprefix(var.bedrock_model_id, "us.") :
+    var.bedrock_model_id
+  )
   bedrock_inference_profile_arn = (
     startswith(var.bedrock_model_id, "arn:")
     ? var.bedrock_model_id
