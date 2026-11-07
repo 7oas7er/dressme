@@ -3,7 +3,7 @@
 Derived from the frozen Product Canvas (Project store).
 
 **Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice).  
-Last updated: 2026-11-07 (Europe/Berlin)
+Last updated: 2026-11-07 (Europe/Berlin; mobile add UX slice for iPhone Safari bulk cataloging)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -12,7 +12,7 @@ Synced from Project store use cases where they diverge; Must list below is autho
 ## Must — v1 scope contract
 
 ### UC-01 — Add a wardrobe item
-As Frank, when I acquire a new piece, I capture photos and attributes (type, color, fabric, brand/model, formality, pattern, season/climate, outfit role) in about 3 minutes, so it appears in my catalog. Optional add-time AI assist (UC-25) may propose attributes and a short context note; Frank always reviews/edits before save.
+As Frank, when I acquire a new piece, I capture photos and attributes (type, color, fabric, brand/model, formality, pattern, season/climate, outfit role) in about 3 minutes, so it appears in my catalog. Optional add-time AI assist (UC-25) may propose attributes and a short context note; Frank always reviews/edits before save. On phone (esp. iPhone Safari), add is camera-first with multi-shot + strip remove, Analyze available as soon as a photo exists (no typing required), Save/Analyze sticky above the safe area, and a successful save lands on **Add next** with optional soft type/brand prefill.
 
 ### UC-25 — Add-time AI catalog assist
 As Frank, when I add or edit an item, I can run **Analyze photo** so the server (Bedrock multimodal) proposes type/attrs, a short **aiContext** for later outfit suggest, and optional follow-up questions; I edit and confirm before anything is saved. One analyze call per click; never auto-commit invented facts.

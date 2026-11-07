@@ -137,6 +137,30 @@ test("add/edit form exposes Analyze photo assist (UC-25)", () => {
   assert.match(useCases, /UC-25 — Add-time AI catalog assist/);
 });
 
+test("mobile add UX: camera-first, sticky Save, Add next (UC-01 phone)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const indexHtml = fs.readFileSync(path.join(root, "web/index.html"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(catalog, /Take photo/);
+  assert.match(catalog, /From library/);
+  assert.match(catalog, /capture:\s*"environment"/);
+  assert.match(catalog, /pendingPhotos/);
+  assert.match(catalog, /pending-photo-strip|renderPendingPhotoStrip/);
+  assert.match(catalog, /removePendingPhoto/);
+  assert.match(catalog, /hasAnalyzablePhoto/);
+  assert.match(catalog, /form-sticky-actions|renderFormStickyActions/);
+  assert.match(catalog, /Save & add next/);
+  assert.match(catalog, /softPrefillFromPayload/);
+  assert.match(catalog, /Add next/);
+  assert.match(styles, /safe-area-inset-bottom/);
+  assert.match(styles, /\.form-sticky-actions/);
+  assert.match(styles, /\.pending-photo-strip/);
+  assert.match(styles, /font-size:\s*16px/);
+  assert.match(indexHtml, /viewport-fit=cover/);
+  assert.match(useCases, /camera-first|Add next|sticky/i);
+});
+
 test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const suggest = fs.readFileSync(path.join(root, "web/src/suggest.js"), "utf8");
