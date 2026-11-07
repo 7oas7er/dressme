@@ -196,6 +196,25 @@ function emptyFormDraft() {
   return null;
 }
 
+let pendingPhotoSeq = 0;
+
+function revokePendingPhoto(entry) {
+  if (entry && entry.url) URL.revokeObjectURL(entry.url);
+}
+
+function clearPendingPhotos(list) {
+  for (const entry of list || []) revokePendingPhoto(entry);
+  return [];
+}
+
+/** Soft prefill after a successful create — type + brand only (cheap, low risk of wrong attrs). */
+function softPrefillFromPayload(payload) {
+  const type = String((payload && payload.type) || "").trim();
+  const brandModel = String((payload && payload.brandModel) || "").trim();
+  if (!type && !brandModel) return null;
+  return { type, brandModel };
+}
+
 export function renderCatalogApp(root, { onLogout }) {
   const state = {
     items: [],
@@ -209,6 +228,8 @@ export function renderCatalogApp(root, { onLogout }) {
     attributeOptions: {},
     assist: emptyAssist(),
     formDraft: emptyFormDraft(),
+    /** Local files for create/add-photos; survive paint(); object URLs for the strip. */
+    pendingPhotos: [],
     suggest: {
       context: "",
       looks: null,
@@ -281,11 +302,51 @@ export function renderCatalogApp(root, { onLogout }) {
     paint();
   }
 
-  async function openCreate() {
+  function addPendingFiles(fileList) {
+    const incoming = Array.from(fileList || []).filter(
+      (file) => file && String(file.type || "").startsWith("image/")
+    );
+    if (!incoming.length) return;
+    for (const file of incoming) {
+      pendingPhotoSeq += 1;
+      state.pendingPhotos.push({
+        id: `local-${pendingPhotoSeq}`,
+        file,
+        url: URL.createObjectURL(file),
+      });
+    }
+    paint();
+  }
+
+  function removePendingPhoto(id) {
+    const next = [];
+    for (const entry of state.pendingPhotos) {
+      if (entry.id === id) revokePendingPhoto(entry);
+      else next.push(entry);
+    }
+    state.pendingPhotos = next;
+    paint();
+  }
+
+  function pendingPhotoFiles() {
+    return state.pendingPhotos.map((entry) => entry.file);
+  }
+
+  function hasAnalyzablePhoto() {
+    if (state.pendingPhotos.length) return true;
+    if (!state.editing) return false;
+    return (state.editing.photos || []).some((photo) => photo.status === "ready");
+  }
+
+  async function openCreate(options = {}) {
+    const keepPrefill = options && options.keepPrefill;
     state.view = "form";
     state.editing = null;
     state.assist = emptyAssist();
-    state.formDraft = emptyFormDraft();
+    if (!keepPrefill) {
+      state.formDraft = emptyFormDraft();
+    }
+    state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
     state.error = "";
     paint();
     await loadAttributeOptions();
@@ -302,6 +363,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.editing = item;
     state.assist = emptyAssist();
     state.formDraft = emptyFormDraft();
+    state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
     state.error = "";
     state.busy = true;
     paint();
@@ -345,6 +407,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.editing = null;
     state.assist = emptyAssist();
     state.formDraft = emptyFormDraft();
+    state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
     state.error = "";
     updateStatusFromItems();
     paint();
@@ -381,8 +444,7 @@ export function renderCatalogApp(root, { onLogout }) {
   }
 
   async function runAnalyze(form) {
-    const fileInput = form.elements.photos;
-    const files = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
+    const files = pendingPhotoFiles();
     const aiContext = form.elements.aiContext
       ? String(form.elements.aiContext.value || "").trim()
       : fieldValue("aiContext");
@@ -401,12 +463,12 @@ export function renderCatalogApp(root, { onLogout }) {
     state.assist.analyzing = true;
     state.busy = true;
     state.error = "";
-    state.status = "Analyzing photo…";
+    state.status = "Analyzing…";
     paint();
 
     try {
       if (files.length) {
-        // MVP: one Bedrock image per click (first file). Extra picks stay for Save.
+        // MVP: one Bedrock image per click (first file). Extra shots stay for Save.
         if (files.length > 1) {
           state.status = `Analyzing first of ${files.length} photos…`;
           paint();
@@ -419,12 +481,12 @@ export function renderCatalogApp(root, { onLogout }) {
           (photo) => photo.status === "ready"
         );
         if (!ready) {
-          throw new Error("Add a photo first (or choose a file to analyze).");
+          throw new Error("Add a photo first (or take one to analyze).");
         }
         payload.itemId = state.editing.itemId;
         payload.photoId = ready.photoId;
       } else {
-        throw new Error("Choose a photo to analyze first.");
+        throw new Error("Take or add a photo to analyze first.");
       }
 
       const data = await api.analyzeItemPhoto(payload);
@@ -520,8 +582,8 @@ export function renderCatalogApp(root, { onLogout }) {
     }
     // Keep draft if paint() runs mid-save (busy flag re-render).
     state.formDraft = Object.assign({}, payload);
-    const fileInput = form.elements.photos;
-    const files = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
+    const files = pendingPhotoFiles();
+    const wasCreate = !state.editing;
     state.busy = true;
     state.error = "";
     state.status = files.length ? "Uploading photos…" : "Saving…";
@@ -539,6 +601,12 @@ export function renderCatalogApp(root, { onLogout }) {
           const photoIds = await api.uploadFiles(updated.uploads, files);
           await api.confirmPhotos(state.editing.itemId, photoIds);
         }
+        state.view = "list";
+        state.editing = null;
+        state.assist = emptyAssist();
+        state.formDraft = emptyFormDraft();
+        state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
+        state.status = "Saved.";
       } else {
         const created = await api.createItem(
           Object.assign({}, payload, {
@@ -549,14 +617,31 @@ export function renderCatalogApp(root, { onLogout }) {
           const photoIds = await api.uploadFiles(created.uploads, files);
           await api.confirmPhotos(created.item.itemId, photoIds);
         }
+        // Bulk cataloging: land on another Add with soft type/brand prefill.
+        const soft = softPrefillFromPayload(payload);
+        state.editing = null;
+        state.assist = emptyAssist();
+        state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
+        state.formDraft = soft
+          ? { type: soft.type || "", brandModel: soft.brandModel || "" }
+          : emptyFormDraft();
+        state.view = "form";
+        state.status = soft
+          ? "Saved. Add next — type/brand kept as a starting point (clear if wrong)."
+          : "Saved. Add next piece.";
       }
-      state.view = "list";
-      state.editing = null;
-      state.assist = emptyAssist();
-      state.formDraft = emptyFormDraft();
-      state.status = "Saved.";
       await loadAttributeOptions();
-      await refresh();
+      // Refresh catalog counts without forcing list view after create.
+      try {
+        const data = await api.listItems(state.query);
+        state.items = data.items || [];
+        pruneStaleFilters();
+        if (!wasCreate) updateStatusFromItems();
+      } catch {
+        // Keep the save success path; list refresh can retry from catalog.
+      }
+      state.busy = false;
+      paint();
     } catch (err) {
       state.error = err.message || "Save failed.";
       state.busy = false;
@@ -574,6 +659,7 @@ export function renderCatalogApp(root, { onLogout }) {
       state.editing = null;
       state.assist = emptyAssist();
       state.formDraft = emptyFormDraft();
+      state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
       await refresh();
     } catch (err) {
       state.error = err.message || "Delete failed.";
@@ -811,18 +897,20 @@ export function renderCatalogApp(root, { onLogout }) {
     return panel;
   }
 
+  function analyzeButtonLabel() {
+    if (state.assist.analyzing) return "Analyzing…";
+    if (state.assist.proposal) return "Re-analyze";
+    return "Analyze photo";
+  }
+
   function renderAssistPanel(form) {
     const proposal = state.assist.proposal;
-    const analyzeLabel = state.assist.analyzing
-      ? "Analyzing…"
-      : proposal
-        ? "Re-analyze"
-        : "Analyze photo";
+    const canAnalyze = hasAnalyzablePhoto();
     const block = el("div", { className: "assist-panel stack" }, [
       el("h2", { text: "AI assist" }),
       el("p", {
         className: "muted",
-        text: "Optional: analyze one photo (the first selected). Proposals fill the form below — nothing saves until you Save item.",
+        text: "Optional — tap Analyze as soon as a photo is ready. No need to fill fields first. Skip anytime and type attributes yourself.",
       }),
       el("label", {}, [
         el("span", {
@@ -842,16 +930,35 @@ export function renderCatalogApp(root, { onLogout }) {
           text: "Saved with the item for later outfit suggest. Analyze sends this text as hints, then writes its proposal back here.",
         }),
       ]),
-      el("div", { className: "row" }, [
+      el("div", { className: "row assist-early-actions" }, [
         el("button", {
           type: "button",
-          className: "secondary",
-          text: analyzeLabel,
-          disabled: state.busy || state.assist.analyzing ? "disabled" : null,
+          className: canAnalyze ? "" : "secondary",
+          text: analyzeButtonLabel(),
+          disabled:
+            state.busy || state.assist.analyzing || !canAnalyze
+              ? "disabled"
+              : null,
           onClick: () => runAnalyze(form),
         }),
+        !canAnalyze
+          ? el("span", {
+              className: "muted field-hint",
+              text: "Add a photo to enable Analyze.",
+            })
+          : null,
       ]),
     ]);
+
+    if (state.assist.analyzing) {
+      block.append(
+        el("p", {
+          className: "assist-progress",
+          role: "status",
+          text: state.status || "Analyzing…",
+        })
+      );
+    }
 
     if (!proposal) {
       return block;
@@ -888,20 +995,173 @@ export function renderCatalogApp(root, { onLogout }) {
     return block;
   }
 
+  function renderPendingPhotoStrip() {
+    if (!state.pendingPhotos.length) return null;
+    const strip = el("div", {
+      className: "pending-photo-strip",
+      role: "list",
+      "aria-label": "Photos to upload",
+    });
+    for (const entry of state.pendingPhotos) {
+      strip.append(
+        el(
+          "div",
+          {
+            className: "pending-photo",
+            role: "listitem",
+            "data-pending-id": entry.id,
+          },
+          [
+            el("img", {
+              src: entry.url,
+              alt: "Shot ready to upload",
+            }),
+            el("button", {
+              type: "button",
+              className: "secondary pending-photo-remove",
+              text: "×",
+              "aria-label": "Remove this shot",
+              disabled: state.busy ? "disabled" : null,
+              onClick: () => removePendingPhoto(entry.id),
+            }),
+          ]
+        )
+      );
+    }
+    return strip;
+  }
+
+  function renderPhotoCaptureBlock() {
+    const editing = state.editing;
+    // Camera-intent capture (iPhone Safari rear camera). Separate library input —
+    // combining capture+multiple is unreliable on iOS; we accumulate shots in state.
+    const cameraInput = el("input", {
+      className: "hidden",
+      type: "file",
+      accept: "image/*",
+      capture: "environment",
+      "aria-hidden": "true",
+      tabindex: "-1",
+      onChange: (event) => {
+        addPendingFiles(event.target.files);
+        event.target.value = "";
+      },
+    });
+    const libraryInput = el("input", {
+      className: "hidden",
+      type: "file",
+      accept: "image/*",
+      multiple: "multiple",
+      "aria-hidden": "true",
+      tabindex: "-1",
+      onChange: (event) => {
+        addPendingFiles(event.target.files);
+        event.target.value = "";
+      },
+    });
+
+    const block = el("div", { className: "stack photo-capture" }, [
+      el("p", {
+        className: "field-label",
+        text: editing ? "Add photos" : "Photos",
+      }),
+      el("p", {
+        className: "muted",
+        text: editing
+          ? "Take more shots or pick from the library. Remove a shot from the strip before Save."
+          : "Camera-first: take several shots, then Analyze or fill attributes. Remove any shot from the strip.",
+      }),
+      el("div", { className: "row photo-capture-actions" }, [
+        el("button", {
+          type: "button",
+          text: "Take photo",
+          disabled: state.busy ? "disabled" : null,
+          onClick: () => cameraInput.click(),
+        }),
+        el("button", {
+          type: "button",
+          className: "secondary",
+          text: "From library",
+          disabled: state.busy ? "disabled" : null,
+          onClick: () => libraryInput.click(),
+        }),
+      ]),
+      cameraInput,
+      libraryInput,
+    ]);
+
+    const strip = renderPendingPhotoStrip();
+    if (strip) block.append(strip);
+    else {
+      block.append(
+        el("p", {
+          className: "muted field-hint",
+          text: "No new shots yet.",
+        })
+      );
+    }
+    return block;
+  }
+
+  function renderFormStickyActions(form, editing) {
+    const canAnalyze = hasAnalyzablePhoto();
+    const bar = el("div", {
+      className: "form-sticky-actions",
+      role: "group",
+      "aria-label": "Save and analyze",
+    });
+    bar.append(
+      el("button", {
+        type: "button",
+        className: "secondary",
+        text: analyzeButtonLabel(),
+        disabled:
+          state.busy || state.assist.analyzing || !canAnalyze
+            ? "disabled"
+            : null,
+        onClick: () => runAnalyze(form),
+      })
+    );
+    bar.append(
+      el("button", {
+        type: "submit",
+        text:
+          state.busy && !state.assist.analyzing
+            ? "Saving…"
+            : editing
+              ? "Save item"
+              : "Save & add next",
+        disabled: state.busy ? "disabled" : null,
+      })
+    );
+    if (editing) {
+      bar.append(
+        el("button", {
+          type: "button",
+          className: "danger",
+          text: "Delete",
+          disabled: state.busy ? "disabled" : null,
+          onClick: () => removeItem(editing),
+        })
+      );
+    }
+    return bar;
+  }
+
   function renderForm() {
     const editing = state.editing;
-    const panel = el("section", { className: "panel stack" }, [
+    const panel = el("section", { className: "panel stack form-panel" }, [
       el("h1", {
         text: editing ? "Edit item" : "Add item",
       }),
       el("p", {
         className: "lede",
-        text: "Photos + attributes — aim for about three minutes per piece. AI assist is optional.",
+        text: "Camera → Analyze (optional) → Save. Aim for about three minutes per piece.",
       }),
     ]);
 
     const form = el("form", {
-      className: "stack",
+      className: "stack item-form",
       onSubmit: (event) => {
         event.preventDefault();
         saveItem(event.target);
@@ -957,19 +1217,7 @@ export function renderCatalogApp(root, { onLogout }) {
       form.append(photoBlock);
     }
 
-    form.append(
-      el("label", {}, [
-        editing ? "Add photos" : "Photos",
-        el("input", {
-          name: "photos",
-          type: "file",
-          accept: "image/*",
-          capture: "environment",
-          multiple: "multiple",
-        }),
-      ])
-    );
-
+    form.append(renderPhotoCaptureBlock());
     form.append(renderAssistPanel(form));
 
     const grid = el("div", { className: "form-grid" });
@@ -1010,25 +1258,7 @@ export function renderCatalogApp(root, { onLogout }) {
       grid.append(el("label", {}, children));
     }
     form.append(grid);
-
-    form.append(
-      el("div", { className: "row" }, [
-        el("button", {
-          type: "submit",
-          text: state.busy && !state.assist.analyzing ? "Saving…" : "Save item",
-          disabled: state.busy ? "disabled" : null,
-        }),
-        editing
-          ? el("button", {
-              type: "button",
-              className: "danger",
-              text: "Delete",
-              disabled: state.busy ? "disabled" : null,
-              onClick: () => removeItem(editing),
-            })
-          : null,
-      ])
-    );
+    form.append(renderFormStickyActions(form, editing));
     panel.append(form);
     return panel;
   }
