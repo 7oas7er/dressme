@@ -26,9 +26,10 @@ Scaffold creates the isolated app repo. These steps are **not** done by the firs
 - [x] Terraform Environment plan role + `CLOUDFLARE_API_TOKEN` / origin-verify secrets for plan CI
 - [x] Ruleset `default` active on `main`+`staging` (`Required CI` only; no force-push/delete; PR required)
 - [x] Issues / Wiki / Projects off
-- [ ] Dependabot alerts + secret scanning + push protection — confirm in Settings (this App token lacks `administration=read`, cannot API-verify)
-- [ ] Actions `GITHUB_TOKEN` read-only + cannot approve PRs — same (UI confirm)
-- [ ] CodeQL **default** setup off — same (in-repo advanced workflow only)
+- [x] Dependabot alerts + secret scanning + push protection — API-verified 2026-11-07 (admin `gh` on Mac)
+- [x] Actions `GITHUB_TOKEN` read-only + cannot approve PRs — API-verified 2026-11-07
+- [x] CodeQL **default** setup off (`not-configured`) — API-verified 2026-11-07 (in-repo advanced workflow only)
+- [x] Environment deployment branch policies — `staging`→`staging`, `production`→`main`; `terraform` unrestricted (match Block Drop; API-set 2026-11-07)
 - [x] Cursor GitHub App installed on this repo (for cloud agents) — Contents R/W verified 2026-10-25; Administration still Read
 - [ ] Production Environment vars after prod apply
 - [ ] Grafana `github_access_token` / `enable_github_ci = true` for CI panels
