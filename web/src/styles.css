@@ -253,12 +253,21 @@ label {
 }
 
 .page-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: wrap;
   margin-top: 0.5rem;
-  justify-items: start;
+}
+
+.page-footer .meta {
+  margin: 0;
 }
 
 .page-footer .sign-out {
   min-width: 7.5rem;
+  margin-inline-start: auto;
 }
 
 .item-card {
