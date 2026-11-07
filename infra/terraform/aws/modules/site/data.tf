@@ -113,11 +113,14 @@ data "aws_iam_policy_document" "high_scores" {
     resources = [
       "arn:aws:bedrock:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:inference-profile/*",
       "arn:aws:bedrock:${data.aws_region.current.region}::foundation-model/*",
-      # EU inference profiles may route to other EU foundation-model ARNs.
+      # EU geographic inference profiles (eu.*) may route InvokeModel to any
+      # EU foundation-model region — missing one yields AccessDenied → SPA 502.
       "arn:aws:bedrock:eu-central-1::foundation-model/*",
+      "arn:aws:bedrock:eu-central-2::foundation-model/*",
       "arn:aws:bedrock:eu-west-1::foundation-model/*",
       "arn:aws:bedrock:eu-west-3::foundation-model/*",
       "arn:aws:bedrock:eu-south-1::foundation-model/*",
+      "arn:aws:bedrock:eu-south-2::foundation-model/*",
     ]
   }
 }

@@ -200,3 +200,21 @@ test("analyze rejects missing image and item", async function () {
     (err) => err.statusCode === 400 && err.message === "image_or_item_required"
   );
 });
+
+test("analyze maps Bedrock AccessDenied to analyze_unavailable", async function () {
+  analyze.resetDepsForTests({
+    converse: async function () {
+      var err = new Error("not authorized");
+      err.name = "AccessDeniedException";
+      throw err;
+    },
+  });
+  await assert.rejects(
+    () =>
+      analyze.analyzeItem(
+        { sub: "u" },
+        { imageBase64: tinyJpegBase64(), contentType: "image/jpeg" }
+      ),
+    (err) => err.statusCode === 503 && err.message === "analyze_unavailable"
+  );
+});

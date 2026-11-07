@@ -402,6 +402,11 @@ export function renderCatalogApp(root, { onLogout }) {
 
     try {
       if (files.length) {
+        // MVP: one Bedrock image per click (first file). Extra picks stay for Save.
+        if (files.length > 1) {
+          state.status = `Analyzing first of ${files.length} photos…`;
+          paint();
+        }
         const compressed = await compressImageFile(files[0]);
         payload.imageBase64 = compressed.imageBase64;
         payload.contentType = compressed.contentType;
@@ -424,7 +429,18 @@ export function renderCatalogApp(root, { onLogout }) {
       state.status =
         "Review the AI proposal below — edit freely, then Apply to form before saving.";
     } catch (err) {
-      state.error = err.message || "Analyze failed.";
+      const code = err && err.message ? String(err.message) : "";
+      if (
+        code === "analyze_unavailable" ||
+        code === "bedrock_analyze_failed" ||
+        code === "http_502" ||
+        code === "http_503"
+      ) {
+        state.error =
+          "Photo analyze is temporarily unavailable. Fill attributes manually or try again.";
+      } else {
+        state.error = code || "Analyze failed.";
+      }
       state.assist.proposal = null;
     } finally {
       state.assist.analyzing = false;
@@ -805,7 +821,7 @@ export function renderCatalogApp(root, { onLogout }) {
       el("h2", { text: "AI assist" }),
       el("p", {
         className: "muted",
-        text: "Optional: analyze a photo for proposed attributes and notes. Nothing saves until you Apply and Save.",
+        text: "Optional: analyze one photo (the first selected) for proposed attributes and notes. Nothing saves until you Apply and Save.",
       }),
       el("label", {}, [
         el("span", { className: "field-title", text: "Notes / answers for the assistant" }),
