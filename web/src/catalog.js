@@ -189,7 +189,6 @@ function emptyAssist() {
     proposal: null,
     analyzing: false,
     answers: "",
-    applied: false,
   };
 }
 
@@ -370,6 +369,22 @@ export function renderCatalogApp(root, { onLogout }) {
     return attrs;
   }
 
+  /** Merge a proposal into the main form draft (empty proposal values keep current). */
+  function draftFromProposal(proposal, answers) {
+    const attrs = (proposal && proposal.attributes) || {};
+    const draft = {};
+    for (const field of ATTR_FIELDS) {
+      const value = String(attrs[field.key] || "").trim();
+      draft[field.key] = value || fieldValue(field.key);
+    }
+    const fromAnswers = String(answers || "").trim();
+    const pieces = [(proposal && proposal.aiContext) || "", fromAnswers].filter(
+      Boolean
+    );
+    draft.aiContext = pieces.join("\n").slice(0, 2000);
+    return draft;
+  }
+
   async function runAnalyze(form) {
     const fileInput = form.elements.photos;
     const files = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
@@ -424,10 +439,16 @@ export function renderCatalogApp(root, { onLogout }) {
       }
 
       const data = await api.analyzeItemPhoto(payload);
-      state.assist.proposal = data.proposal || null;
-      state.assist.applied = false;
-      state.status =
-        "Review the AI proposal below — edit freely, then Apply to form before saving.";
+      const proposal = data.proposal || null;
+      state.assist.proposal = proposal;
+      // Apply directly into the main add/edit fields — no second editable copy.
+      if (proposal) {
+        state.formDraft = draftFromProposal(proposal, answers);
+        state.status =
+          "Filled the form from the photo — tweak anything, then Save item.";
+      } else {
+        state.status = "Analyze returned no proposal. Fill attributes manually.";
+      }
     } catch (err) {
       const code = err && err.message ? String(err.message) : "";
       if (
@@ -447,32 +468,6 @@ export function renderCatalogApp(root, { onLogout }) {
       state.busy = false;
       paint();
     }
-  }
-
-  function applyProposalToForm(form) {
-    const proposal = state.assist.proposal;
-    if (!proposal || !form) return;
-    const attrs = proposal.attributes || {};
-    const draft = {};
-    for (const field of ATTR_FIELDS) {
-      const value = String(attrs[field.key] || "").trim();
-      draft[field.key] = value || fieldValue(field.key);
-      const input = form.elements[field.key];
-      if (input) input.value = draft[field.key];
-    }
-    const fromAnswers = String(
-      (form.elements.assistAnswers && form.elements.assistAnswers.value) ||
-        state.assist.answers ||
-        ""
-    ).trim();
-    const pieces = [proposal.aiContext || "", fromAnswers].filter(Boolean);
-    draft.aiContext = pieces.join("\n").slice(0, 2000);
-    const context = form.elements.aiContext;
-    if (context) context.value = draft.aiContext;
-    state.formDraft = draft;
-    state.assist.applied = true;
-    state.status = "Applied to form — tweak anything, then Save item.";
-    paint();
   }
 
   function openSuggest() {
@@ -817,14 +812,22 @@ export function renderCatalogApp(root, { onLogout }) {
 
   function renderAssistPanel(form) {
     const proposal = state.assist.proposal;
+    const analyzeLabel = state.assist.analyzing
+      ? "Analyzing…"
+      : proposal
+        ? "Re-analyze"
+        : "Analyze photo";
     const block = el("div", { className: "assist-panel stack" }, [
       el("h2", { text: "AI assist" }),
       el("p", {
         className: "muted",
-        text: "Optional: analyze one photo (the first selected) for proposed attributes and notes. Nothing saves until you Apply and Save.",
+        text: "Optional: analyze one photo (the first selected). Proposals fill the form below — nothing saves until you Save item.",
       }),
       el("label", {}, [
-        el("span", { className: "field-title", text: "Notes / answers for the assistant" }),
+        el("span", {
+          className: "field-title",
+          text: "Notes / answers for the assistant",
+        }),
         el("textarea", {
           name: "assistAnswers",
           rows: "2",
@@ -836,7 +839,7 @@ export function renderCatalogApp(root, { onLogout }) {
         el("button", {
           type: "button",
           className: "secondary",
-          text: state.assist.analyzing ? "Analyzing…" : "Analyze photo",
+          text: analyzeLabel,
           disabled: state.busy || state.assist.analyzing ? "disabled" : null,
           onClick: () => runAnalyze(form),
         }),
@@ -847,48 +850,16 @@ export function renderCatalogApp(root, { onLogout }) {
       return block;
     }
 
+    // Short read-only summary only — attrs + aiContext live in the main form.
     block.append(
       el("p", {
         className: "assist-label",
-        text: `Looks like: ${proposal.label || "item"}`,
+        text: `Filled from photo: ${proposal.label || "item"}`,
       })
     );
     if (proposal.notes) {
       block.append(el("p", { className: "muted", text: proposal.notes }));
     }
-
-    const reviewGrid = el("div", { className: "form-grid" });
-    for (const field of ATTR_FIELDS) {
-      reviewGrid.append(
-        el("label", {}, [
-          el("span", { className: "field-title", text: field.label }),
-          el("input", {
-            name: `assist-${field.key}`,
-            value: (proposal.attributes && proposal.attributes[field.key]) || "",
-            onInput: (event) => {
-              if (!state.assist.proposal.attributes) {
-                state.assist.proposal.attributes = {};
-              }
-              state.assist.proposal.attributes[field.key] = event.target.value;
-            },
-          }),
-        ])
-      );
-    }
-    block.append(reviewGrid);
-    block.append(
-      el("label", {}, [
-        el("span", { className: "field-title", text: "Proposed AI context" }),
-        el("textarea", {
-          name: "assistAiContext",
-          rows: "3",
-          text: proposal.aiContext || "",
-          onInput: (event) => {
-            state.assist.proposal.aiContext = event.target.value;
-          },
-        }),
-      ])
-    );
 
     const questions = proposal.followUpQuestions || [];
     if (questions.length) {
@@ -896,20 +867,17 @@ export function renderCatalogApp(root, { onLogout }) {
       for (const q of questions) {
         qList.append(el("li", { text: q }));
       }
-      block.append(el("p", { className: "field-label", text: "Follow-up ideas" }));
+      block.append(
+        el("p", { className: "field-label", text: "Follow-up ideas (optional)" })
+      );
       block.append(qList);
+      block.append(
+        el("p", {
+          className: "muted",
+          text: "Add answers above and re-analyze, or edit the form fields directly.",
+        })
+      );
     }
-
-    block.append(
-      el("div", { className: "row" }, [
-        el("button", {
-          type: "button",
-          text: state.assist.applied ? "Applied — apply again" : "Apply to form",
-          disabled: state.busy ? "disabled" : null,
-          onClick: () => applyProposalToForm(form),
-        }),
-      ])
-    );
     return block;
   }
 
@@ -1048,7 +1016,7 @@ export function renderCatalogApp(root, { onLogout }) {
         }),
         el("span", {
           className: "field-hint",
-          text: "Saved with the item. Used later for text-based outfit suggest — not auto-filled from Analyze until you Apply.",
+          text: "Saved with the item. Used later for text-based outfit suggest. Analyze fills this when it has a proposal.",
         }),
       ])
     );

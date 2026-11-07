@@ -118,7 +118,11 @@ test("add/edit form exposes Analyze photo assist (UC-25)", () => {
   const analyzeSrc = fs.readFileSync(path.join(root, "infra/lambda/analyze.js"), "utf8");
   const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
   assert.match(catalog, /Analyze photo/);
-  assert.match(catalog, /Apply to form/);
+  assert.match(catalog, /Re-analyze/);
+  assert.match(catalog, /draftFromProposal/);
+  assert.match(catalog, /Filled the form from the photo/);
+  assert.doesNotMatch(catalog, /Apply to form/);
+  assert.doesNotMatch(catalog, /assistAiContext|name: `assist-/);
   assert.match(catalog, /aiContext/);
   assert.match(catalog, /runAnalyze|analyzeItemPhoto/);
   assert.match(apiSrc, /\/api\/items\/analyze/);
