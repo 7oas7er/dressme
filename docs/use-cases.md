@@ -3,7 +3,7 @@
 Derived from the frozen Product Canvas (Project store).
 
 **Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice).  
-Last updated: 2026-11-07 (Europe/Berlin; mobile add UX slice for iPhone Safari bulk cataloging)
+Last updated: 2026-11-07 (Europe/Berlin; foldable catalog filters + topbar/Search right-edge align)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -39,7 +39,7 @@ As Frank, when I open an item, its photos are shown larger than the catalog thum
 As Frank, on the add/edit item form, the Brand/model control sits on the same baseline as the other fields in its row (not shifted lower).
 
 ### UC-07 — Filter the catalog by attributes
-As Frank, above the catalog grid I can filter items by attribute categories that matter while browsing (at least type, color, fabric, formality, pattern, season/climate, outfit role, and brand/model), using the values present in my wardrobe; filters combine (AND), and I can clear them to see everything again.
+As Frank, above the catalog grid (below search) I can expand a foldable filter pane (folded by default; open/closed remembered for the browser tab) and filter items by attribute categories that matter while browsing (at least type, color, fabric, formality, pattern, season/climate, outfit role, and brand/model), using the values present in my wardrobe; filters combine (AND), and I can clear them to see everything again.
 
 ### UC-04 — Request outfit suggestions
 As Frank, before getting dressed, I enter a free-text **context** (event, weather, or anything else that matters), then receive exactly three outfit suggestions drawn only from my catalog via Bedrock text suggest (attrs + `aiContext`; no photos), informed by classic menswear knowledge. `SUGGEST_ENGINE=random` remains available as a Terraform rollback.
