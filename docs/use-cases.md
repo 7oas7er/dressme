@@ -3,7 +3,7 @@
 Derived from the frozen Product Canvas (Project store).
 
 **Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice).  
-Last updated: 2026-11-07 (Europe/Berlin; foldable catalog filters + topbar/Search right-edge align)
+Last updated: 2026-11-08 (Europe/Berlin; catalog chrome DressMe/Catalog/Add + Appraise label)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -12,10 +12,10 @@ Synced from Project store use cases where they diverge; Must list below is autho
 ## Must — v1 scope contract
 
 ### UC-01 — Add a wardrobe item
-As Frank, when I acquire a new piece, I capture photos and attributes (type, color, fabric, brand/model, formality, pattern, season/climate, outfit role) in about 3 minutes, so it appears in my catalog. Optional add-time AI assist (UC-25) may propose attributes and a short context note; Frank always reviews/edits before save. On phone (esp. iPhone Safari), add is camera-first with multi-shot + strip remove, Analyze available as soon as a photo exists (no typing required), Save/Analyze sticky above the safe area, and a successful save lands on **Add next** with optional soft type/brand prefill.
+As Frank, when I acquire a new piece, I capture photos and attributes (type, color, fabric, brand/model, formality, pattern, season/climate, outfit role) in about 3 minutes, so it appears in my catalog. Optional add-time AI assist (UC-25) may propose attributes and a short context note; Frank always reviews/edits before save. On phone (esp. iPhone Safari), add is camera-first with multi-shot + strip remove, **Appraise** available as soon as a photo exists (no typing required), Save/Appraise sticky above the safe area, and a successful save lands on **Add next** with optional soft type/brand prefill. Top chrome is **DressMe** / **Catalog** / **Add item** (active white-on-blue); Sign out sits at the bottom of the page; item count is bottom-right on the catalog pane.
 
 ### UC-25 — Add-time AI catalog assist
-As Frank, when I add or edit an item, I can run **Analyze photo** so the server (Bedrock multimodal) proposes type/attrs, a short **aiContext** for later outfit suggest, and optional follow-up questions; I edit and confirm before anything is saved. One analyze call per click; never auto-commit invented facts.
+As Frank, when I add or edit an item, I can run **Appraise** so the server (Bedrock multimodal via `/api/items/analyze`) proposes type/attrs, a short **aiContext** for later outfit suggest, and optional follow-up questions; I edit and confirm before anything is saved. One analyze call per click; never auto-commit invented facts.
 
 ### UC-02 — Browse and look up the catalog
 As Frank, I browse/search my items (with photos) so I can see what I own — including opening the app while shopping for a quick visual check (no gap analysis, no near-duplicate detection).
