@@ -34,7 +34,7 @@ SPA deploys on merge via Actions; **analyze will 502 until this apply + model ac
 
 1. Open https://dressme-stg.7oas7er.com/ and sign in.
 2. **Add item** → choose a clear garment photo → **Analyze photo**.
-3. Review proposals → **Apply to form** → edit if needed → **Save item**.
+3. Confirm the main form filled → edit if needed → **Save item**.
 4. Re-open the item: attrs + AI context note should persist.
 
 ## Prod
