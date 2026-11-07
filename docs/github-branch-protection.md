@@ -2,7 +2,7 @@
 
 Target branches: **`staging`** and **`main`**. Default branch must be **`main`** (template tree + `SECURITY.md`).
 
-**Hard rule:** copying workflows / docs does **not** configure GitHub. Repo Settings → Code security and rulesets are **out-of-band**. Apply them with `gh` (below) and **verify via API** on every new or migrated app. Never mark this done because a sibling repo already had it, and never trust checklist text copied from DressMe.
+**Hard rule:** copying workflows / docs does **not** configure GitHub. Repo Settings → Code security and rulesets are **out-of-band**. Apply them with `gh` (below) and **verify via API** on every new or migrated app. Never mark this done because a sibling repo already had it, and never trust checklist text copied from Block Drop.
 
 ## Hard-required check (always runs)
 
@@ -39,7 +39,7 @@ One ruleset covering `refs/heads/staging` and `refs/heads/main`:
 
 Do **not** require linear history unless you already use squash-only merges.
 
-## Repo security floor (must match DressMe)
+## Repo security floor (must match Block Drop)
 
 | Control | Expected | Notes |
 |---------|----------|--------|
@@ -127,6 +127,14 @@ gh api -X POST "repos/$REPO/rulesets" --input - <<'EOF'
   "bypass_actors": []
 }
 EOF
+```
+
+Local signing (once per machine): GPG key for `frank@schlesinger.com` must be added under GitHub → Settings → SSH and GPG keys, then:
+
+```bash
+git config --global user.signingkey 413A590799A3CF31AB2C9ECDE27E5FD506790203
+git config --global commit.gpgsign true
+git config --global tag.gpgsign true
 ```
 
 ### Verify (required before checking the box)
