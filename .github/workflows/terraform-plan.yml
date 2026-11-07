@@ -302,13 +302,10 @@ jobs:
         if: matrix.root == 'prod'
         working-directory: ${{ matrix.path }}
         env:
-          # site_certificate_arn has a prod default in variables.tf; override via var if set.
+          # Required: set PROD_SITE_CERTIFICATE_ARN on the terraform GitHub Environment (no TF default).
           TF_VAR_site_certificate_arn: ${{ vars.PROD_SITE_CERTIFICATE_ARN }}
           TF_VAR_origin_verify_secret: ${{ secrets.PROD_ORIGIN_VERIFY_SECRET }}
         run: |
-          if [ -z "${TF_VAR_site_certificate_arn}" ]; then
-            unset TF_VAR_site_certificate_arn
-          fi
           set +e
           terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode
           code=$?

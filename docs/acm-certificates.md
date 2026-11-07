@@ -35,4 +35,4 @@ In Cloudflare → DNS → Add record:
 
 Wait until status is `ISSUED`, then set `site_certificate_arn` in `infra/terraform/aws/envs/stg/terraform.tfvars`.
 
-Repeat for `dressme.7oas7er.com` before prod apply.
+Repeat for `dressme.7oas7er.com` and set `site_certificate_arn` in `envs/prod/terraform.tfvars` before prod apply (required; there is no Terraform default).

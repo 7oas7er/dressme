@@ -42,7 +42,7 @@ Create Environment **terraform** (Settings → Environments). No deploy branch r
 |------|--------|
 | `AWS_TERRAFORM_PLAN_ROLE_ARN` | `github_terraform_plan_role_arn` output |
 | `STG_SITE_CERTIFICATE_ARN` | staging ACM cert ARN |
-| `PROD_SITE_CERTIFICATE_ARN` | production ACM cert ARN (or omit if prod variable default is enough) |
+| `PROD_SITE_CERTIFICATE_ARN` | production ACM cert ARN (required; no Terraform default) |
 | `STG_CLOUDFRONT_DOMAIN_NAME` | stg `distribution_domain_name` |
 | `PROD_CLOUDFRONT_DOMAIN_NAME` | prod `distribution_domain_name` |
 | `GRAFANA_STACK_SLUG` | Grafana Cloud stack slug |

@@ -24,9 +24,8 @@ variable "site_domain_name" {
 }
 
 variable "site_certificate_arn" {
-  description = "ACM certificate in us-east-1 for the production hostname."
+  description = "ACM certificate in us-east-1 for the production hostname. Set in gitignored terraform.tfvars (no default — do not reuse another app's cert ARN)."
   type        = string
-  default     = "arn:aws:acm:us-east-1:877710816497:certificate/5662db01-9020-4cc4-957a-91876b13e427"
 }
 
 variable "github_actions_subject" {
