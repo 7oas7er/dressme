@@ -46,7 +46,7 @@ resource "aws_lambda_function" "high_scores" {
   filename         = data.archive_file.high_scores.output_path
   source_code_hash = data.archive_file.high_scores.output_base64sha256
   # UC-20 thumbs + UC-25 Bedrock multimodal analyze need more headroom than CRUD.
-  timeout     = 90
+  timeout     = local.lambda_timeout_seconds
   memory_size = 512
 
   environment {

@@ -104,24 +104,21 @@ data "aws_iam_policy_document" "high_scores" {
   }
 
   # UC-25 add-time catalog assist (multimodal). DM-44 text suggest will reuse.
+  # Pin inference-profile to configured bedrock_model_id; keep explicit CRIS FM
+  # destinations for that model family (not foundation-model/*).
   statement {
     sid = "BedrockInvokeCatalogAssist"
     actions = [
       "bedrock:InvokeModel",
       "bedrock:InvokeModelWithResponseStream",
     ]
-    resources = [
-      "arn:aws:bedrock:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:inference-profile/*",
-      "arn:aws:bedrock:${data.aws_region.current.region}::foundation-model/*",
-      # EU geographic inference profiles (eu.*) may route InvokeModel to any
-      # EU foundation-model region — missing one yields AccessDenied → SPA 502.
-      "arn:aws:bedrock:eu-central-1::foundation-model/*",
-      "arn:aws:bedrock:eu-central-2::foundation-model/*",
-      "arn:aws:bedrock:eu-west-1::foundation-model/*",
-      "arn:aws:bedrock:eu-west-3::foundation-model/*",
-      "arn:aws:bedrock:eu-south-1::foundation-model/*",
-      "arn:aws:bedrock:eu-south-2::foundation-model/*",
-    ]
+    resources = concat(
+      [local.bedrock_inference_profile_arn],
+      [
+        for region in local.bedrock_cris_foundation_model_regions :
+        "arn:aws:bedrock:${region}::foundation-model/${local.bedrock_foundation_model_id}"
+      ],
+    )
   }
 }
 
