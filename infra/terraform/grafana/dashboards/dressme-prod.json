@@ -1,18 +1,21 @@
 {
   "uid": "dressme-prod",
   "title": "DressMe \u2014 Production",
-  "description": "DressMe prod: fixed-window traffic / errors / latency, synthetics, Cloudflare edge, and GitHub Actions.",
+  "description": "DressMe prod: fixed-window traffic / errors / latency, synthetics, API Lambda / Bedrock / DynamoDB (CloudWatch scrape), Cloudflare edge, and GitHub Actions.",
   "tags": [
     "dressme",
     "prod",
     "synthetics",
     "observability",
     "cloudflare",
-    "github"
+    "github",
+    "lambda",
+    "bedrock",
+    "dynamodb"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "1m",
   "time": {
     "from": "now-6h",
@@ -1864,7 +1867,7 @@
     },
     {
       "type": "row",
-      "title": "Cloudflare \u2014 volume",
+      "title": "API / Lambda \u2014 invocations, errors, throttles, duration",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1877,13 +1880,612 @@
     {
       "id": 28,
       "type": "timeseries",
+      "title": "Invocations",
+      "description": "Lambda Invocations Sum (prod-dressme-health-function) via CloudWatch scrape \u2192 Prometheus.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 41
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_lambda_invocations_sum{project=\"dressme\", Name=\"prod-dressme-health-function\"})",
+          "legendFormat": "invocations"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "type": "timeseries",
+      "title": "Errors",
+      "description": "Lambda Errors Sum (prod-dressme-health-function).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 41
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_lambda_errors_sum{project=\"dressme\", Name=\"prod-dressme-health-function\"})",
+          "legendFormat": "errors"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "Throttles",
+      "description": "Lambda Throttles Sum (prod-dressme-health-function).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 41
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_lambda_throttles_sum{project=\"dressme\", Name=\"prod-dressme-health-function\"})",
+          "legendFormat": "throttles"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Duration",
+      "description": "Lambda Duration Average + Maximum (prod-dressme-health-function); timeout is 90s.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 45
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(aws_lambda_duration_average{project=\"dressme\", Name=\"prod-dressme-health-function\"})",
+          "legendFormat": "avg"
+        },
+        {
+          "refId": "B",
+          "expr": "max(aws_lambda_duration_maximum{project=\"dressme\", Name=\"prod-dressme-health-function\"})",
+          "legendFormat": "max"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Bedrock \u2014 invocations & tokens (account-level; shared stg/prod)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "id": 32,
+      "collapsed": false
+    },
+    {
+      "id": 33,
+      "type": "timeseries",
+      "title": "Invocations",
+      "description": "AWS/Bedrock Invocations Sum (account + ModelId). Not env-scoped \u2014 stg and prod Analyze share this series.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 50
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_bedrock_invocations_sum{project=\"dressme\"})",
+          "legendFormat": "invocations"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "type": "timeseries",
+      "title": "Input tokens",
+      "description": "AWS/Bedrock InputTokenCount Sum (multimodal Analyze counts image tokens as input).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 50
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_bedrock_input_token_count_sum{project=\"dressme\"})",
+          "legendFormat": "input tokens"
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "type": "timeseries",
+      "title": "Output tokens",
+      "description": "AWS/Bedrock OutputTokenCount Sum.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 50
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_bedrock_output_token_count_sum{project=\"dressme\"})",
+          "legendFormat": "output tokens"
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "type": "timeseries",
+      "title": "Errors / throttles",
+      "description": "Bedrock InvocationClientErrors, InvocationServerErrors, InvocationThrottles.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 54
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_bedrock_invocation_client_errors_sum{project=\"dressme\"})",
+          "legendFormat": "client errors"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(aws_bedrock_invocation_server_errors_sum{project=\"dressme\"})",
+          "legendFormat": "server errors"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(aws_bedrock_invocation_throttles_sum{project=\"dressme\"})",
+          "legendFormat": "throttles"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "DynamoDB \u2014 errors, throttles, consumed capacity",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 58
+      },
+      "id": 37,
+      "collapsed": false
+    },
+    {
+      "id": 38,
+      "type": "timeseries",
+      "title": "User / system errors",
+      "description": "DynamoDB UserErrors + SystemErrors Sum (prod-dressme-items-table).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 59
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_dynamodb_user_errors_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
+          "legendFormat": "user errors"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(aws_dynamodb_system_errors_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
+          "legendFormat": "system errors"
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "type": "timeseries",
+      "title": "Throttles",
+      "description": "DynamoDB ThrottledRequests + Read/WriteThrottleEvents Sum (prod-dressme-items-table).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 59
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_dynamodb_throttled_requests_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
+          "legendFormat": "throttled requests"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(aws_dynamodb_read_throttle_events_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
+          "legendFormat": "read throttle events"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(aws_dynamodb_write_throttle_events_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
+          "legendFormat": "write throttle events"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "type": "timeseries",
+      "title": "Consumed capacity",
+      "description": "DynamoDB ConsumedRead/WriteCapacityUnits Sum (prod-dressme-items-table); on-demand table still emits these units.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 59
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_dynamodb_consumed_read_capacity_units_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
+          "legendFormat": "read capacity"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(aws_dynamodb_consumed_write_capacity_units_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
+          "legendFormat": "write capacity"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Cloudflare \u2014 volume",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 63
+      },
+      "id": 41,
+      "collapsed": false
+    },
+    {
+      "id": 42,
+      "type": "timeseries",
       "title": "Bandwidth",
       "description": "sum.edgeResponseBytes for dressme.7oas7er.com (eyeball traffic).",
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 0,
-        "y": 41
+        "y": 64
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -1948,7 +2550,7 @@
       ]
     },
     {
-      "id": 29,
+      "id": 43,
       "type": "timeseries",
       "title": "Visits",
       "description": "sum.visits for dressme.7oas7er.com (Cloudflare visit = page view with external/direct referrer).",
@@ -1956,7 +2558,7 @@
         "h": 4,
         "w": 8,
         "x": 8,
-        "y": 41
+        "y": 64
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2021,7 +2623,7 @@
       ]
     },
     {
-      "id": 30,
+      "id": 44,
       "type": "table",
       "title": "Status mix",
       "description": "edgeResponseStatus totals for dressme.7oas7er.com in the dashboard range.",
@@ -2029,7 +2631,7 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 41
+        "y": 64
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2082,13 +2684,13 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 68
       },
-      "id": 31,
+      "id": 45,
       "collapsed": false
     },
     {
-      "id": 32,
+      "id": 46,
       "type": "table",
       "title": "Cache status",
       "description": "cacheStatus breakdown for dressme.7oas7er.com (HIT/MISS/EXPIRED/\u2026).",
@@ -2096,7 +2698,7 @@
         "h": 4,
         "w": 8,
         "x": 0,
-        "y": 46
+        "y": 69
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2148,7 +2750,7 @@
       ]
     },
     {
-      "id": 33,
+      "id": 47,
       "type": "table",
       "title": "Verified bots",
       "description": "verifiedBotCategory for dressme.7oas7er.com (empty = unverified / human-ish).",
@@ -2156,7 +2758,7 @@
         "h": 4,
         "w": 8,
         "x": 8,
-        "y": 46
+        "y": 69
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2203,7 +2805,7 @@
       ]
     },
     {
-      "id": 34,
+      "id": 48,
       "type": "table",
       "title": "Countries",
       "description": "Top clientCountryName for dressme.7oas7er.com.",
@@ -2211,7 +2813,7 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 46
+        "y": 69
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2264,13 +2866,13 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 73
       },
-      "id": 35,
+      "id": 49,
       "collapsed": false
     },
     {
-      "id": 36,
+      "id": 50,
       "type": "table",
       "title": "Top paths",
       "description": "Top clientRequestPath + method for dressme.7oas7er.com.",
@@ -2278,7 +2880,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 51
+        "y": 74
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2335,7 +2937,7 @@
       ]
     },
     {
-      "id": 37,
+      "id": 51,
       "type": "table",
       "title": "Firewall events",
       "description": "firewallEventsAdaptive for dressme.7oas7er.com (may be empty when no WAF/firewall matches). Free plan: event rows only; aggregated firewall groups are unavailable.",
@@ -2343,7 +2945,7 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 51
+        "y": 74
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2426,13 +3028,13 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 82
       },
-      "id": 38,
+      "id": 52,
       "collapsed": false
     },
     {
-      "id": 39,
+      "id": 53,
       "type": "table",
       "title": "Deploy workflow runs",
       "description": "Workflow_Runs for deploy-dressme.yml.",
@@ -2440,7 +3042,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 60
+        "y": 83
       },
       "datasource": {
         "type": "grafana-github-datasource",
@@ -2462,7 +3064,7 @@
       ]
     },
     {
-      "id": 40,
+      "id": 54,
       "type": "table",
       "title": "Terraform plan workflow runs",
       "description": "Workflow_Runs for terraform-plan.yml.",
@@ -2470,7 +3072,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 60
+        "y": 83
       },
       "datasource": {
         "type": "grafana-github-datasource",
@@ -2492,7 +3094,7 @@
       ]
     },
     {
-      "id": 41,
+      "id": 55,
       "type": "table",
       "title": "Deploy workflow usage",
       "description": "Workflow_Usage for deploy-dressme.yml.",
@@ -2500,7 +3102,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 68
+        "y": 91
       },
       "datasource": {
         "type": "grafana-github-datasource",
@@ -2522,7 +3124,7 @@
       ]
     },
     {
-      "id": 42,
+      "id": 56,
       "type": "table",
       "title": "Terraform plan workflow usage",
       "description": "Workflow_Usage for terraform-plan.yml.",
@@ -2530,7 +3132,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 68
+        "y": 91
       },
       "datasource": {
         "type": "grafana-github-datasource",

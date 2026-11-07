@@ -122,6 +122,8 @@ ENVS = {
         "probe_job": "dressme-prod-site",
         "probe_job_api": "dressme-prod-health",
         "cf_name": "prod-dressme-site-distribution",
+        "lambda_name": "prod-dressme-health-function",
+        "dynamo_name": "prod-dressme-items-table",
     },
     "stg": {
         "uid": "dressme-stg",
@@ -131,6 +133,8 @@ ENVS = {
         "probe_job": "dressme-stg-site",
         "probe_job_api": "dressme-stg-health",
         "cf_name": "stg-dressme-site-distribution",
+        "lambda_name": "stg-dressme-health-function",
+        "dynamo_name": "stg-dressme-items-table",
     },
 }
 
@@ -502,6 +506,30 @@ def errors_panel(panel_id: int, cfg: dict, win: dict, grid_pos: dict) -> dict:
     }
 
 
+def prom_ts(
+    panel_id: int,
+    *,
+    title: str,
+    description: str,
+    grid_pos: dict,
+    targets: list[dict],
+    unit: str = "short",
+    bars: bool = False,
+) -> dict:
+    """CloudWatch-scrape → Prometheus timeseries tile (dashboard time range)."""
+    return {
+        "id": panel_id,
+        "type": "timeseries",
+        "title": title,
+        "description": description,
+        "gridPos": grid_pos,
+        "datasource": {"type": "prometheus", "uid": "${datasource}"},
+        "fieldConfig": ts_field(unit, bars=bars),
+        "options": ts_options(),
+        "targets": targets,
+    }
+
+
 def latency_panel(panel_id: int, cfg: dict, win: dict, grid_pos: dict) -> dict:
     """CloudFront OriginLatency + Cloudflare originResponseDurationMs (Free has no edge TTFB)."""
     host, cf_name = cfg["host"], cfg["cf_name"]
@@ -777,6 +805,274 @@ def build_dashboard(env_key: str) -> dict:
     )
     # 7 tiles (2 stats + 4 charts + logs) → 3 rows at h=4
     y += METRIC_PANEL_H * 3
+
+    # --- API / backend CloudWatch (scrape → Prometheus; Free retains ~14d) ---
+    # Placed after synthetics; before Cloudflare deep-dive. Edge traffic/errors/
+    # latency rows above stay unchanged (req/s + % conventions).
+    lambda_name = cfg["lambda_name"]
+    dynamo_name = cfg["dynamo_name"]
+    lambda_sel = f'project="dressme", Name="{lambda_name}"'
+    dynamo_sel = f'project="dressme", Name="{dynamo_name}"'
+    # Bedrock CW is account+ModelId (no Environment tag); both env boards share series.
+    bedrock_sel = 'project="dressme"'
+
+    panels.append(row(nid(), "API / Lambda — invocations, errors, throttles, duration", y))
+    y += 1
+    for idx, (title, desc, unit, targets) in enumerate(
+        [
+            (
+                "Invocations",
+                f"Lambda Invocations Sum ({lambda_name}) via CloudWatch scrape → Prometheus.",
+                "short",
+                [
+                    {
+                        "refId": "A",
+                        "expr": f"sum(aws_lambda_invocations_sum{{{lambda_sel}}})",
+                        "legendFormat": "invocations",
+                    }
+                ],
+            ),
+            (
+                "Errors",
+                f"Lambda Errors Sum ({lambda_name}).",
+                "short",
+                [
+                    {
+                        "refId": "A",
+                        "expr": f"sum(aws_lambda_errors_sum{{{lambda_sel}}})",
+                        "legendFormat": "errors",
+                    }
+                ],
+            ),
+            (
+                "Throttles",
+                f"Lambda Throttles Sum ({lambda_name}).",
+                "short",
+                [
+                    {
+                        "refId": "A",
+                        "expr": f"sum(aws_lambda_throttles_sum{{{lambda_sel}}})",
+                        "legendFormat": "throttles",
+                    }
+                ],
+            ),
+            (
+                "Duration",
+                f"Lambda Duration Average + Maximum ({lambda_name}); timeout is 90s.",
+                "ms",
+                [
+                    {
+                        "refId": "A",
+                        "expr": f"avg(aws_lambda_duration_average{{{lambda_sel}}})",
+                        "legendFormat": "avg",
+                    },
+                    {
+                        "refId": "B",
+                        "expr": f"max(aws_lambda_duration_maximum{{{lambda_sel}}})",
+                        "legendFormat": "max",
+                    },
+                ],
+            ),
+        ]
+    ):
+        panels.append(
+            prom_ts(
+                nid(),
+                title=title,
+                description=desc,
+                grid_pos=metric_grid_pos(idx, y),
+                targets=targets,
+                unit=unit,
+                bars=True,
+            )
+        )
+    # 4 tiles → 2 rows at h=4 (3 + 1)
+    y += METRIC_PANEL_H * 2
+
+    panels.append(
+        row(
+            nid(),
+            "Bedrock — invocations & tokens (account-level; shared stg/prod)",
+            y,
+        )
+    )
+    y += 1
+    for idx, (title, desc, unit, targets) in enumerate(
+        [
+            (
+                "Invocations",
+                (
+                    "AWS/Bedrock Invocations Sum (account + ModelId). Not env-scoped — "
+                    "stg and prod Analyze share this series."
+                ),
+                "short",
+                [
+                    {
+                        "refId": "A",
+                        "expr": f"sum(aws_bedrock_invocations_sum{{{bedrock_sel}}})",
+                        "legendFormat": "invocations",
+                    }
+                ],
+            ),
+            (
+                "Input tokens",
+                "AWS/Bedrock InputTokenCount Sum (multimodal Analyze counts image tokens as input).",
+                "short",
+                [
+                    {
+                        "refId": "A",
+                        "expr": f"sum(aws_bedrock_input_token_count_sum{{{bedrock_sel}}})",
+                        "legendFormat": "input tokens",
+                    }
+                ],
+            ),
+            (
+                "Output tokens",
+                "AWS/Bedrock OutputTokenCount Sum.",
+                "short",
+                [
+                    {
+                        "refId": "A",
+                        "expr": f"sum(aws_bedrock_output_token_count_sum{{{bedrock_sel}}})",
+                        "legendFormat": "output tokens",
+                    }
+                ],
+            ),
+            (
+                "Errors / throttles",
+                "Bedrock InvocationClientErrors, InvocationServerErrors, InvocationThrottles.",
+                "short",
+                [
+                    {
+                        "refId": "A",
+                        "expr": (
+                            f"sum(aws_bedrock_invocation_client_errors_sum{{{bedrock_sel}}})"
+                        ),
+                        "legendFormat": "client errors",
+                    },
+                    {
+                        "refId": "B",
+                        "expr": (
+                            f"sum(aws_bedrock_invocation_server_errors_sum{{{bedrock_sel}}})"
+                        ),
+                        "legendFormat": "server errors",
+                    },
+                    {
+                        "refId": "C",
+                        "expr": (
+                            f"sum(aws_bedrock_invocation_throttles_sum{{{bedrock_sel}}})"
+                        ),
+                        "legendFormat": "throttles",
+                    },
+                ],
+            ),
+        ]
+    ):
+        panels.append(
+            prom_ts(
+                nid(),
+                title=title,
+                description=desc,
+                grid_pos=metric_grid_pos(idx, y),
+                targets=targets,
+                unit=unit,
+                bars=True,
+            )
+        )
+    y += METRIC_PANEL_H * 2
+
+    panels.append(
+        row(nid(), "DynamoDB — errors, throttles, consumed capacity", y)
+    )
+    y += 1
+    for idx, (title, desc, unit, targets) in enumerate(
+        [
+            (
+                "User / system errors",
+                f"DynamoDB UserErrors + SystemErrors Sum ({dynamo_name}).",
+                "short",
+                [
+                    {
+                        "refId": "A",
+                        "expr": f"sum(aws_dynamodb_user_errors_sum{{{dynamo_sel}}})",
+                        "legendFormat": "user errors",
+                    },
+                    {
+                        "refId": "B",
+                        "expr": f"sum(aws_dynamodb_system_errors_sum{{{dynamo_sel}}})",
+                        "legendFormat": "system errors",
+                    },
+                ],
+            ),
+            (
+                "Throttles",
+                (
+                    f"DynamoDB ThrottledRequests + Read/WriteThrottleEvents Sum "
+                    f"({dynamo_name})."
+                ),
+                "short",
+                [
+                    {
+                        "refId": "A",
+                        "expr": f"sum(aws_dynamodb_throttled_requests_sum{{{dynamo_sel}}})",
+                        "legendFormat": "throttled requests",
+                    },
+                    {
+                        "refId": "B",
+                        "expr": (
+                            f"sum(aws_dynamodb_read_throttle_events_sum{{{dynamo_sel}}})"
+                        ),
+                        "legendFormat": "read throttle events",
+                    },
+                    {
+                        "refId": "C",
+                        "expr": (
+                            f"sum(aws_dynamodb_write_throttle_events_sum{{{dynamo_sel}}})"
+                        ),
+                        "legendFormat": "write throttle events",
+                    },
+                ],
+            ),
+            (
+                "Consumed capacity",
+                (
+                    f"DynamoDB ConsumedRead/WriteCapacityUnits Sum ({dynamo_name}); "
+                    "on-demand table still emits these units."
+                ),
+                "short",
+                [
+                    {
+                        "refId": "A",
+                        "expr": (
+                            f"sum(aws_dynamodb_consumed_read_capacity_units_sum"
+                            f"{{{dynamo_sel}}})"
+                        ),
+                        "legendFormat": "read capacity",
+                    },
+                    {
+                        "refId": "B",
+                        "expr": (
+                            f"sum(aws_dynamodb_consumed_write_capacity_units_sum"
+                            f"{{{dynamo_sel}}})"
+                        ),
+                        "legendFormat": "write capacity",
+                    },
+                ],
+            ),
+        ]
+    ):
+        panels.append(
+            prom_ts(
+                nid(),
+                title=title,
+                description=desc,
+                grid_pos=metric_grid_pos(idx, y),
+                targets=targets,
+                unit=unit,
+                bars=True,
+            )
+        )
+    y += METRIC_PANEL_H
 
     # --- Cloudflare (items 1–8): volume, cache/status/bots, paths/geo/firewall ---
     # Uses dashboard time range; keep ≤ ~30d on Free Adaptive Analytics.
@@ -1103,12 +1399,23 @@ def build_dashboard(env_key: str) -> dict:
         "title": cfg["title"],
         "description": (
             f"DressMe {env}: fixed-window traffic / errors / latency, synthetics, "
-            "Cloudflare edge, and GitHub Actions."
+            "API Lambda / Bedrock / DynamoDB (CloudWatch scrape), Cloudflare edge, "
+            "and GitHub Actions."
         ),
-        "tags": ["dressme", env, "synthetics", "observability", "cloudflare", "github"],
+        "tags": [
+            "dressme",
+            env,
+            "synthetics",
+            "observability",
+            "cloudflare",
+            "github",
+            "lambda",
+            "bedrock",
+            "dynamodb",
+        ],
         "timezone": "browser",
         "schemaVersion": 39,
-        "version": 2,
+        "version": 3,
         "refresh": "1m",
         "time": {"from": "now-6h", "to": "now"},
         "templating": {
