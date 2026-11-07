@@ -8,6 +8,7 @@
     "ci": "npm ci --omit=dev --os=linux --cpu=arm64"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "3.1160.0",
     "@aws-sdk/client-dynamodb": "3.1160.0",
     "@aws-sdk/client-s3": "3.1160.0",
     "@aws-sdk/lib-dynamodb": "3.1160.0",

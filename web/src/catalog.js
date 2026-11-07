@@ -150,6 +150,54 @@ function photoOpenButton(url, alt) {
   );
 }
 
+/** Compress a local image for one Bedrock analyze call (cost + payload). */
+function compressImageFile(file, { maxEdge = 1024, quality = 0.82 } = {}) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("canvas_unavailable"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL("image/jpeg", quality);
+      const comma = dataUrl.indexOf(",");
+      resolve({
+        imageBase64: comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl,
+        contentType: "image/jpeg",
+      });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("image_load_failed"));
+    };
+    img.src = url;
+  });
+}
+
+function emptyAssist() {
+  return {
+    proposal: null,
+    analyzing: false,
+    answers: "",
+    applied: false,
+  };
+}
+
+/** Values applied from AI assist (or in-progress edits) that must survive paint(). */
+function emptyFormDraft() {
+  return null;
+}
+
 export function renderCatalogApp(root, { onLogout }) {
   const state = {
     items: [],
@@ -161,6 +209,8 @@ export function renderCatalogApp(root, { onLogout }) {
     error: "",
     busy: false,
     attributeOptions: {},
+    assist: emptyAssist(),
+    formDraft: emptyFormDraft(),
     suggest: {
       occasion: "",
       weather: "",
@@ -237,6 +287,8 @@ export function renderCatalogApp(root, { onLogout }) {
   async function openCreate() {
     state.view = "form";
     state.editing = null;
+    state.assist = emptyAssist();
+    state.formDraft = emptyFormDraft();
     state.error = "";
     paint();
     await loadAttributeOptions();
@@ -251,6 +303,8 @@ export function renderCatalogApp(root, { onLogout }) {
   async function openEdit(item) {
     state.view = "form";
     state.editing = item;
+    state.assist = emptyAssist();
+    state.formDraft = emptyFormDraft();
     state.error = "";
     state.busy = true;
     paint();
@@ -292,8 +346,116 @@ export function renderCatalogApp(root, { onLogout }) {
   function backToList() {
     state.view = "list";
     state.editing = null;
+    state.assist = emptyAssist();
+    state.formDraft = emptyFormDraft();
     state.error = "";
     updateStatusFromItems();
+    paint();
+  }
+
+  function fieldValue(key) {
+    if (state.formDraft && Object.prototype.hasOwnProperty.call(state.formDraft, key)) {
+      return state.formDraft[key] || "";
+    }
+    if (state.editing) return state.editing[key] || "";
+    return "";
+  }
+
+  function readFormAttributes(form) {
+    const attrs = {};
+    for (const field of ATTR_FIELDS) {
+      const elField = form.elements[field.key];
+      attrs[field.key] = elField ? String(elField.value || "").trim() : "";
+    }
+    return attrs;
+  }
+
+  async function runAnalyze(form) {
+    const fileInput = form.elements.photos;
+    const files = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
+    const answers = String(
+      (form.elements.assistAnswers && form.elements.assistAnswers.value) ||
+        state.assist.answers ||
+        ""
+    ).trim();
+    state.assist.answers = answers;
+
+    const attributes = readFormAttributes(form);
+    // Survive paint() while analyzing.
+    state.formDraft = Object.assign({}, attributes, {
+      aiContext: form.elements.aiContext
+        ? String(form.elements.aiContext.value || "").trim()
+        : fieldValue("aiContext"),
+    });
+
+    const payload = {
+      attributes,
+      answers,
+      hints: answers,
+    };
+
+    state.assist.analyzing = true;
+    state.busy = true;
+    state.error = "";
+    state.status = "Analyzing photo…";
+    paint();
+
+    try {
+      if (files.length) {
+        const compressed = await compressImageFile(files[0]);
+        payload.imageBase64 = compressed.imageBase64;
+        payload.contentType = compressed.contentType;
+      } else if (state.editing && state.editing.itemId) {
+        const ready = (state.editing.photos || []).find(
+          (photo) => photo.status === "ready"
+        );
+        if (!ready) {
+          throw new Error("Add a photo first (or choose a file to analyze).");
+        }
+        payload.itemId = state.editing.itemId;
+        payload.photoId = ready.photoId;
+      } else {
+        throw new Error("Choose a photo to analyze first.");
+      }
+
+      const data = await api.analyzeItemPhoto(payload);
+      state.assist.proposal = data.proposal || null;
+      state.assist.applied = false;
+      state.status =
+        "Review the AI proposal below — edit freely, then Apply to form before saving.";
+    } catch (err) {
+      state.error = err.message || "Analyze failed.";
+      state.assist.proposal = null;
+    } finally {
+      state.assist.analyzing = false;
+      state.busy = false;
+      paint();
+    }
+  }
+
+  function applyProposalToForm(form) {
+    const proposal = state.assist.proposal;
+    if (!proposal || !form) return;
+    const attrs = proposal.attributes || {};
+    const draft = {};
+    for (const field of ATTR_FIELDS) {
+      const value = String(attrs[field.key] || "").trim();
+      draft[field.key] = value || fieldValue(field.key);
+      const input = form.elements[field.key];
+      if (input) input.value = draft[field.key];
+    }
+    const fromAnswers = String(
+      (form.elements.assistAnswers && form.elements.assistAnswers.value) ||
+        state.assist.answers ||
+        ""
+    ).trim();
+    const pieces = [proposal.aiContext || "", fromAnswers].filter(Boolean);
+    draft.aiContext = pieces.join("\n").slice(0, 2000);
+    const context = form.elements.aiContext;
+    if (context) context.value = draft.aiContext;
+    state.formDraft = draft;
+    state.assist.applied = true;
+    state.status = "Applied to form — tweak anything, then Save item.";
     paint();
   }
 
@@ -341,6 +503,11 @@ export function renderCatalogApp(root, { onLogout }) {
     for (const field of ATTR_FIELDS) {
       payload[field.key] = form.elements[field.key].value.trim();
     }
+    if (form.elements.aiContext) {
+      payload.aiContext = String(form.elements.aiContext.value || "").trim();
+    }
+    // Keep draft if paint() runs mid-save (busy flag re-render).
+    state.formDraft = Object.assign({}, payload);
     const fileInput = form.elements.photos;
     const files = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
     state.busy = true;
@@ -373,6 +540,8 @@ export function renderCatalogApp(root, { onLogout }) {
       }
       state.view = "list";
       state.editing = null;
+      state.assist = emptyAssist();
+      state.formDraft = emptyFormDraft();
       state.status = "Saved.";
       await loadAttributeOptions();
       await refresh();
@@ -391,6 +560,8 @@ export function renderCatalogApp(root, { onLogout }) {
       await api.deleteItem(item.itemId);
       state.view = "list";
       state.editing = null;
+      state.assist = emptyAssist();
+      state.formDraft = emptyFormDraft();
       await refresh();
     } catch (err) {
       state.error = err.message || "Delete failed.";
@@ -628,6 +799,104 @@ export function renderCatalogApp(root, { onLogout }) {
     return panel;
   }
 
+  function renderAssistPanel(form) {
+    const proposal = state.assist.proposal;
+    const block = el("div", { className: "assist-panel stack" }, [
+      el("h2", { text: "AI assist" }),
+      el("p", {
+        className: "muted",
+        text: "Optional: analyze a photo for proposed attributes and notes. Nothing saves until you Apply and Save.",
+      }),
+      el("label", {}, [
+        el("span", { className: "field-title", text: "Notes / answers for the assistant" }),
+        el("textarea", {
+          name: "assistAnswers",
+          rows: "2",
+          placeholder: "e.g. board meetings; no brown belt with this",
+          text: state.assist.answers || "",
+        }),
+      ]),
+      el("div", { className: "row" }, [
+        el("button", {
+          type: "button",
+          className: "secondary",
+          text: state.assist.analyzing ? "Analyzing…" : "Analyze photo",
+          disabled: state.busy || state.assist.analyzing ? "disabled" : null,
+          onClick: () => runAnalyze(form),
+        }),
+      ]),
+    ]);
+
+    if (!proposal) {
+      return block;
+    }
+
+    block.append(
+      el("p", {
+        className: "assist-label",
+        text: `Looks like: ${proposal.label || "item"}`,
+      })
+    );
+    if (proposal.notes) {
+      block.append(el("p", { className: "muted", text: proposal.notes }));
+    }
+
+    const reviewGrid = el("div", { className: "form-grid" });
+    for (const field of ATTR_FIELDS) {
+      reviewGrid.append(
+        el("label", {}, [
+          el("span", { className: "field-title", text: field.label }),
+          el("input", {
+            name: `assist-${field.key}`,
+            value: (proposal.attributes && proposal.attributes[field.key]) || "",
+            onInput: (event) => {
+              if (!state.assist.proposal.attributes) {
+                state.assist.proposal.attributes = {};
+              }
+              state.assist.proposal.attributes[field.key] = event.target.value;
+            },
+          }),
+        ])
+      );
+    }
+    block.append(reviewGrid);
+    block.append(
+      el("label", {}, [
+        el("span", { className: "field-title", text: "Proposed AI context" }),
+        el("textarea", {
+          name: "assistAiContext",
+          rows: "3",
+          text: proposal.aiContext || "",
+          onInput: (event) => {
+            state.assist.proposal.aiContext = event.target.value;
+          },
+        }),
+      ])
+    );
+
+    const questions = proposal.followUpQuestions || [];
+    if (questions.length) {
+      const qList = el("ul", { className: "assist-questions" });
+      for (const q of questions) {
+        qList.append(el("li", { text: q }));
+      }
+      block.append(el("p", { className: "field-label", text: "Follow-up ideas" }));
+      block.append(qList);
+    }
+
+    block.append(
+      el("div", { className: "row" }, [
+        el("button", {
+          type: "button",
+          text: state.assist.applied ? "Applied — apply again" : "Apply to form",
+          disabled: state.busy ? "disabled" : null,
+          onClick: () => applyProposalToForm(form),
+        }),
+      ])
+    );
+    return block;
+  }
+
   function renderForm() {
     const editing = state.editing;
     const panel = el("section", { className: "panel stack" }, [
@@ -636,7 +905,7 @@ export function renderCatalogApp(root, { onLogout }) {
       }),
       el("p", {
         className: "lede",
-        text: "Photos + attributes — aim for about three minutes per piece.",
+        text: "Photos + attributes — aim for about three minutes per piece. AI assist is optional.",
       }),
     ]);
 
@@ -647,45 +916,6 @@ export function renderCatalogApp(root, { onLogout }) {
         saveItem(event.target);
       },
     });
-
-    const grid = el("div", { className: "form-grid" });
-    for (const field of ATTR_FIELDS) {
-      const useSuggestions = SUGGESTION_KEYS.has(field.key);
-      const listId = useSuggestions ? `suggest-${field.key}` : null;
-      const input = el("input", {
-        name: field.key,
-        required: "required",
-        placeholder: useSuggestions
-          ? `${field.placeholder} — pick or type`
-          : field.placeholder,
-        value: editing ? editing[field.key] || "" : "",
-        autocomplete: useSuggestions ? "off" : null,
-        list: listId,
-        "aria-describedby": useSuggestions ? `hint-${field.key}` : null,
-      });
-      // Explicit title node keeps row baselines stable (UC-21) across wrapping labels.
-      const children = [
-        el("span", { className: "field-title", text: field.label }),
-        input,
-      ];
-      if (useSuggestions) {
-        const options = state.attributeOptions[field.key] || [];
-        const datalist = el("datalist", { id: listId });
-        for (const value of options) {
-          datalist.append(el("option", { value }));
-        }
-        children.push(datalist);
-        children.push(
-          el("span", {
-            id: `hint-${field.key}`,
-            className: "field-hint",
-            text: "Suggested values — or type your own.",
-          })
-        );
-      }
-      grid.append(el("label", {}, children));
-    }
-    form.append(grid);
 
     if (editing) {
       const existing = editing.photos || [];
@@ -748,11 +978,70 @@ export function renderCatalogApp(root, { onLogout }) {
         }),
       ])
     );
+
+    form.append(renderAssistPanel(form));
+
+    const grid = el("div", { className: "form-grid" });
+    for (const field of ATTR_FIELDS) {
+      const useSuggestions = SUGGESTION_KEYS.has(field.key);
+      const listId = useSuggestions ? `suggest-${field.key}` : null;
+      const input = el("input", {
+        name: field.key,
+        required: "required",
+        placeholder: useSuggestions
+          ? `${field.placeholder} — pick or type`
+          : field.placeholder,
+        value: fieldValue(field.key),
+        autocomplete: useSuggestions ? "off" : null,
+        list: listId,
+        "aria-describedby": useSuggestions ? `hint-${field.key}` : null,
+      });
+      // Explicit title node keeps row baselines stable (UC-21) across wrapping labels.
+      const children = [
+        el("span", { className: "field-title", text: field.label }),
+        input,
+      ];
+      if (useSuggestions) {
+        const options = state.attributeOptions[field.key] || [];
+        const datalist = el("datalist", { id: listId });
+        for (const value of options) {
+          datalist.append(el("option", { value }));
+        }
+        children.push(datalist);
+        children.push(
+          el("span", {
+            id: `hint-${field.key}`,
+            className: "field-hint",
+            text: "Suggested values — or type your own.",
+          })
+        );
+      }
+      grid.append(el("label", {}, children));
+    }
+    form.append(grid);
+
+    form.append(
+      el("label", {}, [
+        el("span", { className: "field-title", text: "AI context (for later suggest)" }),
+        el("textarea", {
+          name: "aiContext",
+          rows: "3",
+          maxlength: "2000",
+          placeholder: "Optional notes the AI (or you) leave for outfit recommendations…",
+          text: fieldValue("aiContext"),
+        }),
+        el("span", {
+          className: "field-hint",
+          text: "Saved with the item. Used later for text-based outfit suggest — not auto-filled from Analyze until you Apply.",
+        }),
+      ])
+    );
+
     form.append(
       el("div", { className: "row" }, [
         el("button", {
           type: "submit",
-          text: state.busy ? "Saving…" : "Save item",
+          text: state.busy && !state.assist.analyzing ? "Saving…" : "Save item",
           disabled: state.busy ? "disabled" : null,
         }),
         editing
@@ -777,6 +1066,12 @@ export function renderCatalogApp(root, { onLogout }) {
         className: "lede",
         text: `${item.color} · ${item.fabric} · ${item.formality} · ${item.season}`,
       }),
+      item.aiContext
+        ? el("p", {
+            className: "ai-context",
+            text: item.aiContext,
+          })
+        : null,
       el("p", {
         className: "muted",
         text: `${item.brandModel || "—"} · role: ${item.outfitRole} · pattern: ${item.pattern}`,

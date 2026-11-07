@@ -102,6 +102,24 @@ data "aws_iam_policy_document" "high_scores" {
     ]
     resources = ["${aws_s3_bucket.media.arn}/*"]
   }
+
+  # UC-25 add-time catalog assist (multimodal). DM-44 text suggest will reuse.
+  statement {
+    sid = "BedrockInvokeCatalogAssist"
+    actions = [
+      "bedrock:InvokeModel",
+      "bedrock:InvokeModelWithResponseStream",
+    ]
+    resources = [
+      "arn:aws:bedrock:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:inference-profile/*",
+      "arn:aws:bedrock:${data.aws_region.current.region}::foundation-model/*",
+      # EU inference profiles may route to other EU foundation-model ARNs.
+      "arn:aws:bedrock:eu-central-1::foundation-model/*",
+      "arn:aws:bedrock:eu-west-1::foundation-model/*",
+      "arn:aws:bedrock:eu-west-3::foundation-model/*",
+      "arn:aws:bedrock:eu-south-1::foundation-model/*",
+    ]
+  }
 }
 
 data "aws_iam_policy_document" "media_bucket" {
