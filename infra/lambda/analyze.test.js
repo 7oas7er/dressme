@@ -117,23 +117,42 @@ test("analyzeItem with mocked Bedrock returns proposal", async function () {
             ],
           },
         },
+        usage: { inputTokens: 120, outputTokens: 80 },
       };
     },
   });
 
-  var result = await analyze.analyzeItem(
-    { sub: "test-user" },
-    {
-      imageBase64: tinyJpegBase64(),
-      contentType: "image/jpeg",
-      answers: "board meetings",
-    }
-  );
+  var logged = [];
+  var originalLog = console.log;
+  console.log = function () {
+    logged.push(Array.prototype.slice.call(arguments).join(" "));
+  };
+  var result;
+  try {
+    result = await analyze.analyzeItem(
+      { sub: "test-user" },
+      {
+        imageBase64: tinyJpegBase64(),
+        contentType: "image/jpeg",
+        answers: "board meetings",
+      }
+    );
+  } finally {
+    console.log = originalLog;
+  }
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.proposal.label, "dress shirt");
   assert.equal(result.body.proposal.attributes.outfitRole, "base");
   assert.equal(result.body.source, "upload");
   assert.equal(result.body.modelId, "test-model");
+  assert.equal(logged.length, 1);
+  var line = JSON.parse(logged[0]);
+  assert.equal(line.event, "analyze_success");
+  assert.equal(line.modelId, "test-model");
+  assert.equal(line.inputTokens, 120);
+  assert.equal(line.outputTokens, 80);
+  assert.equal(Object.prototype.hasOwnProperty.call(line, "aiContext"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(line, "prompt"), false);
 });
 
 test("POST /api/items/analyze is routed", async function () {
