@@ -339,6 +339,10 @@ async function analyzeItem(user, body) {
       err && err.name,
       err && err.message ? err.message : err
     );
+    // AccessDenied (often missing CRIS destination region in IAM) → clear 503.
+    if (err && err.name === "AccessDeniedException") {
+      throw Object.assign(new Error("analyze_unavailable"), { statusCode: 503 });
+    }
     throw Object.assign(new Error("bedrock_analyze_failed"), { statusCode: 502 });
   }
 
