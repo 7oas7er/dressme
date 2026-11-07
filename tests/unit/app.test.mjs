@@ -171,6 +171,9 @@ test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   assert.match(apiSrc, /\/api\/suggest/);
   assert.match(apiSrc, /suggestOutfits/);
   assert.match(apiSrc, /context/);
+  // Dual-write occasion until stg Lambda zip is applied (missing_occasion).
+  assert.match(apiSrc, /occasion:\s*context/);
+  assert.match(catalog, /missing_occasion/);
   assert.match(styles, /\.look-hero/);
   assert.match(styles, /\.look-mannequin/);
   assert.match(styles, /\.look-strip/);

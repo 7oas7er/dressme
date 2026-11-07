@@ -118,9 +118,14 @@ export function backfillCutouts({ force = false, upgrade = false } = {}) {
   });
 }
 
-/** UC-04: three outfit suggestions from the catalog (Bedrock or random). */
+/**
+ * UC-04: three outfit suggestions from the catalog (Bedrock or random).
+ * Prefer `context`. Also echo `occasion` so a pre-apply Lambda that still
+ * requires occasion (missing_occasion) works until Frank applies the new zip.
+ * New Lambda prefers `context` and keeps an occasion→context shim.
+ */
 export function suggestOutfits({ context, engine } = {}) {
-  const body = { context };
+  const body = { context, occasion: context };
   if (engine) body.engine = engine;
   return request("/api/suggest", {
     method: "POST",

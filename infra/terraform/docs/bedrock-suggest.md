@@ -4,9 +4,10 @@ UC-04 / UC-09 (DM-44): Cognito-gated `POST /api/suggest` → Bedrock **text** Co
 
 ## Before cutover
 
-1. Merge the UC-04 implementation PR to `staging` (SPA + Lambda zip deploy via Actions).
-2. Confirm Analyze already works on stg (same `BEDROCK_MODEL_ID` / IAM).
-3. Optional smoke **before** flipping the default engine: signed-in browser or API with body `{ "context": "…", "engine": "bedrock" }` while `SUGGEST_ENGINE` is still `random`.
+1. Merge the UC-04 implementation PR to `staging` (SPA deploys via Actions **Publish to S3**).
+2. **Apply AWS stg Terraform** so the Lambda zip includes `context` (+ occasion shim). Site deploy alone does **not** update Lambda — without apply, Recommend posts `{ context }` and the live function still returns `missing_occasion`. The SPA dual-writes `occasion` for that window; apply clears the mismatch.
+3. Confirm Analyze already works on stg (same `BEDROCK_MODEL_ID` / IAM).
+4. Optional smoke **before** flipping the default engine: signed-in browser or API with body `{ "context": "…", "engine": "bedrock" }` while `SUGGEST_ENGINE` is still `random`.
 
 ## Flip default to Bedrock (stg)
 
@@ -33,7 +34,7 @@ terraform apply
 What this updates:
 
 - Lambda env `SUGGEST_ENGINE=bedrock` (default for all clients)
-- New suggest code in the zip when `infra/lambda` changed (also ships on site deploy)
+- New suggest code in the zip when `infra/lambda` changed (Lambda source only lands via this apply — not via site deploy)
 
 **Rollback:** set `suggest_engine = "random"`, `terraform apply`. Do **not** rely on silent random-on-error — Bedrock failures return 502/503 `suggest_unavailable`.
 
