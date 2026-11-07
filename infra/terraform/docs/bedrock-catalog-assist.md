@@ -24,9 +24,10 @@ terraform apply
 
 What this updates:
 
-- Lambda IAM: `bedrock:InvokeModel` on the eu-north-1 inference profile **and** EU foundation-model ARNs the profile may route to (`eu-central-1/2`, `eu-west-1/3`, `eu-south-1/2`, plus home region). Omitting a CRIS destination (e.g. `eu-south-2`) surfaces as SPA **502** / `analyze_unavailable`.
+- Lambda IAM: `bedrock:InvokeModel` on the **pinned** eu-north-1 inference-profile ARN for `bedrock_model_id` **and** explicit EU foundation-model ARNs for that model family (home + `eu-central-1/2`, `eu-west-1/3`, `eu-south-1/2`). Not `inference-profile/*` / `foundation-model/*`. Omitting a CRIS destination (e.g. `eu-south-2`) surfaces as SPA **502** / `analyze_unavailable`.
 - Lambda env: `BEDROCK_REGION`, `BEDROCK_MODEL_ID`, `SUGGEST_ENGINE=random`
 - Timeout 90s; new analyze code in the zip when `infra/lambda` changed
+- CloudWatch alarms (no SNS): Bedrock client errors + soft Invocations threshold for the configured model
 
 SPA deploys on merge via Actions; **analyze will 502 until this apply + model access succeed**.
 

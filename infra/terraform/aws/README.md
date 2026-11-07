@@ -43,7 +43,7 @@ Examples for `stg`:
 - `stg-dressme-access-logs-bucket`
 - `stg-dressme-health-bucket`
 - `stg-dressme-health-function`
-- `stg-dressme-health-errors-alarm` / `…-throttles-alarm` / `…-site-5xx-alarm`
+- `stg-dressme-health-errors-alarm` / `…-throttles-alarm` / `…-duration-alarm` / `…-bedrock-client-errors-alarm` / `…-bedrock-invocations-alarm` / `…-site-5xx-alarm`
 - `stg-dressme-health-role`
 - `stg-dressme-github-deploy-role`
 - `stg-dressme-site-oac`
@@ -75,7 +75,8 @@ Each env module creates a private `{env}-dressme-access-logs-bucket` (SSE-S3, Bl
 
 - High-scores Lambda log group `/aws/lambda/{env}-dressme-health-function` is managed in Terraform with **14-day** retention (override via `lambda_log_retention_days`).
 - Metric alarms (no SNS yet — visible in the CloudWatch console; Grafana remains the primary external monitor):
-  - Lambda **Errors** and **Throttles** (eu-north-1)
+  - Lambda **Errors**, **Throttles**, and **Duration** Maximum ≥ ~80% of the 90s timeout (eu-north-1)
+  - Bedrock **InvocationClientErrors** ≥ 1 and **Invocations** Sum ≥ 50 / 1h for the configured `bedrock_model_id` (eu-north-1)
   - CloudFront **5xxErrorRate** > 5% (us-east-1, Global dimension)
 - Existing log groups are adopted via `import` blocks in `envs/stg/imports.tf` and `envs/prod/imports.tf`. After the first successful apply you can delete those blocks if you prefer; leaving them is harmless once the resource is in state.
 

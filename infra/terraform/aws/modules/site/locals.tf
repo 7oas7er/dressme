@@ -12,7 +12,33 @@ locals {
   high_scores_log_group_name            = "${local.name_prefix}-health-log-group"
   high_scores_errors_alarm_name         = "${local.name_prefix}-health-errors-alarm"
   high_scores_throttles_alarm_name      = "${local.name_prefix}-health-throttles-alarm"
+  high_scores_duration_alarm_name       = "${local.name_prefix}-health-duration-alarm"
+  bedrock_client_errors_alarm_name      = "${local.name_prefix}-bedrock-client-errors-alarm"
+  bedrock_invocations_alarm_name        = "${local.name_prefix}-bedrock-invocations-alarm"
   cloudfront_5xx_alarm_name             = "${local.name_prefix}-site-5xx-alarm"
+  # Source of truth for aws_lambda_function.high_scores.timeout; Duration alarm at 80%.
+  lambda_timeout_seconds             = 90
+  lambda_duration_alarm_threshold_ms = floor(local.lambda_timeout_seconds * 1000 * 0.8)
+  # Geographic CRIS profile IDs are "{eu|us}.<foundation-model-id>"; strip for FM ARNs.
+  bedrock_foundation_model_id = regexreplace(var.bedrock_model_id, "^(eu|us)\\.", "")
+  bedrock_inference_profile_arn = (
+    startswith(var.bedrock_model_id, "arn:")
+    ? var.bedrock_model_id
+    : "arn:aws:bedrock:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.bedrock_model_id}"
+  )
+  # EU geographic profiles may route InvokeModel to any of these FM regions
+  # (plus home). Missing one yields AccessDenied → SPA 502 / analyze_unavailable.
+  bedrock_cris_foundation_model_regions = toset(concat(
+    [data.aws_region.current.region],
+    [
+      "eu-central-1",
+      "eu-central-2",
+      "eu-west-1",
+      "eu-west-3",
+      "eu-south-1",
+      "eu-south-2",
+    ],
+  ))
   high_scores_role_name                 = "${local.name_prefix}-health-role"
   high_scores_policy_name               = "${local.name_prefix}-health-policy"
   github_deploy_role_name               = "${local.name_prefix}-github-deploy-role"
