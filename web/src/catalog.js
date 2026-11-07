@@ -733,9 +733,9 @@ export function renderCatalogApp(root, { onLogout }) {
 
     const top = el("div", { className: "topbar" }, [
       el("nav", { className: "topbar-actions", "aria-label": "Primary" }, [
-        navButton("dressme", "DressMe", openSuggest),
         navButton("catalog", "Catalog", backToList),
         navButton("add", "Add item", () => openCreate()),
+        navButton("dressme", "DressMe", openSuggest),
       ]),
     ]);
     shell.append(top);
@@ -757,16 +757,16 @@ export function renderCatalogApp(root, { onLogout }) {
     }
 
     shell.append(
-      el("div", { className: "page-footer stack" }, [
+      el("div", { className: "page-footer" }, [
+        el("p", { className: "meta" }, [
+          el("a", { href: "/imprint.html", text: "Imprint" }),
+        ]),
         el("button", {
           type: "button",
           className: "secondary sign-out",
           text: "Sign out",
           onClick: onLogout,
         }),
-        el("p", { className: "meta" }, [
-          el("a", { href: "/imprint.html", text: "Imprint" }),
-        ]),
       ])
     );
     root.append(shell);

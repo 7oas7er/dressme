@@ -118,13 +118,17 @@ test("catalog list exposes attribute filters above the grid (UC-07)", () => {
   assert.match(useCases, /foldable filter pane/);
 });
 
-test("catalog chrome: DressMe / Catalog / Add item nav, Sign out bottom, Appraise", () => {
+test("catalog chrome: Catalog / Add item / DressMe nav, Sign out with Imprint, Appraise", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
-  assert.match(catalog, /navButton\("dressme", "DressMe"/);
-  assert.match(catalog, /navButton\("catalog", "Catalog"/);
-  assert.match(catalog, /navButton\("add", "Add item"/);
-  assert.match(catalog, /className: "secondary sign-out"/);
+  assert.match(
+    catalog,
+    /navButton\("catalog", "Catalog"[\s\S]*navButton\("add", "Add item"[\s\S]*navButton\("dressme", "DressMe"/
+  );
+  assert.match(
+    catalog,
+    /className: "page-footer"[\s\S]*imprint\.html[\s\S]*className: "secondary sign-out"/
+  );
   assert.match(catalog, /catalog-count/);
   assert.match(catalog, /itemCountLabel/);
   assert.doesNotMatch(catalog, /Wardrobe catalog/);
@@ -133,6 +137,7 @@ test("catalog chrome: DressMe / Catalog / Add item nav, Sign out bottom, Apprais
   assert.match(catalog, /return "Appraise"/);
   assert.match(styles, /\.catalog-count/);
   assert.match(styles, /\.page-footer/);
+  assert.match(styles, /\.page-footer[\s\S]*justify-content:\s*space-between/);
 });
 
 test("add/edit form exposes Appraise assist (UC-25)", () => {
