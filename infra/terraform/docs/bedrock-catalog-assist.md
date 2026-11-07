@@ -43,4 +43,4 @@ Only after Frank asks to promote `staging` → `main`, then the same apply under
 
 ## Cost note
 
-One multimodal call per Analyze click. Outfit suggest stays random (`SUGGEST_ENGINE=random`) until DM-44.
+One multimodal call per Analyze click. Outfit suggest stays random (`SUGGEST_ENGINE=random`) until DM-44. Successful Analyze emits a CloudWatch log line with `modelId` + token counts only (see ADR 0009).

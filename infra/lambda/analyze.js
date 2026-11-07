@@ -304,7 +304,15 @@ async function invokeBedrock(image, text) {
       textOut += blocks[i].text;
     }
   }
-  return textOut;
+  var usage = (response && response.usage) || {};
+  return {
+    text: textOut,
+    modelId: commandInput.modelId,
+    inputTokens:
+      typeof usage.inputTokens === "number" ? usage.inputTokens : null,
+    outputTokens:
+      typeof usage.outputTokens === "number" ? usage.outputTokens : null,
+  };
 }
 
 async function analyzeItem(user, body) {
@@ -325,9 +333,9 @@ async function analyzeItem(user, body) {
     throw Object.assign(new Error("image_or_item_required"), { statusCode: 400 });
   }
 
-  var textOut;
+  var bedrockResult;
   try {
-    textOut = await invokeBedrock(image, userTextBlock({
+    bedrockResult = await invokeBedrock(image, userTextBlock({
       hints: hints,
       answers: answers,
       attributes: attributes,
@@ -346,13 +354,22 @@ async function analyzeItem(user, body) {
     throw Object.assign(new Error("bedrock_analyze_failed"), { statusCode: 502 });
   }
 
-  var proposal = normalizeProposal(parseJsonObject(textOut));
+  var proposal = normalizeProposal(parseJsonObject(bedrockResult.text));
+  // Cost / Log Insights only — never log prompts, images, or aiContext.
+  console.log(
+    JSON.stringify({
+      event: "analyze_success",
+      modelId: bedrockResult.modelId,
+      inputTokens: bedrockResult.inputTokens,
+      outputTokens: bedrockResult.outputTokens,
+    })
+  );
 
   return {
     statusCode: 200,
     body: {
       proposal: proposal,
-      modelId: modelId(),
+      modelId: bedrockResult.modelId,
       source: source,
       photoId: image.photoId || null,
     },
