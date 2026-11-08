@@ -101,6 +101,22 @@ test("item detail/edit photos are large with click-to-enlarge (UC-23)", () => {
   assert.match(useCases, /UC-23 — Larger photos on item detail with click-to-enlarge/);
 });
 
+test("item detail shows catalog entry date from createdAt (UC-02)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const itemsSrc = fs.readFileSync(path.join(root, "infra/lambda/items.js"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(catalog, /formatEntryDate/);
+  assert.match(catalog, /detail-entry-date/);
+  assert.match(catalog, /Entry date/);
+  assert.match(catalog, /item\.createdAt/);
+  assert.match(styles, /\.detail-actions/);
+  assert.match(styles, /\.detail-entry-date/);
+  assert.match(itemsSrc, /createdAt:\s*ts/);
+  assert.match(itemsSrc, /createdAt:\s*item\.createdAt/);
+  assert.match(useCases, /entry date/i);
+});
+
 test("catalog list exposes attribute filters above the grid (UC-07)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");

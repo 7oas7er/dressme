@@ -406,6 +406,17 @@ label {
   color: inherit;
 }
 
+.detail-actions {
+  justify-content: space-between;
+  width: 100%;
+}
+
+.detail-entry-date {
+  margin: 0;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
 .field-label {
   margin: 0;
   font-size: 0.92rem;

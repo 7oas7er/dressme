@@ -3,7 +3,7 @@
 Derived from the frozen Product Canvas (Project store).
 
 **Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice).  
-Last updated: 2026-11-08 (Europe/Berlin; AI-context keyboard dictation; single Appraise on add/edit)
+Last updated: 2026-11-08 (Europe/Berlin; detail entry date from createdAt)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -18,7 +18,7 @@ As Frank, when I acquire a new piece, I capture photos and attributes (type, col
 As Frank, when I add or edit an item, I can run **Appraise** so the server (Bedrock multimodal via `/api/items/analyze`) proposes type/attrs, a short **aiContext** for later outfit suggest, and optional follow-up questions; I edit and confirm before anything is saved. One analyze call per click; never auto-commit invented facts. The **AI context** field is a normal textarea — use OS / iOS keyboard dictation when speaking is easier; there is no in-app Mic / Web Speech control.
 
 ### UC-02 — Browse and look up the catalog
-As Frank, I browse/search my items (with photos) so I can see what I own — including opening the app while shopping for a quick visual check (no gap analysis, no near-duplicate detection).
+As Frank, I browse/search my items (with photos) so I can see what I own — including opening the app while shopping for a quick visual check (no gap analysis, no near-duplicate detection). Opening an item shows its **entry date** (when it was added to the catalog) in the detail footer beside Edit / Delete.
 
 ### UC-03 — Edit or remove a wardrobe item
 As Frank, I update attributes/photos or delete an item so the catalog stays accurate.

@@ -105,6 +105,19 @@ function thumbUrl(item) {
   return layerImageUrl(item, { purpose: "catalog" });
 }
 
+/** Catalog entry day from Dynamo `createdAt` (Europe/Berlin calendar date). */
+function formatEntryDate(iso) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Europe/Berlin",
+  }).format(date);
+}
+
 /** UC-23: full-res lightbox; dismiss via backdrop, close control, or Escape. */
 function openPhotoLightbox(url, alt) {
   if (!url) return;
@@ -1395,19 +1408,28 @@ export function renderCatalogApp(root, { onLogout }) {
       }
     }
     panel.append(photos);
+    const entryDate = formatEntryDate(item.createdAt);
     panel.append(
-      el("div", { className: "row" }, [
-        el("button", {
-          type: "button",
-          text: "Edit",
-          onClick: () => openEdit(item),
-        }),
-        el("button", {
-          type: "button",
-          className: "danger",
-          text: "Delete",
-          onClick: () => removeItem(item),
-        }),
+      el("div", { className: "row detail-actions" }, [
+        el("div", { className: "row" }, [
+          el("button", {
+            type: "button",
+            text: "Edit",
+            onClick: () => openEdit(item),
+          }),
+          el("button", {
+            type: "button",
+            className: "danger",
+            text: "Delete",
+            onClick: () => removeItem(item),
+          }),
+        ]),
+        entryDate
+          ? el("p", {
+              className: "muted detail-entry-date",
+              text: `Entry date ${entryDate}`,
+            })
+          : null,
       ])
     );
     return panel;
