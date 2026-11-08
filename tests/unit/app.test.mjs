@@ -178,15 +178,26 @@ test("mobile add UX: camera-first, sticky Save, Add next (UC-01 phone)", () => {
   assert.match(catalog, /removePendingPhoto/);
   assert.match(catalog, /hasAnalyzablePhoto/);
   assert.match(catalog, /form-sticky-actions|renderFormStickyActions/);
+  assert.match(catalog, /assist-early-actions/);
   assert.match(catalog, /Save & add next/);
   assert.match(catalog, /softPrefillFromPayload/);
   assert.match(catalog, /Add next/);
+  // Single Appraise near AI context — not duplicated in the sticky Save bar.
+  assert.match(catalog, /assist-early-actions[\s\S]*analyzeButtonLabel/);
+  assert.doesNotMatch(
+    catalog,
+    /form-sticky-actions[\s\S]*analyzeButtonLabel|aria-label": "Save and appraise"/
+  );
+  assert.match(catalog, /ai-context-mic|Dictate AI context/);
+  assert.match(catalog, /SpeechRecognition|webkitSpeechRecognition/);
   assert.match(styles, /safe-area-inset-bottom/);
   assert.match(styles, /\.form-sticky-actions/);
+  assert.match(styles, /\.ai-context-mic/);
   assert.match(styles, /\.pending-photo-strip/);
   assert.match(styles, /font-size:\s*16px/);
   assert.match(indexHtml, /viewport-fit=cover/);
   assert.match(useCases, /camera-first|Add next|sticky/i);
+  assert.match(useCases, /Mic|Web Speech|dictate/i);
 });
 
 test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {

@@ -80,14 +80,14 @@ locals {
     "frame-ancestors 'self'",
     "upgrade-insecure-requests",
   ])
-  # Camera allowed for wardrobe photo capture (UC-01); mic/geo/payment stay off.
+  # Camera for wardrobe photo capture (UC-01); mic for AI-context dictation (Web Speech).
   permissions_policy = join(", ", [
     "accelerometer=()",
     "camera=(self)",
     "geolocation=()",
     "gyroscope=()",
     "magnetometer=()",
-    "microphone=()",
+    "microphone=(self)",
     "payment=()",
     "usb=()",
     "interest-cohort=()",
