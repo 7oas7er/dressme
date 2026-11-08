@@ -193,6 +193,36 @@ label {
   min-height: 1.25em;
 }
 
+/* Phase 1 attribute hygiene — compact “Did you mean…?” under the field. */
+.attr-hygiene-chip {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.65);
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.attr-hygiene-prompt {
+  line-height: 1.3;
+}
+
+.attr-hygiene-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.attr-hygiene-actions button {
+  min-height: 2rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.82rem;
+}
+
 .search {
   flex: 1 1 220px;
 }

@@ -146,7 +146,8 @@ test("create/update remembers free-text values for later dropdowns", async funct
   // Prior customs still present; new brand/model remembered.
   assert.ok(againBody.options.fabric.includes("vintage hopsack"));
   assert.ok(againBody.options.brandModel.includes("Drake's Donegal"));
-  assert.ok(againBody.options.brandModel.includes("Crockett & Jones Audley"));
+  // Phase 1 hygiene: `&` delimiter-unifies to `, ` before remember.
+  assert.ok(againBody.options.brandModel.includes("Crockett, Jones Audley"));
 });
 
 test("seed match is case-insensitive and does not duplicate customs", async function () {

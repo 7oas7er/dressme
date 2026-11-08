@@ -38,10 +38,14 @@ test("add/edit forms use suggested values with free text (UC-19)", () => {
   assert.match(catalog, /datalist/);
   assert.match(catalog, /listAttributeOptions/);
   assert.match(catalog, /pick or type/);
+  assert.match(catalog, /attr-hygiene-chip/);
+  assert.match(catalog, /Did you mean/);
+  assert.match(catalog, /matchAttrOption/);
   assert.match(apiSrc, /\/api\/attribute-options/);
   const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
   assert.match(useCases, /UC-19 — Suggested values with free-text/);
   assert.match(useCases, /brand\/model/);
+  assert.match(useCases, /Did you mean/);
 });
 
 test("catalog overview prefers thumbUrl (UC-20)", () => {

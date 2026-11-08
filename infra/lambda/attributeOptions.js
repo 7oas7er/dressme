@@ -6,6 +6,7 @@ var {
   GetCommand,
   PutCommand,
 } = require("@aws-sdk/lib-dynamodb");
+var attrNormalize = require("./attrNormalize");
 
 /** Fields that offer suggested values + free text (UC-19), including brand/model. */
 var SUGGESTION_FIELDS = [
@@ -143,7 +144,6 @@ var SEED_OPTIONS = {
 };
 
 var MAX_CUSTOM_PER_FIELD = 40;
-var MAX_ATTR_LEN = 120;
 
 var deps = {
   doc: null,
@@ -183,8 +183,20 @@ function nowIso() {
 }
 
 function normalizeValue(value) {
-  if (value == null) return "";
-  return String(value).trim().slice(0, MAX_ATTR_LEN);
+  return attrNormalize.normalizeAttrValue(value);
+}
+
+/**
+ * Seeds ∪ customs for hygiene matching on create/update.
+ * @returns {{ options: Object.<string, string[]>, custom: Object.<string, string[]> }}
+ */
+async function getOptionsForUser(userId) {
+  var record = await getCustomRecord(userId);
+  var custom = normalizeCustomMap(record && record.custom);
+  return {
+    options: mergeOptions(custom),
+    custom: custom,
+  };
 }
 
 function emptyCustomMap() {
@@ -332,6 +344,7 @@ exports.SUGGESTION_FIELDS = SUGGESTION_FIELDS;
 exports.SEED_OPTIONS = SEED_OPTIONS;
 exports.listAttributeOptions = listAttributeOptions;
 exports.rememberCustomValues = rememberCustomValues;
+exports.getOptionsForUser = getOptionsForUser;
 exports.resetDepsForTests = resetDepsForTests;
 exports.mergeOptions = mergeOptions;
 exports.isSeedValue = isSeedValue;
