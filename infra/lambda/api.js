@@ -86,31 +86,6 @@ exports.handler = async function handler(event) {
       return http.json(405, { error: "method_not_allowed" });
     }
 
-    // UC-18 rotate-on-edit — match before the photos/complete item regex.
-    var rotateMatch = /^\/api\/items\/([^/]+)\/photos\/([^/]+)\/rotate$/.exec(
-      path
-    );
-    if (
-      !rotateMatch &&
-      /^\/items\/([^/]+)\/photos\/([^/]+)\/rotate$/.exec(path)
-    ) {
-      rotateMatch = /^\/items\/([^/]+)\/photos\/([^/]+)\/rotate$/.exec(path);
-    }
-    if (rotateMatch) {
-      var rotateUser = await auth.requireUser(event);
-      if (method === "POST") {
-        return respond(
-          await items.rotatePhoto(
-            rotateUser,
-            rotateMatch[1],
-            rotateMatch[2],
-            http.parseBody(event)
-          )
-        );
-      }
-      return http.json(405, { error: "method_not_allowed" });
-    }
-
     var itemMatch = /^\/api\/items(?:\/([^/]+))?(?:\/(photos\/complete))?$/.exec(path);
     if (!itemMatch && /^\/items(?:\/([^/]+))?(?:\/(photos\/complete))?$/.exec(path)) {
       itemMatch = /^\/items(?:\/([^/]+))?(?:\/(photos\/complete))?$/.exec(path);

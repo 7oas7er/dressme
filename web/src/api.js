@@ -96,17 +96,6 @@ export function confirmPhotos(itemId, photoIds) {
   });
 }
 
-/** UC-18: durable 90° CW rotate of a ready edit photo (same photoId / S3 key). */
-export function rotatePhoto(itemId, photoId, degrees = 90) {
-  return request(
-    `/api/items/${encodeURIComponent(itemId)}/photos/${encodeURIComponent(photoId)}/rotate`,
-    {
-      method: "POST",
-      body: JSON.stringify({ degrees }),
-    }
-  );
-}
-
 /** UC-20: one-shot thumbnail backfill for the signed-in user's existing photos. */
 export function backfillThumbs() {
   return request("/api/photos/backfill-thumbs", {

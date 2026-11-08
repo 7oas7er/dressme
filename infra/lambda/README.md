@@ -10,8 +10,7 @@ Routes (CloudFront `/api/*` → Function URL):
 | GET | `/api/config` | no | Public Cognito SPA config |
 | GET/POST | `/api/items` | Cognito JWT | List / create wardrobe items |
 | GET/PUT/DELETE | `/api/items/{id}` | Cognito JWT | Read / update / delete |
-| POST | `/api/items/{id}/photos/complete` | Cognito JWT | Mark uploads ready + generate overview thumbs (UC-20). Cutout generation disabled (Option D). |
-| POST | `/api/items/{id}/photos/{photoId}/rotate` | Cognito JWT | UC-18 edit rotate: EXIF-normalize → +90° CW → JPEG overwrite same key + regen thumb; clear legacy cutout. **Needs Terraform apply** after merge ([photo-rotate-apply.md](../terraform/docs/photo-rotate-apply.md)). |
+| POST | `/api/items/{id}/photos/complete` | Cognito JWT | Mark uploads ready + generate overview thumbs (UC-20). Cutout generation disabled (Option D). Also used after UC-18 client rotate (remove+add re-upload). |
 | POST | `/api/photos/backfill-thumbs` | Cognito JWT | One-shot: generate missing thumbs for the caller’s items |
 | POST | `/api/photos/backfill-cutouts` | Cognito JWT | **Noop** while `CUTOUTS_ENABLED=false` (returns `{ disabled: true }`). Existing S3/Dynamo cutout keys left in place. |
 | GET | `/api/attribute-options` | Cognito JWT | Seed + per-user custom attribute suggestions (UC-19) |
@@ -22,7 +21,7 @@ Photo upload flow: `POST /api/items` (or update with `addPhotos`) returns presig
 
 On `photos/complete`, the API downloads each newly ready object and writes a ~400px-wide JPEG thumbnail next to it (`*.thumb.jpg`). **Cutout generation is stopped** (`CUTOUTS_ENABLED=false` in `items.js` — Option D SVG mannequin hero); existing `cutoutKey` values are left untouched. `GET /api/items` signs **thumb** URLs (and still signs cutout URLs when an old key exists); SPA prefers photographic thumbs/originals. `GET /api/items/{id}` still signs full-resolution URLs.
 
-Update (`PUT /api/items/{id}`) may include `removePhotoIds: string[]` to drop specific photos (deletes the S3 object and its thumb/cutout when keyed, updates the DynamoDB photo list). Removals run before `addPhotos` so one request can replace photos.
+Update (`PUT /api/items/{id}`) may include `removePhotoIds: string[]` to drop specific photos (deletes the S3 object and its thumb/cutout when keyed, updates the DynamoDB photo list). Removals run before `addPhotos` so one request can replace photos — including UC-18 edit rotate (browser +90° CW JPEG → remove old + add new slot → upload → `photos/complete`).
 
 Attribute suggestions (UC-19): Add/Edit forms load `/api/attribute-options` (classic menswear seeds plus the user’s remembered free-text values for type, color, fabric, brand/model, formality, pattern, season, outfit role). `brandModel` has no fixed seed list — every free-text value is remembered. Creating or updating an item persists any non-seed values under DynamoDB `META#attrOptions` on the same items table (no schema change).
 

@@ -49,25 +49,9 @@ async function makeThumbWithSharp(inputBuffer) {
     .toBuffer();
 }
 
-/**
- * UC-18 rotate-on-edit: bake EXIF orientation, then apply a 90°-multiple user
- * step, then encode JPEG without a non-default Orientation tag.
- * Two sharp passes so EXIF normalize cannot be clobbered by the angle rotate.
- */
-async function rotateOriginalWithSharp(inputBuffer, degrees) {
-  var sharp = require("sharp");
-  var angle = Number(degrees);
-  var upright = await sharp(inputBuffer).rotate().toBuffer();
-  return sharp(upright)
-    .rotate(angle)
-    .jpeg({ quality: 90, mozjpeg: true })
-    .toBuffer();
-}
-
 exports.THUMB_MAX_WIDTH = THUMB_MAX_WIDTH;
 exports.THUMB_JPEG_QUALITY = THUMB_JPEG_QUALITY;
 exports.THUMB_CONTENT_TYPE = THUMB_CONTENT_TYPE;
 exports.thumbKeyFor = thumbKeyFor;
 exports.streamToBuffer = streamToBuffer;
 exports.makeThumbWithSharp = makeThumbWithSharp;
-exports.rotateOriginalWithSharp = rotateOriginalWithSharp;
