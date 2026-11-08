@@ -240,12 +240,53 @@ function speechRecognitionCtor() {
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
 
+/** Prefer navigator.language; fall back to en-US for empty/odd locales. */
+function speechRecognitionLang() {
+  const raw =
+    typeof navigator !== "undefined" ? String(navigator.language || "").trim() : "";
+  return raw || "en-US";
+}
+
+/**
+ * Soft-fatal SpeechRecognition error codes: keep the session armed so onend can
+ * restart. iOS Safari commonly fires no-speech after a short pause even when the
+ * user is still dictating.
+ */
+function isRecoverableSpeechError(code) {
+  return code === "no-speech" || code === "aborted";
+}
+
 function joinSpeechText(base, chunk) {
   const left = String(base || "");
   const right = String(chunk || "").trim();
   if (!right) return left;
   if (!left) return right;
   return /\s$/.test(left) ? left + right : `${left} ${right}`;
+}
+
+/**
+ * Optional getUserMedia prime so Permissions-Policy / iOS mic permission surfaces
+ * before SpeechRecognition. Failures other than hard deny still allow speech start.
+ */
+async function ensureSpeechMicAccess() {
+  if (
+    typeof navigator === "undefined" ||
+    !navigator.mediaDevices ||
+    typeof navigator.mediaDevices.getUserMedia !== "function"
+  ) {
+    return { ok: true };
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    for (const track of stream.getTracks()) track.stop();
+    return { ok: true };
+  } catch (err) {
+    const name = err && err.name ? String(err.name) : "";
+    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+      return { ok: false, reason: "denied" };
+    }
+    return { ok: true };
+  }
 }
 
 export function renderCatalogApp(root, { onLogout }) {
@@ -276,15 +317,25 @@ export function renderCatalogApp(root, { onLogout }) {
   /** Active dictation session; aborted on paint() so detached textareas never keep the mic. */
   let speechSession = null;
 
+  function clearSpeechRestart(session) {
+    if (!session || !session.restartTimer) return;
+    clearTimeout(session.restartTimer);
+    session.restartTimer = null;
+  }
+
   function stopSpeechDictation() {
     const session = speechSession;
     speechSession = null;
     if (!session) return;
+    session.armed = false;
+    clearSpeechRestart(session);
+    const recognition = session.recognition;
+    if (!recognition) return;
     try {
-      session.recognition.onresult = null;
-      session.recognition.onerror = null;
-      session.recognition.onend = null;
-      session.recognition.abort();
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
+      recognition.abort();
     } catch {
       // Already stopped / unsupported abort — ignore.
     }
@@ -1011,7 +1062,23 @@ export function renderCatalogApp(root, { onLogout }) {
       micBtn.textContent = listening ? "Stop" : "Mic";
     }
 
-    function startSpeechDictation() {
+    function scheduleSpeechRestart(session, recognition) {
+      clearSpeechRestart(session);
+      // Sync start() inside onend throws InvalidStateError on iOS Safari; wait a beat.
+      session.restartTimer = setTimeout(() => {
+        session.restartTimer = null;
+        if (speechSession !== session || !session.armed) return;
+        try {
+          recognition.start();
+        } catch {
+          speechSession = null;
+          setMicListening(false);
+          setMicStatus("Voice input failed — type instead.");
+        }
+      }, 280);
+    }
+
+    async function startSpeechDictation() {
       const Ctor = speechRecognitionCtor();
       if (!Ctor) {
         setMicStatus("Voice input not supported here — type instead.");
@@ -1021,32 +1088,50 @@ export function renderCatalogApp(root, { onLogout }) {
       stopSpeechDictation();
       setMicStatus("");
 
-      let base = String(textarea.value || "");
+      // Placeholder so Stop during getUserMedia cancels before recognition.start().
+      const session = {
+        recognition: null,
+        armed: true,
+        base: String(textarea.value || ""),
+        restartTimer: null,
+        sawResult: false,
+      };
+      speechSession = session;
+      setMicListening(true);
+
+      const access = await ensureSpeechMicAccess();
+      if (speechSession !== session || !session.armed) return;
+      if (!access.ok) {
+        speechSession = null;
+        setMicListening(false);
+        setMicStatus("Microphone blocked — type instead.");
+        return;
+      }
+
       const recognition = new Ctor();
-      recognition.lang =
-        (typeof navigator !== "undefined" && navigator.language) || "en-US";
+      recognition.lang = speechRecognitionLang();
       recognition.interimResults = true;
       // continuous helps desktop; iOS Safari often ends after a pause — we restart if still armed.
       recognition.continuous = true;
-
-      const session = {
-        recognition,
-        armed: true,
-        base,
-      };
-      speechSession = session;
+      session.recognition = recognition;
 
       recognition.onresult = (event) => {
         if (speechSession !== session) return;
         let finalChunk = "";
         let interimChunk = "";
-        for (let i = event.resultIndex; i < event.results.length; i += 1) {
-          const result = event.results[i];
-          const piece = result && result[0] ? String(result[0].transcript || "") : "";
+        const results = event && event.results ? event.results : [];
+        const start = typeof event.resultIndex === "number" ? event.resultIndex : 0;
+        for (let i = start; i < results.length; i += 1) {
+          const result = results[i];
+          if (!result || !result.length) continue;
+          const piece = result[0] ? String(result[0].transcript || "").trim() : "";
           if (!piece) continue;
-          if (result.isFinal) finalChunk += piece;
-          else interimChunk += piece;
+          session.sawResult = true;
+          if (result.isFinal) finalChunk += (finalChunk ? " " : "") + piece;
+          else interimChunk += (interimChunk ? " " : "") + piece;
         }
+        // Empty result lists are normal on Safari; keep listening via onend restart.
+        if (!finalChunk && !interimChunk) return;
         if (finalChunk) {
           session.base = joinSpeechText(session.base, finalChunk).slice(0, 2000);
         }
@@ -1061,13 +1146,15 @@ export function renderCatalogApp(root, { onLogout }) {
 
       recognition.onerror = (event) => {
         if (speechSession !== session) return;
-        session.armed = false;
         const code = event && event.error ? String(event.error) : "";
-        // permission-denied / not-allowed / service-not-allowed / network…
+        // iOS Safari: no-speech / aborted are routine; leave armed for onend restart.
+        if (isRecoverableSpeechError(code)) {
+          return;
+        }
+        session.armed = false;
+        clearSpeechRestart(session);
         if (code === "not-allowed" || code === "service-not-allowed") {
           setMicStatus("Microphone blocked — type instead.");
-        } else if (code === "no-speech") {
-          setMicStatus("No speech heard — tap Mic to try again.");
         } else {
           setMicStatus("Voice input failed — type instead.");
         }
@@ -1079,15 +1166,14 @@ export function renderCatalogApp(root, { onLogout }) {
         if (speechSession !== session) return;
         // Safari often stops after a pause; keep going while the user left Mic armed.
         if (session.armed) {
-          try {
-            recognition.start();
-            return;
-          } catch {
-            // start() while still closing — fall through to idle.
-          }
+          scheduleSpeechRestart(session, recognition);
+          return;
         }
         speechSession = null;
         setMicListening(false);
+        if (!session.sawResult) {
+          setMicStatus("No speech heard — tap Mic to try again.");
+        }
       };
 
       textarea.addEventListener("input", function onTypeWhileListening() {
@@ -1095,7 +1181,7 @@ export function renderCatalogApp(root, { onLogout }) {
           textarea.removeEventListener("input", onTypeWhileListening);
           return;
         }
-        // Keep keyboard edits; drop any in-flight interim overlay.
+        // Keep keyboard edits (incl. OS keyboard dictation); drop interim overlay.
         session.base = String(textarea.value || "").slice(0, 2000);
         syncAiContextDraft(session.base);
       });
@@ -1125,7 +1211,7 @@ export function renderCatalogApp(root, { onLogout }) {
           setMicStatus("");
           return;
         }
-        startSpeechDictation();
+        void startSpeechDictation();
       },
     });
 

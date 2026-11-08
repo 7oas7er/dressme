@@ -190,6 +190,13 @@ test("mobile add UX: camera-first, sticky Save, Add next (UC-01 phone)", () => {
   );
   assert.match(catalog, /ai-context-mic|Dictate AI context/);
   assert.match(catalog, /SpeechRecognition|webkitSpeechRecognition/);
+  // iOS Safari Web Speech: continuous + interim, deferred onend restart, soft no-speech.
+  assert.match(catalog, /interimResults\s*=\s*true/);
+  assert.match(catalog, /continuous\s*=\s*true/);
+  assert.match(catalog, /scheduleSpeechRestart|restartTimer/);
+  assert.match(catalog, /isRecoverableSpeechError|no-speech/);
+  assert.match(catalog, /ensureSpeechMicAccess|getUserMedia/);
+  assert.match(catalog, /speechRecognitionLang/);
   assert.match(styles, /safe-area-inset-bottom/);
   assert.match(styles, /\.form-sticky-actions/);
   assert.match(styles, /\.ai-context-mic/);
