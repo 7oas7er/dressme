@@ -578,7 +578,7 @@ async function updateItem(user, itemId, body) {
 
   // Removals first so a single PUT can drop photos and request new upload slots.
   // When the same request also addPhotos, rebuild in place so replacements keep
-  // the removed indices (UC-18 client rotate remove+add must not append to end).
+  // the removed indices (order-preserving remove+add; UC-18 rotate uses replacePhotos).
   var originalPhotos = next.photos || [];
   var removePhotoIds = Array.isArray(body.removePhotoIds) ? body.removePhotoIds : [];
   var removeSet = {};
@@ -604,6 +604,64 @@ async function updateItem(user, itemId, body) {
     }
   }
 
+  // UC-18 rotate: same photoId rewrite — pending slot + presign PUT overwrite;
+  // photos/complete regenerates thumb (thumbKey cleared below).
+  var replacePhotos = Array.isArray(body.replacePhotos) ? body.replacePhotos : [];
+  if (replacePhotos.length) {
+    var photosNow = (next.photos || []).slice();
+    for (var rp = 0; rp < replacePhotos.length; rp++) {
+      var spec = replacePhotos[rp] || {};
+      var replaceId = spec.photoId != null ? String(spec.photoId) : "";
+      if (!replaceId) {
+        throw Object.assign(new Error("photo_id_required"), { statusCode: 400 });
+      }
+      if (removeSet[replaceId]) {
+        throw Object.assign(new Error("photo_replaced_and_removed"), {
+          statusCode: 400,
+        });
+      }
+      var replaceIndex = -1;
+      for (var pi = 0; pi < photosNow.length; pi++) {
+        if (String(photosNow[pi].photoId) === replaceId) {
+          replaceIndex = pi;
+          break;
+        }
+      }
+      if (replaceIndex < 0) {
+        return { statusCode: 404, body: { error: "photo_not_found" } };
+      }
+      var existingPhoto = photosNow[replaceIndex];
+      var contentType = normalizeContentType(spec.contentType || "image/jpeg");
+      var newKey = photoKey(user.sub, itemId, replaceId, contentType);
+      if (existingPhoto.key && existingPhoto.key !== newKey) {
+        await deleteMediaKey(existingPhoto.key);
+      }
+      await deleteMediaKey(existingPhoto.thumbKey);
+      await deleteMediaKey(existingPhoto.cutoutKey);
+      var uploadUrl = await deps.sign(
+        s3Client(),
+        new PutObjectCommand({
+          Bucket: mediaBucket(),
+          Key: newKey,
+          ContentType: contentType,
+        }),
+        { expiresIn: PRESIGN_PUT_SECONDS }
+      );
+      photosNow[replaceIndex] = {
+        photoId: replaceId,
+        key: newKey,
+        contentType: contentType,
+        status: "pending",
+      };
+      uploads.push({
+        photoId: replaceId,
+        uploadUrl: uploadUrl,
+        contentType: contentType,
+      });
+    }
+    next.photos = photosNow;
+  }
+
   var addPhotos = Array.isArray(body.addPhotos) ? body.addPhotos : [];
   if (addPhotos.length) {
     var currentCount = (next.photos || []).length;
@@ -611,7 +669,7 @@ async function updateItem(user, itemId, body) {
       throw Object.assign(new Error("too_many_photos"), { statusCode: 400 });
     }
     var slot = await buildUploadSlots(user.sub, itemId, addPhotos);
-    uploads = slot.uploads;
+    uploads = uploads.concat(slot.uploads);
     if (removed.length > 0) {
       var rebuilt = [];
       var addCursor = 0;
@@ -622,7 +680,16 @@ async function updateItem(user, itemId, body) {
           }
           // Extra removals without a matching add are dropped (omit slot).
         } else {
-          rebuilt.push(originalPhotos[oi]);
+          // Prefer post-replace photos when present (same photoId, updated slot).
+          var keptId = String(originalPhotos[oi].photoId);
+          var fromNext = null;
+          for (var ni = 0; ni < (next.photos || []).length; ni++) {
+            if (String(next.photos[ni].photoId) === keptId) {
+              fromNext = next.photos[ni];
+              break;
+            }
+          }
+          rebuilt.push(fromNext || originalPhotos[oi]);
         }
       }
       while (addCursor < slot.photos.length) {
