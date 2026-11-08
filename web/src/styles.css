@@ -603,10 +603,10 @@ textarea {
   cursor: zoom-in;
 }
 
+.edit-photo .photo-primary,
 .edit-photo .photo-rotate {
   position: absolute;
   right: 0.45rem;
-  bottom: 0.45rem;
   z-index: 1;
   display: grid;
   place-items: center;
@@ -621,16 +621,28 @@ textarea {
   cursor: pointer;
 }
 
+.edit-photo .photo-primary {
+  top: 0.45rem;
+}
+
+.edit-photo .photo-rotate {
+  bottom: 0.45rem;
+}
+
+.edit-photo .photo-primary:hover:not(:disabled),
+.edit-photo .photo-primary:focus-visible,
 .edit-photo .photo-rotate:hover:not(:disabled),
 .edit-photo .photo-rotate:focus-visible {
   background: #fff;
 }
 
+.edit-photo .photo-primary:disabled,
 .edit-photo .photo-rotate:disabled {
   opacity: 0.55;
   cursor: wait;
 }
 
+.edit-photo .photo-primary-icon,
 .edit-photo .photo-rotate-icon {
   width: 1.15rem;
   height: 1.15rem;

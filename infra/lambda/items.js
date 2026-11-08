@@ -701,6 +701,31 @@ async function updateItem(user, itemId, body) {
     }
   }
 
+  // UC-18 designate catalog photo: move primaryPhotoId to index 0 (last so
+  // remove/replace/add can run in the same PUT). Relative order of others kept.
+  if (
+    body.primaryPhotoId != null &&
+    String(body.primaryPhotoId).length > 0
+  ) {
+    var primaryId = String(body.primaryPhotoId);
+    var photosForPrimary = (next.photos || []).slice();
+    var primaryIndex = -1;
+    for (var pri = 0; pri < photosForPrimary.length; pri++) {
+      if (String(photosForPrimary[pri].photoId) === primaryId) {
+        primaryIndex = pri;
+        break;
+      }
+    }
+    if (primaryIndex < 0) {
+      return { statusCode: 400, body: { error: "photo_not_found" } };
+    }
+    if (primaryIndex > 0) {
+      var primaryPhoto = photosForPrimary.splice(primaryIndex, 1)[0];
+      photosForPrimary.unshift(primaryPhoto);
+      next.photos = photosForPrimary;
+    }
+  }
+
   next.searchText = buildSearchText(next);
   await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
 

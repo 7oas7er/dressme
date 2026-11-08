@@ -3,7 +3,7 @@
 Derived from the frozen Product Canvas (Project store).
 
 **Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice).  
-Last updated: 2026-11-08 (Europe/Berlin; detail entry date from createdAt)
+Last updated: 2026-11-08 (Europe/Berlin; UC-18 designate catalog photo / primaryPhotoId)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -24,7 +24,7 @@ As Frank, I browse/search my items (with photos) so I can see what I own — inc
 As Frank, I update attributes/photos or delete an item so the catalog stays accurate.
 
 ### UC-18 — Manage photos while editing an item
-As Frank, when I open Edit item, I see the item’s current photos and can remove any of them (and still add new ones), so the catalog visuals stay accurate without deleting the whole item. On each ready photo I can tap a lower-right rotate control to turn it 90° clockwise; the browser rotates the image immediately, then DressMe overwrites that photo’s stored JPEG (same photo id) and regenerates the thumbnail on complete so catalog, detail, and suggest strip stay upright.
+As Frank, when I open Edit item, I see the item’s current photos and can remove any of them (and still add new ones), so the catalog visuals stay accurate without deleting the whole item. On each ready photo I can tap a lower-right rotate control to turn it 90° clockwise; the browser rotates the image immediately, then DressMe overwrites that photo’s stored JPEG (same photo id) and regenerates the thumbnail on complete so catalog, detail, and suggest strip stay upright. Each ready photo that is not already first also shows a top-right star control; tapping it moves that photo to the front of the item’s photo list so the catalog overview (and other “first photo” surfaces) show it. New uploads append and do not auto-become first; there is no drag-reorder.
 
 ### UC-19 — Suggested values with free-text for item attributes
 As Frank, when I add or edit an item, for fields such as fabric, outfit role, type, color, formality, pattern, season/climate, **and brand/model** I can pick from a dropdown of suggested values, or enter free text if none match; a new free-text value is remembered and appears in that field’s dropdown going forward. On blur (and again before Save), DressMe normalizes punctuation/delimiters and may silently rewrite casing to a known option, or show a compact **Did you mean…?** chip (delimiter near-match or Levenshtein-1 typo, especially brands) with **Use** / **Keep mine** — Keep mine preserves free text liberty; Lambda re-applies the same normalize rules on create/update.

@@ -347,6 +347,137 @@ test("replacePhotos rewrites same photoId in place and returns overwrite upload"
   assert.equal(stored.photos[1].status, "pending");
 });
 
+test("primaryPhotoId moves chosen photo to index 0 and is idempotent when already first", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+
+  var created = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(
+      Object.assign(attrs(), {
+        photos: [
+          { contentType: "image/jpeg" },
+          { contentType: "image/jpeg" },
+          { contentType: "image/jpeg" },
+        ],
+      })
+    ),
+  });
+  var createdBody = JSON.parse(created.body);
+  var itemId = createdBody.item.itemId;
+  var photoA = createdBody.uploads[0].photoId;
+  var photoB = createdBody.uploads[1].photoId;
+  var photoC = createdBody.uploads[2].photoId;
+  for (var u = 0; u < createdBody.uploads.length; u++) {
+    var key = createdBody.uploads[u].uploadUrl.replace("https://upload.example/", "");
+    memory.objects.set(key, Buffer.from("full-" + u));
+  }
+  await api.handler({
+    rawPath: "/api/items/" + itemId + "/photos/complete",
+    requestContext: {
+      http: { method: "POST", path: "/api/items/" + itemId + "/photos/complete" },
+    },
+    body: JSON.stringify({ photoIds: [photoA, photoB, photoC] }),
+  });
+
+  var promoted = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({ primaryPhotoId: photoB }),
+  });
+  assert.equal(promoted.statusCode, 200);
+  var promotedBody = JSON.parse(promoted.body);
+  assert.equal(promotedBody.item.photos.length, 3);
+  assert.equal(promotedBody.item.photos[0].photoId, photoB);
+  assert.equal(promotedBody.item.photos[1].photoId, photoA);
+  assert.equal(promotedBody.item.photos[2].photoId, photoC);
+
+  var again = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({ primaryPhotoId: photoB }),
+  });
+  assert.equal(again.statusCode, 200);
+  var againBody = JSON.parse(again.body);
+  assert.equal(againBody.item.photos[0].photoId, photoB);
+  assert.equal(againBody.item.photos[1].photoId, photoA);
+  assert.equal(againBody.item.photos[2].photoId, photoC);
+
+  var missing = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({ primaryPhotoId: "no-such-photo" }),
+  });
+  assert.equal(missing.statusCode, 400);
+  assert.equal(JSON.parse(missing.body).error, "photo_not_found");
+});
+
+test("addPhotos appends without stealing primary; primaryPhotoId after add promotes new photo", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+
+  var created = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(
+      Object.assign(attrs(), {
+        photos: [
+          { contentType: "image/jpeg" },
+          { contentType: "image/jpeg" },
+        ],
+      })
+    ),
+  });
+  var createdBody = JSON.parse(created.body);
+  var itemId = createdBody.item.itemId;
+  var photoA = createdBody.uploads[0].photoId;
+  var photoB = createdBody.uploads[1].photoId;
+  for (var u = 0; u < createdBody.uploads.length; u++) {
+    var key = createdBody.uploads[u].uploadUrl.replace("https://upload.example/", "");
+    memory.objects.set(key, Buffer.from("full-" + u));
+  }
+  await api.handler({
+    rawPath: "/api/items/" + itemId + "/photos/complete",
+    requestContext: {
+      http: { method: "POST", path: "/api/items/" + itemId + "/photos/complete" },
+    },
+    body: JSON.stringify({ photoIds: [photoA, photoB] }),
+  });
+
+  var added = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({
+      addPhotos: [{ contentType: "image/jpeg" }],
+    }),
+  });
+  assert.equal(added.statusCode, 200);
+  var addedBody = JSON.parse(added.body);
+  assert.equal(addedBody.item.photos.length, 3);
+  assert.equal(addedBody.item.photos[0].photoId, photoA);
+  assert.equal(addedBody.item.photos[1].photoId, photoB);
+  var photoC = addedBody.uploads[0].photoId;
+  assert.equal(addedBody.item.photos[2].photoId, photoC);
+
+  var promoteNew = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({
+      addPhotos: [{ contentType: "image/png" }],
+      primaryPhotoId: photoC,
+    }),
+  });
+  assert.equal(promoteNew.statusCode, 200);
+  var promoteBody = JSON.parse(promoteNew.body);
+  assert.equal(promoteBody.item.photos[0].photoId, photoC);
+  assert.equal(promoteBody.item.photos[1].photoId, photoA);
+  assert.equal(promoteBody.item.photos[2].photoId, photoB);
+  assert.equal(promoteBody.item.photos.length, 4);
+  assert.equal(promoteBody.uploads.length, 1);
+  assert.notEqual(promoteBody.item.photos[3].photoId, photoC);
+});
+
 test("remove+add keeps replacement photos in the removed slots", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);

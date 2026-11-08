@@ -201,6 +201,22 @@ function rotateArrowIcon() {
   return svg;
 }
 
+/** Top-right edit overlay: filled star — set catalog (first) photo. */
+function primaryStarIcon() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", "photo-primary-icon");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute(
+    "d",
+    "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+  );
+  path.setAttribute("fill", "currentColor");
+  svg.append(path);
+  return svg;
+}
+
 /** Compress a local image for one Bedrock analyze call (cost + payload). */
 function compressImageFile(file, { maxEdge = 1024, quality = 0.82 } = {}) {
   return new Promise((resolve, reject) => {
@@ -833,6 +849,53 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
+  /** Move a ready photo to index 0 (catalog overview thumb). Hide control when already first. */
+  async function setPrimaryPhoto(photoId) {
+    if (!state.editing || state.busy) return;
+    const photos = state.editing.photos || [];
+    const index = photos.findIndex((entry) => entry.photoId === photoId);
+    if (index <= 0) return;
+    const photo = photos[index];
+    if (!photo || photo.status !== "ready") return;
+
+    const previousPhotos = photos.slice();
+    const reordered = photos.slice();
+    const [moved] = reordered.splice(index, 1);
+    reordered.unshift(moved);
+
+    state.busy = true;
+    state.error = "";
+    state.status = "Updating catalog photo…";
+    state.editing = Object.assign({}, state.editing, { photos: reordered });
+    paint();
+    try {
+      const updated = await api.updateItem(state.editing.itemId, {
+        primaryPhotoId: photoId,
+      });
+      state.editing = updated.item;
+      state.items = state.items.map((item) =>
+        item.itemId === updated.item.itemId ? updated.item : item
+      );
+      state.status = "Catalog photo updated.";
+    } catch (err) {
+      try {
+        const fresh = await api.getItem(state.editing.itemId);
+        state.editing = fresh.item;
+        state.items = state.items.map((item) =>
+          item.itemId === fresh.item.itemId ? fresh.item : item
+        );
+      } catch {
+        state.editing = Object.assign({}, state.editing, {
+          photos: previousPhotos,
+        });
+      }
+      state.error = err.message || "Could not set catalog photo.";
+    } finally {
+      state.busy = false;
+      paint();
+    }
+  }
+
   async function rotateEditPhoto(photoId) {
     if (!state.editing || state.busy) return;
     const photos = state.editing.photos || [];
@@ -1395,8 +1458,29 @@ export function renderCatalogApp(root, { onLogout }) {
               })
             );
           }
-          // Ready photos only — durable rotate after S3 complete (not Add pending).
+          // Ready photos only — durable rotate / primary after S3 complete (not Add pending).
           if (photo.status === "ready" && photo.url) {
+            // Hide star when already photos[0]; catalog overview uses first photo.
+            if (existing[0] && existing[0].photoId !== photo.photoId) {
+              media.append(
+                el(
+                  "button",
+                  {
+                    type: "button",
+                    className: "photo-primary",
+                    disabled: state.busy ? "disabled" : null,
+                    "aria-label": "Use as catalog photo",
+                    title: "Use as catalog photo",
+                    onClick: (event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setPrimaryPhoto(photo.photoId);
+                    },
+                  },
+                  [primaryStarIcon()]
+                )
+              );
+            }
             media.append(
               el(
                 "button",
