@@ -846,7 +846,13 @@ export function renderCatalogApp(root, { onLogout }) {
       );
       state.status = "Photo rotated.";
     } catch (err) {
-      state.error = err.message || "Could not rotate photo.";
+      // Site deploy ships the overlay; Lambda zip needs a local terraform apply.
+      if (err && err.message === "not_found") {
+        state.error =
+          "Rotate API not on this environment yet — apply the stg Lambda zip (infra/terraform/docs/photo-rotate-apply.md).";
+      } else {
+        state.error = err.message || "Could not rotate photo.";
+      }
     } finally {
       state.busy = false;
       state.rotatingPhotoId = null;
