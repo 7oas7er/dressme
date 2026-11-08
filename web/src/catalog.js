@@ -1,4 +1,5 @@
 import * as api from "./api.js";
+import { matchAttrOption, normalizeAttrValue } from "./attrNormalize.js";
 import { layerImageUrl } from "./lookLayout.js";
 import { renderLookCard } from "./lookCard.js";
 
@@ -247,6 +248,14 @@ export function renderCatalogApp(root, { onLogout }) {
     error: "",
     busy: false,
     attributeOptions: {},
+    /** Per-field custom lists from GET /api/attribute-options (for seed vs custom rank). */
+    attributeCustom: {},
+    /**
+     * Phase 1 hygiene chips: field → { suggestion } while visible.
+     * Dismissals: field → normalized value Frank kept (session-scoped).
+     */
+    attrChips: {},
+    attrChipDismissed: {},
     assist: emptyAssist(),
     formDraft: emptyFormDraft(),
     /** Local files for create/add-photos; survive paint(); object URLs for the strip. */
@@ -263,10 +272,73 @@ export function renderCatalogApp(root, { onLogout }) {
     try {
       const data = await api.listAttributeOptions();
       state.attributeOptions = (data && data.options) || {};
+      state.attributeCustom = (data && data.custom) || {};
     } catch {
       // Forms still work as free-text inputs if suggestions fail to load.
       state.attributeOptions = state.attributeOptions || {};
+      state.attributeCustom = state.attributeCustom || {};
     }
+  }
+
+  function clearAttrHygiene() {
+    state.attrChips = {};
+    state.attrChipDismissed = {};
+  }
+
+  function matchField(key, raw) {
+    return matchAttrOption(
+      raw,
+      state.attributeOptions[key] || [],
+      state.attributeCustom[key] || []
+    );
+  }
+
+  /** Apply blur hygiene for one field; updates formDraft + chip state. */
+  function applyFieldHygiene(key, raw) {
+    const result = matchField(key, raw);
+    if (!result.normalized && !String(raw || "").trim()) {
+      if (state.formDraft) state.formDraft[key] = "";
+      delete state.attrChips[key];
+      return result;
+    }
+    if (result.action === "silent" || result.action === "exact") {
+      const value = result.suggestion || result.normalized;
+      if (!state.formDraft) state.formDraft = {};
+      state.formDraft[key] = value;
+      delete state.attrChips[key];
+      return result;
+    }
+    if (!state.formDraft) state.formDraft = {};
+    state.formDraft[key] = result.normalized;
+    if (
+      result.action === "chip" &&
+      result.suggestion &&
+      state.attrChipDismissed[key] !== result.normalized
+    ) {
+      state.attrChips[key] = { suggestion: result.suggestion };
+    } else {
+      delete state.attrChips[key];
+    }
+    return result;
+  }
+
+  function useAttrSuggestion(key) {
+    const chip = state.attrChips[key];
+    if (!chip || !chip.suggestion) return;
+    if (!state.formDraft) state.formDraft = {};
+    state.formDraft[key] = chip.suggestion;
+    delete state.attrChips[key];
+    delete state.attrChipDismissed[key];
+    paint();
+  }
+
+  function keepMineAttr(key) {
+    const normalized =
+      (state.formDraft && state.formDraft[key]) ||
+      normalizeAttrValue(fieldValue(key));
+    state.attrChipDismissed[key] = normalized;
+    delete state.attrChips[key];
+    paint();
   }
 
   function pruneStaleFilters() {
@@ -379,6 +451,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.view = "form";
     state.editing = null;
     state.assist = emptyAssist();
+    clearAttrHygiene();
     if (!keepPrefill) {
       state.formDraft = emptyFormDraft();
     }
@@ -398,6 +471,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.view = "form";
     state.editing = item;
     state.assist = emptyAssist();
+    clearAttrHygiene();
     state.formDraft = emptyFormDraft();
     state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
     state.error = "";
@@ -609,8 +683,18 @@ export function renderCatalogApp(root, { onLogout }) {
 
   async function saveItem(form) {
     const payload = {};
+    // Pre-save hygiene: normalize; silent fold rewrite; undismissed chips = Keep mine.
     for (const field of ATTR_FIELDS) {
-      payload[field.key] = form.elements[field.key].value.trim();
+      const elField = form.elements[field.key];
+      const raw = elField ? String(elField.value || "") : "";
+      const result = applyFieldHygiene(field.key, raw);
+      if (result.action === "silent" || result.action === "exact") {
+        payload[field.key] = result.suggestion || result.normalized;
+      } else {
+        // Chip ignored on Save → Keep mine (rules 1–4 only; no typo auto-apply).
+        payload[field.key] = result.normalized;
+      }
+      delete state.attrChips[field.key];
     }
     if (form.elements.aiContext) {
       payload.aiContext = String(form.elements.aiContext.value || "").trim();
@@ -639,6 +723,7 @@ export function renderCatalogApp(root, { onLogout }) {
         state.view = "list";
         state.editing = null;
         state.assist = emptyAssist();
+        clearAttrHygiene();
         state.formDraft = emptyFormDraft();
         state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
         state.status = "Saved.";
@@ -656,6 +741,7 @@ export function renderCatalogApp(root, { onLogout }) {
         const soft = softPrefillFromPayload(payload);
         state.editing = null;
         state.assist = emptyAssist();
+        clearAttrHygiene();
         state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
         state.formDraft = soft
           ? { type: soft.type || "", brandModel: soft.brandModel || "" }
@@ -1222,6 +1308,7 @@ export function renderCatalogApp(root, { onLogout }) {
     for (const field of ATTR_FIELDS) {
       const useSuggestions = SUGGESTION_KEYS.has(field.key);
       const listId = useSuggestions ? `suggest-${field.key}` : null;
+      const fieldKey = field.key;
       const input = el("input", {
         name: field.key,
         required: "required",
@@ -1231,6 +1318,13 @@ export function renderCatalogApp(root, { onLogout }) {
         value: fieldValue(field.key),
         autocomplete: useSuggestions ? "off" : null,
         list: listId,
+        onBlur: (event) => {
+          applyFieldHygiene(fieldKey, event.target.value);
+          // Defer paint so chip Use/Keep mine clicks fire on the existing DOM.
+          setTimeout(() => {
+            if (state.view === "form") paint();
+          }, 0);
+        },
       });
       // Explicit title node keeps row baselines stable (UC-21) across wrapping labels.
       const children = [
@@ -1244,6 +1338,34 @@ export function renderCatalogApp(root, { onLogout }) {
           datalist.append(el("option", { value }));
         }
         children.push(datalist);
+      }
+      const chip = state.attrChips[field.key];
+      if (chip && chip.suggestion) {
+        children.push(
+          el("div", {
+            className: "attr-hygiene-chip",
+            role: "status",
+          }, [
+            el("span", {
+              className: "attr-hygiene-prompt",
+              text: `Did you mean “${chip.suggestion}”?`,
+            }),
+            el("span", { className: "attr-hygiene-actions" }, [
+              el("button", {
+                type: "button",
+                className: "attr-hygiene-use",
+                text: "Use",
+                onClick: () => useAttrSuggestion(fieldKey),
+              }),
+              el("button", {
+                type: "button",
+                className: "secondary attr-hygiene-keep",
+                text: "Keep mine",
+                onClick: () => keepMineAttr(fieldKey),
+              }),
+            ]),
+          ])
+        );
       }
       grid.append(el("label", {}, children));
     }

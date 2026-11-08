@@ -17,6 +17,7 @@ var {
 } = require("@aws-sdk/client-s3");
 var { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 var attributeOptions = require("./attributeOptions");
+var attrNormalize = require("./attrNormalize");
 var cutouts = require("./cutouts");
 var thumbs = require("./thumbs");
 
@@ -39,7 +40,6 @@ var ATTR_KEYS = [
 var CUTOUTS_ENABLED = false;
 
 var MAX_PHOTOS = 8;
-var MAX_ATTR_LEN = 120;
 /** Durable free-text context for later Bedrock text suggest (UC-25). */
 var MAX_AI_CONTEXT = 2000;
 var PRESIGN_PUT_SECONDS = 900;
@@ -112,26 +112,33 @@ function skForItem(itemId) {
   return "ITEM#" + itemId;
 }
 
-function clampString(value, fallback) {
-  if (value == null) {
-    return fallback;
-  }
-  var text = String(value).trim();
-  if (!text) {
-    return fallback;
-  }
-  return text.slice(0, MAX_ATTR_LEN);
-}
-
-function normalizeAttributes(input, partial) {
+/**
+ * Phase 1 hygiene: rules 1–4 + silent fold rewrite to seed/custom spelling.
+ * Typo (Levenshtein) matches are never auto-applied — SPA chips only.
+ */
+async function normalizeAttributes(user, input, partial) {
   var src = input || {};
+  var catalog = { options: {}, custom: {} };
+  try {
+    catalog = await attributeOptions.getOptionsForUser(user.sub);
+  } catch (_err) {
+    // Still apply deterministic normalize without option fold-match.
+  }
   var out = {};
   for (var i = 0; i < ATTR_KEYS.length; i++) {
     var key = ATTR_KEYS[i];
     if (partial && !Object.prototype.hasOwnProperty.call(src, key)) {
       continue;
     }
-    out[key] = clampString(src[key], partial ? undefined : "");
+    if (src[key] == null || String(src[key]).trim() === "") {
+      out[key] = partial ? undefined : "";
+    } else {
+      out[key] = attrNormalize.canonicalizeAttrValue(
+        src[key],
+        (catalog.options && catalog.options[key]) || [],
+        (catalog.custom && catalog.custom[key]) || []
+      );
+    }
     if (out[key] === undefined) {
       delete out[key];
     }
@@ -517,7 +524,7 @@ async function buildUploadSlots(userId, itemId, photoSpecs) {
 }
 
 async function createItem(user, body) {
-  var attrs = normalizeAttributes(body, false);
+  var attrs = await normalizeAttributes(user, body, false);
   var photoSpecs = Array.isArray(body.photos) ? body.photos : [];
   if (photoSpecs.length > MAX_PHOTOS) {
     throw Object.assign(new Error("too_many_photos"), { statusCode: 400 });
@@ -564,7 +571,7 @@ async function updateItem(user, itemId, body) {
     return { statusCode: 404, body: { error: "not_found" } };
   }
 
-  var attrs = normalizeAttributes(body, true);
+  var attrs = await normalizeAttributes(user, body, true);
   var next = Object.assign({}, existing, attrs, { updatedAt: nowIso() });
   applyAiContext(next, body, true);
   var uploads = [];
