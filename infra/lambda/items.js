@@ -577,13 +577,20 @@ async function updateItem(user, itemId, body) {
   var uploads = [];
 
   // Removals first so a single PUT can drop photos and request new upload slots.
+  // When the same request also addPhotos, rebuild in place so replacements keep
+  // the removed indices (UC-18 client rotate remove+add must not append to end).
+  var originalPhotos = next.photos || [];
   var removePhotoIds = Array.isArray(body.removePhotoIds) ? body.removePhotoIds : [];
+  var removeSet = {};
+  for (var ri = 0; ri < removePhotoIds.length; ri++) {
+    removeSet[String(removePhotoIds[ri])] = true;
+  }
+  var keep = [];
+  var removed = [];
   if (removePhotoIds.length) {
-    var keep = [];
-    var removed = [];
-    for (var i = 0; i < (next.photos || []).length; i++) {
-      var photo = next.photos[i];
-      if (removePhotoIds.indexOf(photo.photoId) >= 0) {
+    for (var i = 0; i < originalPhotos.length; i++) {
+      var photo = originalPhotos[i];
+      if (removeSet[String(photo.photoId)]) {
         removed.push(photo);
       } else {
         keep.push(photo);
@@ -604,8 +611,27 @@ async function updateItem(user, itemId, body) {
       throw Object.assign(new Error("too_many_photos"), { statusCode: 400 });
     }
     var slot = await buildUploadSlots(user.sub, itemId, addPhotos);
-    next.photos = (next.photos || []).concat(slot.photos);
     uploads = slot.uploads;
+    if (removed.length > 0) {
+      var rebuilt = [];
+      var addCursor = 0;
+      for (var oi = 0; oi < originalPhotos.length; oi++) {
+        if (removeSet[String(originalPhotos[oi].photoId)]) {
+          if (addCursor < slot.photos.length) {
+            rebuilt.push(slot.photos[addCursor++]);
+          }
+          // Extra removals without a matching add are dropped (omit slot).
+        } else {
+          rebuilt.push(originalPhotos[oi]);
+        }
+      }
+      while (addCursor < slot.photos.length) {
+        rebuilt.push(slot.photos[addCursor++]);
+      }
+      next.photos = rebuilt;
+    } else {
+      next.photos = (next.photos || []).concat(slot.photos);
+    }
   }
 
   next.searchText = buildSearchText(next);
