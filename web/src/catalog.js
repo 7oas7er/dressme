@@ -905,7 +905,15 @@ export function renderCatalogApp(root, { onLogout }) {
           });
         }
       }
-      state.error = err.message || "Could not rotate photo.";
+      if (err && err.message === "image_cors_failed") {
+        state.error =
+          "Could not read photo for rotate (media CORS). Try again, or hard-refresh.";
+      } else if (err && /^(Load failed|Failed to fetch)$/i.test(err.message)) {
+        state.error =
+          "Could not read photo for rotate (media CORS). Try again, or hard-refresh.";
+      } else {
+        state.error = err.message || "Could not rotate photo.";
+      }
     } finally {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       state.busy = false;
