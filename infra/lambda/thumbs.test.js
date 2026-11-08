@@ -27,6 +27,7 @@ test("streamToBuffer accepts Buffer and transformToByteArray bodies", async func
   assert.equal(fromSdk.toString(), "AB");
 });
 
-test("rotateOriginalWithSharp is exported for items deps", function () {
-  assert.equal(typeof thumbs.rotateOriginalWithSharp, "function");
+test("thumbs module no longer exports server rotate helper", function () {
+  assert.equal(thumbs.rotateOriginalWithSharp, undefined);
+  assert.equal(typeof thumbs.makeThumbWithSharp, "function");
 });

@@ -30,6 +30,25 @@ test("edit form supports current-photo remove (UC-18)", () => {
   assert.match(catalog, /edit-photos/);
 });
 
+test("edit form rotates ready photos client-side then remove+add (UC-18)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
+  const rotateSrc = fs.readFileSync(path.join(root, "web/src/rotateImage.js"), "utf8");
+  const lambdaApi = fs.readFileSync(path.join(root, "infra/lambda/api.js"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(catalog, /rotateImageFromUrl/);
+  assert.match(catalog, /async function rotateEditPhoto/);
+  assert.match(catalog, /photo-rotate/);
+  assert.match(catalog, /Rotate photo 90 degrees clockwise/);
+  assert.match(catalog, /addPhotos:\s*\[\s*\{\s*contentType:\s*"image\/jpeg"/);
+  assert.match(rotateSrc, /ROTATE_JPEG_QUALITY\s*=\s*0\.9/);
+  assert.match(rotateSrc, /createImageBitmap/);
+  assert.doesNotMatch(apiSrc, /function rotatePhoto|\/photos\/.*\/rotate/);
+  assert.doesNotMatch(lambdaApi, /\/rotate\$|rotatePhoto/);
+  assert.match(useCases, /browser rotates the image immediately/);
+  assert.match(useCases, /new photo id/);
+});
+
 test("add/edit forms use suggested values with free text (UC-19)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");

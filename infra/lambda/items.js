@@ -51,7 +51,6 @@ var deps = {
   sign: getSignedUrl,
   makeThumb: thumbs.makeThumbWithSharp,
   makeCutout: cutouts.makeCutoutWithSharp,
-  rotateOriginal: thumbs.rotateOriginalWithSharp,
 };
 
 function resetDepsForTests(next) {
@@ -62,10 +61,6 @@ function resetDepsForTests(next) {
     next && next.makeThumb ? next.makeThumb : thumbs.makeThumbWithSharp;
   deps.makeCutout =
     next && next.makeCutout ? next.makeCutout : cutouts.makeCutoutWithSharp;
-  deps.rotateOriginal =
-    next && next.rotateOriginal
-      ? next.rotateOriginal
-      : thumbs.rotateOriginalWithSharp;
   attributeOptions.resetDepsForTests(next);
 }
 
@@ -637,121 +632,6 @@ async function updateItem(user, itemId, body) {
   };
 }
 
-/**
- * Durable 90° CW rotate of a ready photo: EXIF-normalize → rotate → overwrite
- * the same S3 key as JPEG, regenerate *.thumb.jpg, clear legacy cutout metadata.
- */
-async function rotatePhoto(user, itemId, photoId, body) {
-  var existing = await getItemRecord(user.sub, itemId);
-  if (!existing) {
-    return { statusCode: 404, body: { error: "not_found" } };
-  }
-  var degrees = body && body.degrees != null ? Number(body.degrees) : NaN;
-  if (degrees !== 90) {
-    throw Object.assign(new Error("invalid_degrees"), { statusCode: 400 });
-  }
-  var photos = existing.photos || [];
-  var index = -1;
-  for (var i = 0; i < photos.length; i++) {
-    if (photos[i].photoId === photoId) {
-      index = i;
-      break;
-    }
-  }
-  if (index < 0) {
-    return { statusCode: 404, body: { error: "photo_not_found" } };
-  }
-  var photo = photos[index];
-  if (photo.status !== "ready" || !photo.key) {
-    throw Object.assign(new Error("photo_not_ready"), { statusCode: 400 });
-  }
-
-  var input;
-  try {
-    input = await loadPhotoBuffer(photo);
-  } catch (err) {
-    console.error(
-      "photo_load_failed",
-      photo.photoId,
-      err && err.message ? err.message : err
-    );
-    throw Object.assign(new Error("photo_load_failed"), { statusCode: 500 });
-  }
-
-  var rotated;
-  try {
-    rotated = await deps.rotateOriginal(input, degrees);
-  } catch (err) {
-    console.error(
-      "photo_rotate_failed",
-      photo.photoId,
-      err && err.message ? err.message : err
-    );
-    throw Object.assign(new Error("photo_rotate_failed"), { statusCode: 500 });
-  }
-
-  await s3Client().send(
-    new PutObjectCommand({
-      Bucket: mediaBucket(),
-      Key: photo.key,
-      Body: rotated,
-      ContentType: thumbs.THUMB_CONTENT_TYPE,
-    })
-  );
-
-  var thumbKey = photo.thumbKey || thumbs.thumbKeyFor(photo.key);
-  try {
-    var thumbBuf = await deps.makeThumb(rotated);
-    await s3Client().send(
-      new PutObjectCommand({
-        Bucket: mediaBucket(),
-        Key: thumbKey,
-        Body: thumbBuf,
-        ContentType: thumbs.THUMB_CONTENT_TYPE,
-      })
-    );
-  } catch (err) {
-    console.error(
-      "thumb_failed",
-      photo.photoId,
-      err && err.message ? err.message : err
-    );
-    throw Object.assign(new Error("thumb_failed"), { statusCode: 500 });
-  }
-
-  if (photo.cutoutKey) {
-    await deleteMediaKey(photo.cutoutKey);
-  }
-
-  var nextPhoto = Object.assign({}, photo, {
-    contentType: thumbs.THUMB_CONTENT_TYPE,
-    thumbKey: thumbKey,
-  });
-  delete nextPhoto.cutoutKey;
-  delete nextPhoto.cutoutVersion;
-
-  var nextPhotos = photos.slice();
-  nextPhotos[index] = nextPhoto;
-  var next = Object.assign({}, existing, {
-    photos: nextPhotos,
-    updatedAt: nowIso(),
-  });
-  next.searchText = buildSearchText(next);
-  await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
-
-  return {
-    statusCode: 200,
-    body: {
-      item: publicItem(
-        next,
-        await signedFullUrls(next),
-        await signedThumbUrls(next),
-        await signedCutoutUrls(next)
-      ),
-    },
-  };
-}
-
 async function confirmPhotos(user, itemId, body) {
   var existing = await getItemRecord(user.sub, itemId);
   if (!existing) {
@@ -962,7 +842,6 @@ exports.getItem = getItem;
 exports.createItem = createItem;
 exports.updateItem = updateItem;
 exports.confirmPhotos = confirmPhotos;
-exports.rotatePhoto = rotatePhoto;
 exports.backfillThumbs = backfillThumbs;
 exports.backfillCutouts = backfillCutouts;
 exports.deleteItem = deleteItem;

@@ -2,6 +2,7 @@ import * as api from "./api.js";
 import { matchAttrOption, normalizeAttrValue } from "./attrNormalize.js";
 import { layerImageUrl } from "./lookLayout.js";
 import { renderLookCard } from "./lookCard.js";
+import { rotateImageFromUrl } from "./rotateImage.js";
 
 /** Fields that use suggested values + free text (UC-19), including brand/model. */
 const SUGGESTION_KEYS = new Set([
@@ -833,27 +834,80 @@ export function renderCatalogApp(root, { onLogout }) {
 
   async function rotateEditPhoto(photoId) {
     if (!state.editing || state.busy) return;
+    const photos = state.editing.photos || [];
+    const photo = photos.find((entry) => entry.photoId === photoId);
+    if (!photo || photo.status !== "ready" || !photo.url) return;
+
+    const previousUrl = photo.url;
+    const previousThumbUrl = photo.thumbUrl;
+    let previewUrl = null;
+
     state.busy = true;
     state.rotatingPhotoId = photoId;
     state.error = "";
     state.status = "Rotating photo…";
     paint();
     try {
-      const updated = await api.rotatePhoto(state.editing.itemId, photoId, 90);
-      state.editing = updated.item;
+      // Instant tile preview (browser canvas), then durable remove+add.
+      const rotatedBlob = await rotateImageFromUrl(photo.url);
+      previewUrl = URL.createObjectURL(rotatedBlob);
+      state.editing = Object.assign({}, state.editing, {
+        photos: photos.map((entry) =>
+          entry.photoId === photoId
+            ? Object.assign({}, entry, {
+                url: previewUrl,
+                thumbUrl: previewUrl,
+              })
+            : entry
+        ),
+      });
+      paint();
+
+      const file = new File([rotatedBlob], "rotated.jpg", {
+        type: "image/jpeg",
+      });
+      const updated = await api.updateItem(state.editing.itemId, {
+        removePhotoIds: [photoId],
+        addPhotos: [{ contentType: "image/jpeg" }],
+      });
+      if (!updated.uploads || !updated.uploads.length) {
+        throw new Error("upload_slot_missing");
+      }
+      const photoIds = await api.uploadFiles(updated.uploads, [file]);
+      const confirmed = await api.confirmPhotos(
+        state.editing.itemId,
+        photoIds
+      );
+      state.editing = confirmed.item;
       state.items = state.items.map((item) =>
-        item.itemId === updated.item.itemId ? updated.item : item
+        item.itemId === confirmed.item.itemId ? confirmed.item : item
       );
       state.status = "Photo rotated.";
     } catch (err) {
-      // Site deploy ships the overlay; Lambda zip needs a local terraform apply.
-      if (err && err.message === "not_found") {
-        state.error =
-          "Rotate API not on this environment yet — apply the stg Lambda zip (infra/terraform/docs/photo-rotate-apply.md).";
-      } else {
-        state.error = err.message || "Could not rotate photo.";
+      // Prefer server truth (remove+add may have partially landed); else revert preview.
+      try {
+        const fresh = await api.getItem(state.editing.itemId);
+        state.editing = fresh.item;
+        state.items = state.items.map((item) =>
+          item.itemId === fresh.item.itemId ? fresh.item : item
+        );
+      } catch {
+        if (state.editing && state.editing.photos) {
+          state.editing = Object.assign({}, state.editing, {
+            photos: state.editing.photos.map((entry) =>
+              entry.photoId === photoId
+                ? Object.assign({}, entry, {
+                    url: previousUrl,
+                    thumbUrl: previousThumbUrl,
+                  })
+                : entry
+            ),
+          });
+        }
       }
+      state.error = err.message || "Could not rotate photo.";
     } finally {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
       state.busy = false;
       state.rotatingPhotoId = null;
       paint();

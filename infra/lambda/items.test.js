@@ -83,9 +83,6 @@ function makeMemoryDeps() {
     makeCutout: async function (_buf) {
       return Buffer.from("cutout-bytes");
     },
-    rotateOriginal: async function (_buf, degrees) {
-      return Buffer.from("rotated-" + String(degrees));
-    },
   };
 }
 
@@ -389,163 +386,7 @@ test("cutout backfill noops while CUTOUTS_ENABLED=false", async function () {
   assert.equal(JSON.parse(forced.body).disabled, true);
 });
 
-test("rotate ready photo overwrites S3, regenerates thumb, clears cutout", async function () {
-  var memory = makeMemoryDeps();
-  var deletedKeys = [];
-  var baseSend = memory.s3.send;
-  memory.s3.send = async function (command) {
-    if (command.constructor.name === "DeleteObjectCommand") {
-      deletedKeys.push(command.input.Key);
-    }
-    return baseSend(command);
-  };
-  var rotateCalls = [];
-  var thumbCalls = [];
-  memory.rotateOriginal = async function (buf, degrees) {
-    rotateCalls.push({ degrees: degrees, input: Buffer.from(buf).toString() });
-    return Buffer.from("rotated-jpeg-bytes");
-  };
-  memory.makeThumb = async function (buf) {
-    thumbCalls.push(Buffer.from(buf).toString());
-    return Buffer.from("thumb-after-rotate");
-  };
-  items.resetDepsForTests(memory);
-
-  var created = await api.handler({
-    rawPath: "/api/items",
-    requestContext: { http: { method: "POST", path: "/api/items" } },
-    body: JSON.stringify(
-      Object.assign(attrs(), {
-        photos: [{ contentType: "image/jpeg" }],
-      })
-    ),
-  });
-  var createdBody = JSON.parse(created.body);
-  var itemId = createdBody.item.itemId;
-  var photoId = createdBody.uploads[0].photoId;
-  var photoKey = createdBody.uploads[0].uploadUrl.replace(
-    "https://upload.example/",
-    ""
-  );
-  memory.objects.set(photoKey, Buffer.from("sideways-original"));
-
-  await api.handler({
-    rawPath: "/api/items/" + itemId + "/photos/complete",
-    requestContext: {
-      http: { method: "POST", path: "/api/items/" + itemId + "/photos/complete" },
-    },
-    body: JSON.stringify({ photoIds: [photoId] }),
-  });
-
-  // Legacy cutout still on disk/metadata (generation off) — rotate must clear it.
-  var itemKey = "USER#test-user|ITEM#" + itemId;
-  var stored = memory.store.get(itemKey);
-  var cutoutKey = photoKey.replace(/\.[^.]+$/, "") + ".cutout.webp";
-  stored.photos[0].cutoutKey = cutoutKey;
-  stored.photos[0].cutoutVersion = 3;
-  memory.objects.set(cutoutKey, Buffer.from("old-cutout"));
-  memory.store.set(itemKey, stored);
-
-  var rotated = await api.handler({
-    rawPath: "/api/items/" + itemId + "/photos/" + photoId + "/rotate",
-    requestContext: {
-      http: {
-        method: "POST",
-        path: "/api/items/" + itemId + "/photos/" + photoId + "/rotate",
-      },
-    },
-    body: JSON.stringify({ degrees: 90 }),
-  });
-  assert.equal(rotated.statusCode, 200);
-  var body = JSON.parse(rotated.body);
-  assert.equal(body.item.photos[0].photoId, photoId);
-  assert.equal(body.item.photos[0].contentType, "image/jpeg");
-  assert.ok(body.item.photos[0].url);
-  assert.ok(body.item.photos[0].thumbUrl);
-  assert.equal(body.item.photos[0].cutoutUrl, undefined);
-  assert.equal(rotateCalls.length, 1);
-  assert.equal(rotateCalls[0].degrees, 90);
-  assert.equal(rotateCalls[0].input, "sideways-original");
-  assert.ok(thumbCalls.length >= 1);
-  assert.equal(thumbCalls[thumbCalls.length - 1], "rotated-jpeg-bytes");
-  assert.equal(
-    memory.objects.get(photoKey).toString(),
-    "rotated-jpeg-bytes"
-  );
-  assert.equal(
-    memory.objects
-      .get(photoKey.replace(/\.[^.]+$/, "") + ".thumb.jpg")
-      .toString(),
-    "thumb-after-rotate"
-  );
-  assert.ok(deletedKeys.indexOf(cutoutKey) >= 0);
-
-  var after = memory.store.get(itemKey);
-  assert.equal(after.photos[0].cutoutKey, undefined);
-  assert.equal(after.photos[0].cutoutVersion, undefined);
-  assert.equal(after.photos[0].contentType, "image/jpeg");
-});
-
-test("rotate rejects non-90 degrees and pending photos", async function () {
-  var memory = makeMemoryDeps();
-  items.resetDepsForTests(memory);
-
-  var created = await api.handler({
-    rawPath: "/api/items",
-    requestContext: { http: { method: "POST", path: "/api/items" } },
-    body: JSON.stringify(
-      Object.assign(attrs(), {
-        photos: [{ contentType: "image/jpeg" }],
-      })
-    ),
-  });
-  var createdBody = JSON.parse(created.body);
-  var itemId = createdBody.item.itemId;
-  var photoId = createdBody.uploads[0].photoId;
-
-  var badDegrees = await api.handler({
-    rawPath: "/api/items/" + itemId + "/photos/" + photoId + "/rotate",
-    requestContext: {
-      http: {
-        method: "POST",
-        path: "/api/items/" + itemId + "/photos/" + photoId + "/rotate",
-      },
-    },
-    body: JSON.stringify({ degrees: 180 }),
-  });
-  assert.equal(badDegrees.statusCode, 400);
-  assert.equal(JSON.parse(badDegrees.body).error, "invalid_degrees");
-
-  var pending = await api.handler({
-    rawPath: "/api/items/" + itemId + "/photos/" + photoId + "/rotate",
-    requestContext: {
-      http: {
-        method: "POST",
-        path: "/api/items/" + itemId + "/photos/" + photoId + "/rotate",
-      },
-    },
-    body: JSON.stringify({ degrees: 90 }),
-  });
-  assert.equal(pending.statusCode, 400);
-  assert.equal(JSON.parse(pending.body).error, "photo_not_ready");
-
-  var missing = await api.handler({
-    rawPath: "/api/items/" + itemId + "/photos/no-such-photo/rotate",
-    requestContext: {
-      http: {
-        method: "POST",
-        path: "/api/items/" + itemId + "/photos/no-such-photo/rotate",
-      },
-    },
-    body: JSON.stringify({ degrees: 90 }),
-  });
-  assert.equal(missing.statusCode, 404);
-  assert.equal(JSON.parse(missing.body).error, "photo_not_found");
-});
-
-test("rotate route is registered (GET → 405; unknown photo action → 404)", async function () {
-  // Staging probe without auth: missing route → 404 not_found; present route →
-  // 401. With AUTH_DISABLED, present route reaches the method check → 405.
+test("legacy rotate route is gone (404 not_found)", async function () {
   items.resetDepsForTests(makeMemoryDeps());
   var rotateGet = await api.handler({
     rawPath: "/api/items/any-item/photos/any-photo/rotate",
@@ -556,20 +397,21 @@ test("rotate route is registered (GET → 405; unknown photo action → 404)", a
       },
     },
   });
-  assert.equal(rotateGet.statusCode, 405);
-  assert.equal(JSON.parse(rotateGet.body).error, "method_not_allowed");
+  assert.equal(rotateGet.statusCode, 404);
+  assert.equal(JSON.parse(rotateGet.body).error, "not_found");
 
-  var bogus = await api.handler({
-    rawPath: "/api/items/any-item/photos/any-photo/bogus",
+  var rotatePost = await api.handler({
+    rawPath: "/api/items/any-item/photos/any-photo/rotate",
     requestContext: {
       http: {
-        method: "GET",
-        path: "/api/items/any-item/photos/any-photo/bogus",
+        method: "POST",
+        path: "/api/items/any-item/photos/any-photo/rotate",
       },
     },
+    body: JSON.stringify({ degrees: 90 }),
   });
-  assert.equal(bogus.statusCode, 404);
-  assert.equal(JSON.parse(bogus.body).error, "not_found");
+  assert.equal(rotatePost.statusCode, 404);
+  assert.equal(JSON.parse(rotatePost.body).error, "not_found");
 });
 
 test("photos/complete still succeeds without cutouts", async function () {
