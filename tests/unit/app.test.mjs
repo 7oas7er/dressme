@@ -40,6 +40,9 @@ test("edit form rotates ready photos client-side then remove+add (UC-18)", () =>
   assert.match(catalog, /async function rotateEditPhoto/);
   assert.match(catalog, /photo-rotate/);
   assert.match(catalog, /Rotate photo 90 degrees clockwise/);
+  // CW arrow path (not the old CCW rotate-left glyph).
+  assert.match(catalog, /M12 5V2l4 4-4 4V7/);
+  assert.doesNotMatch(catalog, /M12 5V2L8 6l4 4V7/);
   assert.match(catalog, /addPhotos:\s*\[\s*\{\s*contentType:\s*"image\/jpeg"/);
   assert.match(rotateSrc, /ROTATE_JPEG_QUALITY\s*=\s*0\.9/);
   assert.match(rotateSrc, /createImageBitmap/);

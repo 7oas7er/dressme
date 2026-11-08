@@ -191,9 +191,10 @@ function rotateArrowIcon() {
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("class", "photo-rotate-icon");
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  // CW arrow (previous path was CCW / rotate-left); keep +90° CW pixel rotate.
   path.setAttribute(
     "d",
-    "M12 5V2L8 6l4 4V7c2.76 0 5 2.24 5 5a5 5 0 0 1-8.9 3.1L6.7 16.5A7 7 0 0 0 19 12c0-3.87-3.13-7-7-7z"
+    "M12 5V2l4 4-4 4V7c-2.76 0-5 2.24-5 5a5 5 0 0 0 8.9 3.1l1.4 1.4A7 7 0 0 1 5 12c0-3.87 3.13-7 7-7z"
   );
   path.setAttribute("fill", "currentColor");
   svg.append(path);

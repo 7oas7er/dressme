@@ -271,6 +271,59 @@ test("update removes specific photos and deletes S3 objects", async function () 
   }));
 });
 
+test("remove+add keeps replacement photos in the removed slots", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+
+  var created = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(
+      Object.assign(attrs(), {
+        photos: [
+          { contentType: "image/jpeg" },
+          { contentType: "image/jpeg" },
+          { contentType: "image/jpeg" },
+        ],
+      })
+    ),
+  });
+  var createdBody = JSON.parse(created.body);
+  var itemId = createdBody.item.itemId;
+  var photoA = createdBody.uploads[0].photoId;
+  var photoB = createdBody.uploads[1].photoId;
+  var photoC = createdBody.uploads[2].photoId;
+  for (var u = 0; u < createdBody.uploads.length; u++) {
+    var key = createdBody.uploads[u].uploadUrl.replace("https://upload.example/", "");
+    memory.objects.set(key, Buffer.from("full-" + u));
+  }
+  await api.handler({
+    rawPath: "/api/items/" + itemId + "/photos/complete",
+    requestContext: {
+      http: { method: "POST", path: "/api/items/" + itemId + "/photos/complete" },
+    },
+    body: JSON.stringify({ photoIds: [photoA, photoB, photoC] }),
+  });
+
+  // UC-18 rotate: replace middle photo — must stay at index 1, not append.
+  var replaced = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({
+      removePhotoIds: [photoB],
+      addPhotos: [{ contentType: "image/jpeg" }],
+    }),
+  });
+  assert.equal(replaced.statusCode, 200);
+  var body = JSON.parse(replaced.body);
+  assert.equal(body.item.photos.length, 3);
+  assert.equal(body.item.photos[0].photoId, photoA);
+  assert.equal(body.item.photos[2].photoId, photoC);
+  assert.notEqual(body.item.photos[1].photoId, photoB);
+  assert.equal(body.item.photos[1].photoId, body.uploads[0].photoId);
+  assert.equal(body.item.photos[1].status, "pending");
+});
+
 test("backfill generates thumbs for ready photos missing thumbKey", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);
