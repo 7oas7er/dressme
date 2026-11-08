@@ -235,16 +235,40 @@ function softPrefillFromPayload(payload) {
 }
 
 /** Web Speech API constructor when the browser exposes it (Safari: webkit*). */
-function speechRecognitionCtor() {
+export function speechRecognitionCtor() {
   if (typeof window === "undefined") return null;
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
 
 /** Prefer navigator.language; fall back to en-US for empty/odd locales. */
-function speechRecognitionLang() {
-  const raw =
-    typeof navigator !== "undefined" ? String(navigator.language || "").trim() : "";
+export function speechRecognitionLang(nav = typeof navigator !== "undefined" ? navigator : null) {
+  const raw = nav ? String(nav.language || "").trim() : "";
   return raw || "en-US";
+}
+
+/**
+ * iPhone / iPad Safari (and iPadOS desktop-UA) — Web Speech continuous mode is
+ * unreliable: mic stays "listening" without returning usable final transcripts.
+ */
+export function isAppleMobileSpeech(
+  nav = typeof navigator !== "undefined" ? navigator : null
+) {
+  if (!nav) return false;
+  const ua = String(nav.userAgent || "");
+  if (/iPhone|iPod|iPad/i.test(ua)) return true;
+  // iPadOS 13+ can report as Macintosh + touch.
+  if (/Macintosh/i.test(ua) && Number(nav.maxTouchPoints || 0) > 1) return true;
+  return false;
+}
+
+/**
+ * Desktop Chrome/Safari can use continuous; Apple mobile must use utterance
+ * mode (continuous=false) + onend restart or finals never arrive.
+ */
+export function speechRecognitionContinuous(
+  nav = typeof navigator !== "undefined" ? navigator : null
+) {
+  return !isAppleMobileSpeech(nav);
 }
 
 /**
@@ -252,11 +276,11 @@ function speechRecognitionLang() {
  * restart. iOS Safari commonly fires no-speech after a short pause even when the
  * user is still dictating.
  */
-function isRecoverableSpeechError(code) {
+export function isRecoverableSpeechError(code) {
   return code === "no-speech" || code === "aborted";
 }
 
-function joinSpeechText(base, chunk) {
+export function joinSpeechText(base, chunk) {
   const left = String(base || "");
   const right = String(chunk || "").trim();
   if (!right) return left;
@@ -265,8 +289,75 @@ function joinSpeechText(base, chunk) {
 }
 
 /**
+ * Read transcript from a SpeechRecognitionResult. iOS Safari is inconsistent
+ * about array-likeness (length / [0] vs item(0)); never require .length alone.
+ */
+export function speechResultTranscript(result) {
+  if (!result) return "";
+  let alt = null;
+  try {
+    if (result[0]) alt = result[0];
+    else if (typeof result.item === "function") alt = result.item(0);
+  } catch {
+    alt = null;
+  }
+  if (!alt) return "";
+  return String(alt.transcript || "").trim();
+}
+
+/**
+ * Fold a SpeechRecognitionEvent into committed base + pending interim display.
+ * Commits isFinal chunks into base; keeps non-final as overlay. When Safari
+ * never sets isFinal, callers must flush pendingInterim on onend / Stop.
+ */
+export function foldSpeechRecognitionEvent(event, base) {
+  let nextBase = String(base || "");
+  let interimChunk = "";
+  let sawResult = false;
+  const results = event && event.results ? event.results : null;
+  if (!results) {
+    return { base: nextBase, interim: "", display: nextBase, sawResult: false };
+  }
+  const length =
+    typeof results.length === "number"
+      ? results.length
+      : typeof results.item === "function"
+        ? 1
+        : 0;
+  const start =
+    typeof event.resultIndex === "number" && event.resultIndex >= 0
+      ? event.resultIndex
+      : 0;
+  for (let i = start; i < length; i += 1) {
+    const result =
+      results[i] ||
+      (typeof results.item === "function" ? results.item(i) : null);
+    const piece = speechResultTranscript(result);
+    if (!piece) continue;
+    sawResult = true;
+    const isFinal = !!(result && result.isFinal);
+    if (isFinal) {
+      nextBase = joinSpeechText(nextBase, piece).slice(0, 2000);
+    } else {
+      interimChunk += (interimChunk ? " " : "") + piece;
+    }
+  }
+  const display = (
+    interimChunk ? joinSpeechText(nextBase, interimChunk) : nextBase
+  ).slice(0, 2000);
+  return {
+    base: nextBase,
+    interim: interimChunk,
+    display,
+    sawResult,
+  };
+}
+
+/**
  * Optional getUserMedia prime so Permissions-Policy / iOS mic permission surfaces
- * before SpeechRecognition. Failures other than hard deny still allow speech start.
+ * before SpeechRecognition. Always release tracks before start() — holding a
+ * MediaStream while recognizing mutes SpeechRecognition on iOS Safari.
+ * Failures other than hard deny still allow speech start.
  */
 async function ensureSpeechMicAccess() {
   if (
@@ -279,6 +370,10 @@ async function ensureSpeechMicAccess() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     for (const track of stream.getTracks()) track.stop();
+    // Brief settle so iOS can hand the audio session to SpeechRecognition.
+    if (isAppleMobileSpeech()) {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
     return { ok: true };
   } catch (err) {
     const name = err && err.name ? String(err.name) : "";
@@ -1035,14 +1130,24 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
+  /** Write transcript into the live textarea + formDraft Save/Appraise read. */
+  function writeAiContextField(textarea, value) {
+    const next = String(value || "").slice(0, 2000);
+    textarea.value = next;
+    syncAiContextDraft(next);
+  }
+
   function renderAiContextField() {
+    const initial = fieldValue("aiContext");
     const textarea = el("textarea", {
       name: "aiContext",
       rows: "3",
       maxlength: "2000",
       placeholder: "When you wear it, pairing notes…",
-      text: fieldValue("aiContext"),
+      text: initial,
     });
+    // textContent seeds defaultValue; set .value so Save always reads the draft.
+    textarea.value = initial;
     const status = el("p", {
       className: "mic-status muted",
       role: "status",
@@ -1060,6 +1165,14 @@ export function renderCatalogApp(root, { onLogout }) {
       micBtn.classList.toggle("mic-listening", listening);
       micBtn.setAttribute("aria-pressed", listening ? "true" : "false");
       micBtn.textContent = listening ? "Stop" : "Mic";
+    }
+
+    function commitPendingInterim(session) {
+      const pending = String(session.pendingInterim || "").trim();
+      if (!pending) return;
+      session.base = joinSpeechText(session.base, pending).slice(0, 2000);
+      session.pendingInterim = "";
+      writeAiContextField(textarea, session.base);
     }
 
     function scheduleSpeechRestart(session, recognition) {
@@ -1093,6 +1206,7 @@ export function renderCatalogApp(root, { onLogout }) {
         recognition: null,
         armed: true,
         base: String(textarea.value || ""),
+        pendingInterim: "",
         restartTimer: null,
         sawResult: false,
       };
@@ -1111,37 +1225,21 @@ export function renderCatalogApp(root, { onLogout }) {
       const recognition = new Ctor();
       recognition.lang = speechRecognitionLang();
       recognition.interimResults = true;
-      // continuous helps desktop; iOS Safari often ends after a pause — we restart if still armed.
-      recognition.continuous = true;
+      // Desktop: continuous. iPhone Safari: continuous keeps mic open with no finals —
+      // use utterance mode + deferred onend restart while armed.
+      recognition.continuous = speechRecognitionContinuous();
       session.recognition = recognition;
 
       recognition.onresult = (event) => {
         if (speechSession !== session) return;
-        let finalChunk = "";
-        let interimChunk = "";
-        const results = event && event.results ? event.results : [];
-        const start = typeof event.resultIndex === "number" ? event.resultIndex : 0;
-        for (let i = start; i < results.length; i += 1) {
-          const result = results[i];
-          if (!result || !result.length) continue;
-          const piece = result[0] ? String(result[0].transcript || "").trim() : "";
-          if (!piece) continue;
-          session.sawResult = true;
-          if (result.isFinal) finalChunk += (finalChunk ? " " : "") + piece;
-          else interimChunk += (interimChunk ? " " : "") + piece;
-        }
-        // Empty result lists are normal on Safari; keep listening via onend restart.
-        if (!finalChunk && !interimChunk) return;
-        if (finalChunk) {
-          session.base = joinSpeechText(session.base, finalChunk).slice(0, 2000);
-        }
-        const display = (
-          interimChunk
-            ? joinSpeechText(session.base, interimChunk)
-            : session.base
-        ).slice(0, 2000);
-        textarea.value = display;
-        syncAiContextDraft(display);
+        const folded = foldSpeechRecognitionEvent(event, session.base);
+        // Empty payloads are normal on Safari; keep listening via onend restart.
+        if (!folded.sawResult) return;
+        session.sawResult = true;
+        session.base = folded.base;
+        session.pendingInterim = folded.interim;
+        // Always push into the DOM field + draft Save uses (not a detached mirror).
+        writeAiContextField(textarea, folded.display);
       };
 
       recognition.onerror = (event) => {
@@ -1153,6 +1251,7 @@ export function renderCatalogApp(root, { onLogout }) {
         }
         session.armed = false;
         clearSpeechRestart(session);
+        commitPendingInterim(session);
         if (code === "not-allowed" || code === "service-not-allowed") {
           setMicStatus("Microphone blocked — type instead.");
         } else {
@@ -1164,7 +1263,9 @@ export function renderCatalogApp(root, { onLogout }) {
 
       recognition.onend = () => {
         if (speechSession !== session) return;
-        // Safari often stops after a pause; keep going while the user left Mic armed.
+        // Safari often leaves isFinal=false; commit trailing interim before restart/idle.
+        commitPendingInterim(session);
+        // Utterance ended (esp. continuous=false on iOS); keep going while Mic armed.
         if (session.armed) {
           scheduleSpeechRestart(session, recognition);
           return;
@@ -1183,6 +1284,7 @@ export function renderCatalogApp(root, { onLogout }) {
         }
         // Keep keyboard edits (incl. OS keyboard dictation); drop interim overlay.
         session.base = String(textarea.value || "").slice(0, 2000);
+        session.pendingInterim = "";
         syncAiContextDraft(session.base);
       });
 
@@ -1206,6 +1308,9 @@ export function renderCatalogApp(root, { onLogout }) {
       onClick: () => {
         if (speechSession) {
           speechSession.armed = false;
+          commitPendingInterim(speechSession);
+          // Ensure Save sees whatever is in the field after Stop.
+          writeAiContextField(textarea, textarea.value);
           stopSpeechDictation();
           setMicListening(false);
           setMicStatus("");
