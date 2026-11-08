@@ -30,6 +30,29 @@ test("edit form supports current-photo remove (UC-18)", () => {
   assert.match(catalog, /edit-photos/);
 });
 
+test("edit form sets catalog photo via primaryPhotoId (UC-18)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const itemsSrc = fs.readFileSync(path.join(root, "infra/lambda/items.js"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  const lookLayout = fs.readFileSync(path.join(root, "web/src/lookLayout.js"), "utf8");
+  assert.match(catalog, /async function setPrimaryPhoto/);
+  assert.match(catalog, /primaryPhotoId:\s*photoId/);
+  assert.match(catalog, /photo-primary/);
+  assert.match(catalog, /Use as catalog photo/);
+  assert.match(catalog, /primaryStarIcon/);
+  // Star hidden when already photos[0]; no drag-reorder UI.
+  assert.match(catalog, /existing\[0\]\.photoId !== photo\.photoId/);
+  assert.doesNotMatch(catalog, /drag-reorder|sortable|Sortable/);
+  assert.match(styles, /\.edit-photo \.photo-primary/);
+  assert.match(styles, /top:\s*0\.45rem/);
+  assert.match(itemsSrc, /body\.primaryPhotoId|primaryPhotoId/);
+  assert.match(useCases, /top-right star control/);
+  assert.match(useCases, /do not auto-become first/);
+  // Overview still keys off first displayable photo (no separate primary flag).
+  assert.match(lookLayout, /function firstPhoto/);
+});
+
 test("edit form rotates ready photos client-side then same-photoId replace (UC-18)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");

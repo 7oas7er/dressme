@@ -158,6 +158,24 @@ test("layerImageUrl: hero/catalog prefer full → thumb (never cutout); strip us
   assert.equal(layerImageUrl(thumbOnly, { purpose: "hero" }), "https://t.example/c.jpg");
 });
 
+test("catalog layerImageUrl follows photos[0] after primary reorder", () => {
+  const before = item({
+    photos: [
+      photo("https://f.example/first.jpg", "https://t.example/first.jpg"),
+      photo("https://f.example/second.jpg", "https://t.example/second.jpg"),
+    ],
+  });
+  assert.equal(layerImageUrl(before, { purpose: "catalog" }), "https://f.example/first.jpg");
+
+  const after = item({
+    photos: [
+      photo("https://f.example/second.jpg", "https://t.example/second.jpg"),
+      photo("https://f.example/first.jpg", "https://t.example/first.jpg"),
+    ],
+  });
+  assert.equal(layerImageUrl(after, { purpose: "catalog" }), "https://f.example/second.jpg");
+});
+
 test("buildLookVisual orders hero by z-index and strip top-down; fills from color", () => {
   const look = {
     items: [
