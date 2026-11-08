@@ -16,7 +16,7 @@ Change headers in Terraform (`infra/terraform/aws/modules/site/cloudfront.tf` + 
 Defined in `local.content_security_policy` and the response headers policy:
 
 - **CSP** (SPA + Cognito + media): `script-src 'self'`; `style-src`/`font-src` allow Google Fonts; `img-src`/`connect-src` allow `'self'`, blob/data previews, Cognito Hosted UI / IdP, and S3 presigned media hosts; `form-action` allows Cognito logout/authorize; `object-src 'none'`; `upgrade-insecure-requests`.
-- **Permissions-Policy**: `camera=(self)` for wardrobe capture; `microphone=(self)` for AI-context dictation (Web Speech); geo/payment/usb/sensors stay off.
+- **Permissions-Policy**: `camera=(self)` for wardrobe capture; `microphone=(self)` for AI-context dictation (Web Speech — required on iOS Safari or the Mic control starts then dies); geo/payment/usb/sensors stay off. Header changes need a local `terraform apply` on the env AWS site module; SPA deploy alone does not update them.
 - **HSTS**: 1y, `includeSubDomains`, `preload`.
 - **COOP / CORP**: `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin` (defence-in-depth; no COEP — this app does not need `crossOriginIsolated`).
 - **Others**: `nosniff`, `SAMEORIGIN` framing, `strict-origin-when-cross-origin` referrer.
