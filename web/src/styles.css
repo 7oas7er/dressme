@@ -573,6 +573,12 @@ textarea {
   gap: 0.4rem;
 }
 
+.edit-photo-media {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
 .edit-photo img,
 .edit-photo .thumb {
   width: 100%;
@@ -582,6 +588,8 @@ textarea {
 }
 
 .edit-photo button.photo-open {
+  display: block;
+  width: 100%;
   padding: 0;
   border: 0;
   background: transparent;
@@ -593,6 +601,59 @@ textarea {
 
 .edit-photo button.photo-open img {
   cursor: zoom-in;
+}
+
+.edit-photo .photo-rotate {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #152033;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 4px rgba(21, 32, 51, 0.22);
+  cursor: pointer;
+}
+
+.edit-photo .photo-rotate:hover:not(:disabled),
+.edit-photo .photo-rotate:focus-visible {
+  background: #fff;
+}
+
+.edit-photo .photo-rotate:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.edit-photo .photo-rotate-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: block;
+}
+
+.edit-photo.is-rotating .edit-photo-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+
+.edit-photo.is-rotating .photo-rotate-icon {
+  animation: photo-rotate-spin 0.7s linear infinite;
+}
+
+@keyframes photo-rotate-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .edit-photo .photo-remove {

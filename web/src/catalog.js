@@ -183,6 +183,22 @@ function photoOpenButton(url, alt) {
   );
 }
 
+/** Lower-right edit overlay: CW rotate arrow (inline SVG, no emoji). */
+function rotateArrowIcon() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", "photo-rotate-icon");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute(
+    "d",
+    "M12 5V2L8 6l4 4V7c2.76 0 5 2.24 5 5a5 5 0 0 1-8.9 3.1L6.7 16.5A7 7 0 0 0 19 12c0-3.87-3.13-7-7-7z"
+  );
+  path.setAttribute("fill", "currentColor");
+  svg.append(path);
+  return svg;
+}
+
 /** Compress a local image for one Bedrock analyze call (cost + payload). */
 function compressImageFile(file, { maxEdge = 1024, quality = 0.82 } = {}) {
   return new Promise((resolve, reject) => {
@@ -252,6 +268,8 @@ export function renderCatalogApp(root, { onLogout }) {
     status: "",
     error: "",
     busy: false,
+    /** photoId currently rotating on edit (busy tile highlight). */
+    rotatingPhotoId: null,
     attributeOptions: {},
     /** Per-field custom lists from GET /api/attribute-options (for seed vs custom rank). */
     attributeCustom: {},
@@ -813,6 +831,29 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
+  async function rotateEditPhoto(photoId) {
+    if (!state.editing || state.busy) return;
+    state.busy = true;
+    state.rotatingPhotoId = photoId;
+    state.error = "";
+    state.status = "Rotating photo…";
+    paint();
+    try {
+      const updated = await api.rotatePhoto(state.editing.itemId, photoId, 90);
+      state.editing = updated.item;
+      state.items = state.items.map((item) =>
+        item.itemId === updated.item.itemId ? updated.item : item
+      );
+      state.status = "Photo rotated.";
+    } catch (err) {
+      state.error = err.message || "Could not rotate photo.";
+    } finally {
+      state.busy = false;
+      state.rotatingPhotoId = null;
+      paint();
+    }
+  }
+
   function paint() {
     root.replaceChildren();
     const shell = el("main", { className: "shell stack" });
@@ -1267,23 +1308,47 @@ export function renderCatalogApp(root, { onLogout }) {
       } else {
         const gridPhotos = el("div", { className: "edit-photos" });
         for (const photo of existing) {
+          const rotating = state.rotatingPhotoId === photo.photoId;
           const tile = el("div", {
-            className: "edit-photo",
+            className: rotating ? "edit-photo is-rotating" : "edit-photo",
             "data-photo-id": photo.photoId,
           });
+          const media = el("div", { className: "edit-photo-media" });
           if (photo.url) {
             // Full-res URL on edit (UC-20); click opens lightbox (UC-23).
-            tile.append(
+            media.append(
               photoOpenButton(photo.url, `${editing.type || "item"} photo`)
             );
           } else {
-            tile.append(
+            media.append(
               el("div", {
                 className: "thumb",
                 text: photo.status === "pending" ? "Pending" : "No preview",
               })
             );
           }
+          // Ready photos only — durable rotate after S3 complete (not Add pending).
+          if (photo.status === "ready" && photo.url) {
+            media.append(
+              el(
+                "button",
+                {
+                  type: "button",
+                  className: "photo-rotate",
+                  disabled: state.busy ? "disabled" : null,
+                  "aria-label": "Rotate photo 90 degrees clockwise",
+                  title: "Rotate 90° clockwise",
+                  onClick: (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    rotateEditPhoto(photo.photoId);
+                  },
+                },
+                [rotateArrowIcon()]
+              )
+            );
+          }
+          tile.append(media);
           tile.append(
             el("button", {
               type: "button",
