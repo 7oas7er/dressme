@@ -234,6 +234,20 @@ function softPrefillFromPayload(payload) {
   return { type, brandModel };
 }
 
+/** Web Speech API constructor when the browser exposes it (Safari: webkit*). */
+function speechRecognitionCtor() {
+  if (typeof window === "undefined") return null;
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function joinSpeechText(base, chunk) {
+  const left = String(base || "");
+  const right = String(chunk || "").trim();
+  if (!right) return left;
+  if (!left) return right;
+  return /\s$/.test(left) ? left + right : `${left} ${right}`;
+}
+
 export function renderCatalogApp(root, { onLogout }) {
   const state = {
     items: [],
@@ -258,6 +272,23 @@ export function renderCatalogApp(root, { onLogout }) {
       suggestionId: "",
     },
   };
+
+  /** Active dictation session; aborted on paint() so detached textareas never keep the mic. */
+  let speechSession = null;
+
+  function stopSpeechDictation() {
+    const session = speechSession;
+    speechSession = null;
+    if (!session) return;
+    try {
+      session.recognition.onresult = null;
+      session.recognition.onerror = null;
+      session.recognition.onend = null;
+      session.recognition.abort();
+    } catch {
+      // Already stopped / unsupported abort — ignore.
+    }
+  }
 
   async function loadAttributeOptions() {
     try {
@@ -728,6 +759,7 @@ export function renderCatalogApp(root, { onLogout }) {
   }
 
   function paint() {
+    stopSpeechDictation();
     root.replaceChildren();
     const shell = el("main", { className: "shell stack" });
 
@@ -943,23 +975,175 @@ export function renderCatalogApp(root, { onLogout }) {
     return "Appraise";
   }
 
+  function syncAiContextDraft(value) {
+    const next = String(value || "").slice(0, 2000);
+    if (state.formDraft) {
+      state.formDraft.aiContext = next;
+    } else {
+      state.formDraft = { aiContext: next };
+    }
+  }
+
+  function renderAiContextField() {
+    const textarea = el("textarea", {
+      name: "aiContext",
+      rows: "3",
+      maxlength: "2000",
+      placeholder: "When you wear it, pairing notes…",
+      text: fieldValue("aiContext"),
+    });
+    const status = el("p", {
+      className: "mic-status muted",
+      role: "status",
+      text: "",
+    });
+    status.hidden = true;
+
+    function setMicStatus(message) {
+      const text = String(message || "").trim();
+      status.textContent = text;
+      status.hidden = !text;
+    }
+
+    function setMicListening(listening) {
+      micBtn.classList.toggle("mic-listening", listening);
+      micBtn.setAttribute("aria-pressed", listening ? "true" : "false");
+      micBtn.textContent = listening ? "Stop" : "Mic";
+    }
+
+    function startSpeechDictation() {
+      const Ctor = speechRecognitionCtor();
+      if (!Ctor) {
+        setMicStatus("Voice input not supported here — type instead.");
+        return;
+      }
+
+      stopSpeechDictation();
+      setMicStatus("");
+
+      let base = String(textarea.value || "");
+      const recognition = new Ctor();
+      recognition.lang =
+        (typeof navigator !== "undefined" && navigator.language) || "en-US";
+      recognition.interimResults = true;
+      // continuous helps desktop; iOS Safari often ends after a pause — we restart if still armed.
+      recognition.continuous = true;
+
+      const session = {
+        recognition,
+        armed: true,
+        base,
+      };
+      speechSession = session;
+
+      recognition.onresult = (event) => {
+        if (speechSession !== session) return;
+        let finalChunk = "";
+        let interimChunk = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const result = event.results[i];
+          const piece = result && result[0] ? String(result[0].transcript || "") : "";
+          if (!piece) continue;
+          if (result.isFinal) finalChunk += piece;
+          else interimChunk += piece;
+        }
+        if (finalChunk) {
+          session.base = joinSpeechText(session.base, finalChunk).slice(0, 2000);
+        }
+        const display = (
+          interimChunk
+            ? joinSpeechText(session.base, interimChunk)
+            : session.base
+        ).slice(0, 2000);
+        textarea.value = display;
+        syncAiContextDraft(display);
+      };
+
+      recognition.onerror = (event) => {
+        if (speechSession !== session) return;
+        session.armed = false;
+        const code = event && event.error ? String(event.error) : "";
+        // permission-denied / not-allowed / service-not-allowed / network…
+        if (code === "not-allowed" || code === "service-not-allowed") {
+          setMicStatus("Microphone blocked — type instead.");
+        } else if (code === "no-speech") {
+          setMicStatus("No speech heard — tap Mic to try again.");
+        } else {
+          setMicStatus("Voice input failed — type instead.");
+        }
+        setMicListening(false);
+        speechSession = null;
+      };
+
+      recognition.onend = () => {
+        if (speechSession !== session) return;
+        // Safari often stops after a pause; keep going while the user left Mic armed.
+        if (session.armed) {
+          try {
+            recognition.start();
+            return;
+          } catch {
+            // start() while still closing — fall through to idle.
+          }
+        }
+        speechSession = null;
+        setMicListening(false);
+      };
+
+      textarea.addEventListener("input", function onTypeWhileListening() {
+        if (speechSession !== session) {
+          textarea.removeEventListener("input", onTypeWhileListening);
+          return;
+        }
+        // Keep keyboard edits; drop any in-flight interim overlay.
+        session.base = String(textarea.value || "").slice(0, 2000);
+        syncAiContextDraft(session.base);
+      });
+
+      try {
+        recognition.start();
+        setMicListening(true);
+      } catch {
+        speechSession = null;
+        setMicListening(false);
+        setMicStatus("Voice input failed — type instead.");
+      }
+    }
+
+    const micBtn = el("button", {
+      type: "button",
+      className: "secondary ai-context-mic",
+      text: "Mic",
+      "aria-label": "Dictate AI context",
+      "aria-pressed": "false",
+      title: "Dictate",
+      onClick: () => {
+        if (speechSession) {
+          speechSession.armed = false;
+          stopSpeechDictation();
+          setMicListening(false);
+          setMicStatus("");
+          return;
+        }
+        startSpeechDictation();
+      },
+    });
+
+    return el("div", { className: "stack ai-context-field" }, [
+      el("div", { className: "ai-context-heading" }, [
+        el("span", { className: "field-title", text: "AI context" }),
+        micBtn,
+      ]),
+      textarea,
+      status,
+    ]);
+  }
+
   function renderAssistPanel(form) {
     const proposal = state.assist.proposal;
     const canAnalyze = hasAnalyzablePhoto();
     const block = el("div", { className: "assist-panel stack" }, [
-      el("label", {}, [
-        el("span", {
-          className: "field-title",
-          text: "AI context",
-        }),
-        el("textarea", {
-          name: "aiContext",
-          rows: "3",
-          maxlength: "2000",
-          placeholder: "When you wear it, pairing notes…",
-          text: fieldValue("aiContext"),
-        }),
-      ]),
+      renderAiContextField(),
       el("div", { className: "row assist-early-actions" }, [
         el("button", {
           type: "button",
@@ -1107,25 +1291,12 @@ export function renderCatalogApp(root, { onLogout }) {
     return block;
   }
 
-  function renderFormStickyActions(form, editing) {
-    const canAnalyze = hasAnalyzablePhoto();
+  function renderFormStickyActions(editing) {
     const bar = el("div", {
       className: "form-sticky-actions",
       role: "group",
-      "aria-label": "Save and appraise",
+      "aria-label": "Save item",
     });
-    bar.append(
-      el("button", {
-        type: "button",
-        className: "secondary",
-        text: analyzeButtonLabel(),
-        disabled:
-          state.busy || state.assist.analyzing || !canAnalyze
-            ? "disabled"
-            : null,
-        onClick: () => runAnalyze(form),
-      })
-    );
     bar.append(
       el("button", {
         type: "submit",
@@ -1246,7 +1417,7 @@ export function renderCatalogApp(root, { onLogout }) {
       grid.append(el("label", {}, children));
     }
     form.append(grid);
-    form.append(renderFormStickyActions(form, editing));
+    form.append(renderFormStickyActions(editing));
     panel.append(form);
     return panel;
   }
