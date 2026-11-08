@@ -271,6 +271,82 @@ test("update removes specific photos and deletes S3 objects", async function () 
   }));
 });
 
+test("replacePhotos rewrites same photoId in place and returns overwrite upload", async function () {
+  var memory = makeMemoryDeps();
+  var deletedKeys = [];
+  var baseSend = memory.s3.send;
+  memory.s3.send = async function (command) {
+    if (command.constructor.name === "DeleteObjectCommand") {
+      deletedKeys.push(command.input.Key);
+    }
+    return baseSend(command);
+  };
+  items.resetDepsForTests(memory);
+
+  var created = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(
+      Object.assign(attrs(), {
+        photos: [
+          { contentType: "image/jpeg" },
+          { contentType: "image/png" },
+          { contentType: "image/jpeg" },
+        ],
+      })
+    ),
+  });
+  var createdBody = JSON.parse(created.body);
+  var itemId = createdBody.item.itemId;
+  var photoA = createdBody.uploads[0].photoId;
+  var photoB = createdBody.uploads[1].photoId;
+  var photoC = createdBody.uploads[2].photoId;
+  var photoBKey = createdBody.uploads[1].uploadUrl.replace(
+    "https://upload.example/",
+    ""
+  );
+  for (var u = 0; u < createdBody.uploads.length; u++) {
+    var key = createdBody.uploads[u].uploadUrl.replace("https://upload.example/", "");
+    memory.objects.set(key, Buffer.from("full-" + u));
+  }
+  await api.handler({
+    rawPath: "/api/items/" + itemId + "/photos/complete",
+    requestContext: {
+      http: { method: "POST", path: "/api/items/" + itemId + "/photos/complete" },
+    },
+    body: JSON.stringify({ photoIds: [photoA, photoB, photoC] }),
+  });
+
+  var replaced = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({
+      replacePhotos: [{ photoId: photoB, contentType: "image/jpeg" }],
+    }),
+  });
+  assert.equal(replaced.statusCode, 200);
+  var body = JSON.parse(replaced.body);
+  assert.equal(body.item.photos.length, 3);
+  assert.equal(body.item.photos[0].photoId, photoA);
+  assert.equal(body.item.photos[1].photoId, photoB);
+  assert.equal(body.item.photos[2].photoId, photoC);
+  assert.equal(body.item.photos[1].status, "pending");
+  assert.equal(body.item.photos[1].contentType, "image/jpeg");
+  assert.equal(body.uploads.length, 1);
+  assert.equal(body.uploads[0].photoId, photoB);
+  assert.match(body.uploads[0].uploadUrl, new RegExp(photoB + "\\.jpg"));
+  // Old png key + thumb cleared so complete can regen.
+  assert.ok(deletedKeys.some(function (k) {
+    return k === photoBKey || k.indexOf(photoB) >= 0;
+  }));
+
+  var itemKey = "USER#test-user|ITEM#" + itemId;
+  var stored = memory.store.get(itemKey);
+  assert.equal(stored.photos[1].photoId, photoB);
+  assert.equal(stored.photos[1].thumbKey, undefined);
+  assert.equal(stored.photos[1].status, "pending");
+});
+
 test("remove+add keeps replacement photos in the removed slots", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);

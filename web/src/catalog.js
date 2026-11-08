@@ -849,7 +849,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.status = "Rotating photo…";
     paint();
     try {
-      // Instant tile preview (browser canvas), then durable remove+add.
+      // Instant tile preview (browser canvas), then same-photoId overwrite.
       const rotatedBlob = await rotateImageFromUrl(photo.url);
       previewUrl = URL.createObjectURL(rotatedBlob);
       state.editing = Object.assign({}, state.editing, {
@@ -868,8 +868,7 @@ export function renderCatalogApp(root, { onLogout }) {
         type: "image/jpeg",
       });
       const updated = await api.updateItem(state.editing.itemId, {
-        removePhotoIds: [photoId],
-        addPhotos: [{ contentType: "image/jpeg" }],
+        replacePhotos: [{ photoId, contentType: "image/jpeg" }],
       });
       if (!updated.uploads || !updated.uploads.length) {
         throw new Error("upload_slot_missing");
@@ -885,7 +884,7 @@ export function renderCatalogApp(root, { onLogout }) {
       );
       state.status = "Photo rotated.";
     } catch (err) {
-      // Prefer server truth (remove+add may have partially landed); else revert preview.
+      // Prefer server truth (replace may have partially landed); else revert preview.
       try {
         const fresh = await api.getItem(state.editing.itemId);
         state.editing = fresh.item;

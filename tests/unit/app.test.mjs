@@ -30,11 +30,12 @@ test("edit form supports current-photo remove (UC-18)", () => {
   assert.match(catalog, /edit-photos/);
 });
 
-test("edit form rotates ready photos client-side then remove+add (UC-18)", () => {
+test("edit form rotates ready photos client-side then same-photoId replace (UC-18)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
   const rotateSrc = fs.readFileSync(path.join(root, "web/src/rotateImage.js"), "utf8");
   const lambdaApi = fs.readFileSync(path.join(root, "infra/lambda/api.js"), "utf8");
+  const itemsSrc = fs.readFileSync(path.join(root, "infra/lambda/items.js"), "utf8");
   const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
   assert.match(catalog, /rotateImageFromUrl/);
   assert.match(catalog, /async function rotateEditPhoto/);
@@ -43,7 +44,12 @@ test("edit form rotates ready photos client-side then remove+add (UC-18)", () =>
   // CW arrow path (not the old CCW rotate-left glyph).
   assert.match(catalog, /M12 5V2l4 4-4 4V7/);
   assert.doesNotMatch(catalog, /M12 5V2L8 6l4 4V7/);
-  assert.match(catalog, /addPhotos:\s*\[\s*\{\s*contentType:\s*"image\/jpeg"/);
+  assert.match(catalog, /replacePhotos:\s*\[\s*\{\s*photoId,\s*contentType:\s*"image\/jpeg"/);
+  assert.doesNotMatch(
+    catalog,
+    /rotateEditPhoto[\s\S]*removePhotoIds:\s*\[\s*photoId\s*\]/
+  );
+  assert.match(itemsSrc, /body\.replacePhotos|replacePhotos/);
   assert.match(rotateSrc, /ROTATE_JPEG_QUALITY\s*=\s*0\.9/);
   assert.match(rotateSrc, /createImageBitmap/);
   // Bypass non-CORS <img> disk cache that makes Safari throw "Load failed".
@@ -53,7 +59,7 @@ test("edit form rotates ready photos client-side then remove+add (UC-18)", () =>
   assert.doesNotMatch(apiSrc, /function rotatePhoto|\/photos\/.*\/rotate/);
   assert.doesNotMatch(lambdaApi, /\/rotate\$|rotatePhoto/);
   assert.match(useCases, /browser rotates the image immediately/);
-  assert.match(useCases, /new photo id/);
+  assert.match(useCases, /same photo id/);
 });
 
 test("add/edit forms use suggested values with free text (UC-19)", () => {
