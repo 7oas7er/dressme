@@ -11,6 +11,7 @@ Routes (CloudFront `/api/*` → Function URL):
 | GET/POST | `/api/items` | Cognito JWT | List / create wardrobe items |
 | GET/PUT/DELETE | `/api/items/{id}` | Cognito JWT | Read / update / delete |
 | POST | `/api/items/{id}/photos/complete` | Cognito JWT | Mark uploads ready + generate overview thumbs (UC-20). Cutout generation disabled (Option D). |
+| POST | `/api/items/{id}/photos/{photoId}/rotate` | Cognito JWT | UC-18 edit rotate: EXIF-normalize → +90° CW → JPEG overwrite same key + regen thumb; clear legacy cutout. **Needs Terraform apply** after merge ([photo-rotate-apply.md](../terraform/docs/photo-rotate-apply.md)). |
 | POST | `/api/photos/backfill-thumbs` | Cognito JWT | One-shot: generate missing thumbs for the caller’s items |
 | POST | `/api/photos/backfill-cutouts` | Cognito JWT | **Noop** while `CUTOUTS_ENABLED=false` (returns `{ disabled: true }`). Existing S3/Dynamo cutout keys left in place. |
 | GET | `/api/attribute-options` | Cognito JWT | Seed + per-user custom attribute suggestions (UC-19) |

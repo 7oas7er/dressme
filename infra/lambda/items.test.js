@@ -543,6 +543,35 @@ test("rotate rejects non-90 degrees and pending photos", async function () {
   assert.equal(JSON.parse(missing.body).error, "photo_not_found");
 });
 
+test("rotate route is registered (GET → 405; unknown photo action → 404)", async function () {
+  // Staging probe without auth: missing route → 404 not_found; present route →
+  // 401. With AUTH_DISABLED, present route reaches the method check → 405.
+  items.resetDepsForTests(makeMemoryDeps());
+  var rotateGet = await api.handler({
+    rawPath: "/api/items/any-item/photos/any-photo/rotate",
+    requestContext: {
+      http: {
+        method: "GET",
+        path: "/api/items/any-item/photos/any-photo/rotate",
+      },
+    },
+  });
+  assert.equal(rotateGet.statusCode, 405);
+  assert.equal(JSON.parse(rotateGet.body).error, "method_not_allowed");
+
+  var bogus = await api.handler({
+    rawPath: "/api/items/any-item/photos/any-photo/bogus",
+    requestContext: {
+      http: {
+        method: "GET",
+        path: "/api/items/any-item/photos/any-photo/bogus",
+      },
+    },
+  });
+  assert.equal(bogus.statusCode, 404);
+  assert.equal(JSON.parse(bogus.body).error, "not_found");
+});
+
 test("photos/complete still succeeds without cutouts", async function () {
   var memory = makeMemoryDeps();
   memory.makeCutout = async function () {
