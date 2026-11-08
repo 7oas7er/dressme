@@ -184,7 +184,8 @@ test("mobile add UX: camera-first, sticky Save, Add next (UC-01 phone)", () => {
   assert.match(catalog, /form-sticky-actions|renderFormStickyActions/);
   assert.match(catalog, /assist-early-actions/);
   assert.match(catalog, /Save & add next/);
-  assert.match(catalog, /softPrefillFromPayload/);
+  assert.match(catalog, /Saved\. Add next piece\./);
+  assert.doesNotMatch(catalog, /softPrefillFromPayload|type\/brand kept as a starting point/);
   assert.match(catalog, /Add next/);
   // Single Appraise near AI context — not duplicated in the sticky Save bar.
   assert.match(catalog, /assist-early-actions[\s\S]*analyzeButtonLabel/);
