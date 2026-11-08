@@ -466,31 +466,6 @@ label {
   background: rgba(248, 251, 255, 0.92);
 }
 
-.ai-context-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
-}
-
-.ai-context-mic {
-  flex: 0 0 auto;
-  min-width: 3.25rem;
-  min-height: 2.5rem;
-  padding: 0.45rem 0.85rem;
-}
-
-.ai-context-mic.mic-listening {
-  border-color: var(--accent-2);
-  color: var(--ink);
-  background: rgba(21, 32, 51, 0.08);
-}
-
-.mic-status {
-  margin: 0;
-  font-size: 0.9rem;
-}
-
 /* Sticky Save above the iOS home indicator. */
 .item-form {
   padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
@@ -807,7 +782,6 @@ textarea {
   .photo-capture-actions button,
   .assist-early-actions button,
   .form-sticky-actions button,
-  .ai-context-mic,
   .edit-photo .photo-remove,
   .filter-fold-toggle,
   .topbar-actions button {
