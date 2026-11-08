@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const webMain = path.join(root, "web/src/main.js");
@@ -188,95 +188,19 @@ test("mobile add UX: camera-first, sticky Save, Add next (UC-01 phone)", () => {
     catalog,
     /form-sticky-actions[\s\S]*analyzeButtonLabel|aria-label": "Save and appraise"/
   );
-  assert.match(catalog, /ai-context-mic|Dictate AI context/);
-  assert.match(catalog, /SpeechRecognition|webkitSpeechRecognition/);
-  // iOS Safari Web Speech: interim + deferred onend restart; continuous off on Apple mobile.
-  assert.match(catalog, /interimResults\s*=\s*true/);
-  assert.match(catalog, /speechRecognitionContinuous|isAppleMobileSpeech/);
-  assert.match(catalog, /foldSpeechRecognitionEvent|speechResultTranscript/);
-  assert.match(catalog, /writeAiContextField|commitPendingInterim/);
-  assert.match(catalog, /scheduleSpeechRestart|restartTimer/);
-  assert.match(catalog, /isRecoverableSpeechError|no-speech/);
-  assert.match(catalog, /ensureSpeechMicAccess|getUserMedia/);
-  assert.match(catalog, /speechRecognitionLang/);
+  // AI context stays a plain textarea; no in-app Mic / Web Speech.
+  assert.match(catalog, /name: "aiContext"/);
+  assert.match(catalog, /syncAiContextDraft/);
+  assert.doesNotMatch(catalog, /SpeechRecognition|webkitSpeechRecognition|ai-context-mic|getUserMedia/);
+  assert.doesNotMatch(styles, /\.ai-context-mic|\.mic-status|\.mic-listening/);
   assert.match(styles, /safe-area-inset-bottom/);
   assert.match(styles, /\.form-sticky-actions/);
-  assert.match(styles, /\.ai-context-mic/);
   assert.match(styles, /\.pending-photo-strip/);
   assert.match(styles, /font-size:\s*16px/);
   assert.match(indexHtml, /viewport-fit=cover/);
   assert.match(useCases, /camera-first|Add next|sticky/i);
-  assert.match(useCases, /Mic|Web Speech|dictate/i);
-});
-
-test("speech helpers: iOS continuous off + fold results into display/base", async () => {
-  const catalog = await import(pathToFileURL(path.join(root, "web/src/catalog.js")).href);
-  assert.equal(
-    catalog.speechRecognitionContinuous({
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
-      maxTouchPoints: 5,
-    }),
-    false
-  );
-  assert.equal(
-    catalog.speechRecognitionContinuous({
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120",
-      maxTouchPoints: 0,
-    }),
-    true
-  );
-  assert.equal(
-    catalog.speechResultTranscript({ 0: { transcript: " navy jacket " }, length: 1 }),
-    "navy jacket"
-  );
-  assert.equal(
-    catalog.speechResultTranscript({
-      item: (i) => (i === 0 ? { transcript: "via item()" } : null),
-    }),
-    "via item()"
-  );
-  // Skip empty / length-less shapes without throwing.
-  assert.equal(catalog.speechResultTranscript(null), "");
-  assert.equal(catalog.speechResultTranscript({}), "");
-
-  const interimOnly = catalog.foldSpeechRecognitionEvent(
-    {
-      resultIndex: 0,
-      results: [{ 0: { transcript: "for meetings" }, isFinal: false, length: 1 }],
-    },
-    "Office"
-  );
-  assert.equal(interimOnly.base, "Office");
-  assert.equal(interimOnly.interim, "for meetings");
-  assert.equal(interimOnly.display, "Office for meetings");
-  assert.equal(interimOnly.sawResult, true);
-
-  const finalOnly = catalog.foldSpeechRecognitionEvent(
-    {
-      resultIndex: 0,
-      results: [{ 0: { transcript: "for meetings" }, isFinal: true, length: 1 }],
-    },
-    "Office"
-  );
-  assert.equal(finalOnly.base, "Office for meetings");
-  assert.equal(finalOnly.interim, "");
-  assert.equal(finalOnly.display, "Office for meetings");
-
-  // Individual result without .length — still read [0] (iOS array-likeness quirk).
-  const noLength = catalog.foldSpeechRecognitionEvent(
-    {
-      resultIndex: 0,
-      results: [{ 0: { transcript: "silk tie" }, isFinal: true }],
-    },
-    ""
-  );
-  assert.equal(noLength.display, "silk tie");
-  assert.equal(noLength.sawResult, true);
-  // Old bug: requiring result.length skipped transcripts that only expose [0].
-  assert.equal(
-    catalog.speechResultTranscript({ 0: { transcript: "only index" } }),
-    "only index"
-  );
+  assert.match(useCases, /keyboard dictation/i);
+  assert.doesNotMatch(useCases, /Mic control|Web Speech API|microphone=\(self\)/);
 });
 
 test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {

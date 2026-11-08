@@ -80,14 +80,14 @@ locals {
     "frame-ancestors 'self'",
     "upgrade-insecure-requests",
   ])
-  # Camera for wardrobe photo capture (UC-01); mic for AI-context dictation (Web Speech).
+  # Camera for wardrobe photo capture (UC-01). Microphone stays denied (no in-app Mic).
   permissions_policy = join(", ", [
     "accelerometer=()",
     "camera=(self)",
     "geolocation=()",
     "gyroscope=()",
     "magnetometer=()",
-    "microphone=(self)",
+    "microphone=()",
     "payment=()",
     "usb=()",
     "interest-cohort=()",
