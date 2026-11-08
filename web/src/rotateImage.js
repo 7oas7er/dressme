@@ -2,6 +2,11 @@
  * Client-side +90° CW image rotate for UC-18 edit photos.
  * Decodes via createImageBitmap (EXIF-aware when supported), canvas rotate,
  * JPEG encode. Used for optimistic tile preview + durable re-upload.
+ *
+ * Signed S3 GETs are often first loaded by plain <img> (no Origin), so WebKit /
+ * Chromium cache a response without Access-Control-Allow-Origin. A later
+ * fetch()/crossOrigin load of the same URL then fails with Safari's
+ * TypeError "Load failed". Bypass that cache with cache: "no-store".
  */
 
 const ROTATE_JPEG_QUALITY = 0.9;
@@ -94,6 +99,47 @@ export async function rotateImageBlob(blob, { quality = ROTATE_JPEG_QUALITY } = 
   return jpeg;
 }
 
+function isLikelyCorsFetchError(err) {
+  const msg = String((err && err.message) || err || "");
+  return (
+    /load failed/i.test(msg) ||
+    /failed to fetch/i.test(msg) ||
+    /networkerror/i.test(msg) ||
+    /access.?control/i.test(msg)
+  );
+}
+
+/**
+ * Load bytes from a signed media URL without reusing a non-CORS image cache entry.
+ * @param {string} url
+ * @returns {Promise<Blob>}
+ */
+export async function fetchImageBlob(url) {
+  if (!url) {
+    throw new Error("image_fetch_failed");
+  }
+  let res;
+  try {
+    // cache: "no-store" is required — see file header. Do not add unsigned
+    // query params (breaks S3 signatures) or custom headers (preflight).
+    res = await fetch(url, {
+      method: "GET",
+      mode: "cors",
+      credentials: "omit",
+      cache: "no-store",
+    });
+  } catch (err) {
+    if (isLikelyCorsFetchError(err)) {
+      throw new Error("image_cors_failed");
+    }
+    throw new Error("image_fetch_failed");
+  }
+  if (!res.ok) {
+    throw new Error("image_fetch_failed");
+  }
+  return res.blob();
+}
+
 /**
  * Fetch a (CORS-enabled) image URL and return a +90° CW JPEG Blob.
  * @param {string} url
@@ -101,14 +147,7 @@ export async function rotateImageBlob(blob, { quality = ROTATE_JPEG_QUALITY } = 
  * @returns {Promise<Blob>}
  */
 export async function rotateImageFromUrl(url, options) {
-  if (!url) {
-    throw new Error("image_fetch_failed");
-  }
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error("image_fetch_failed");
-  }
-  const blob = await res.blob();
+  const blob = await fetchImageBlob(url);
   return rotateImageBlob(blob, options);
 }
 

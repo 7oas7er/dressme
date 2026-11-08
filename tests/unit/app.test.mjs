@@ -43,6 +43,10 @@ test("edit form rotates ready photos client-side then remove+add (UC-18)", () =>
   assert.match(catalog, /addPhotos:\s*\[\s*\{\s*contentType:\s*"image\/jpeg"/);
   assert.match(rotateSrc, /ROTATE_JPEG_QUALITY\s*=\s*0\.9/);
   assert.match(rotateSrc, /createImageBitmap/);
+  // Bypass non-CORS <img> disk cache that makes Safari throw "Load failed".
+  assert.match(rotateSrc, /cache:\s*["']no-store["']/);
+  assert.match(rotateSrc, /mode:\s*["']cors["']/);
+  assert.match(rotateSrc, /image_cors_failed/);
   assert.doesNotMatch(apiSrc, /function rotatePhoto|\/photos\/.*\/rotate/);
   assert.doesNotMatch(lambdaApi, /\/rotate\$|rotatePhoto/);
   assert.match(useCases, /browser rotates the image immediately/);
