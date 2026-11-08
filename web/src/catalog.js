@@ -227,14 +227,6 @@ function clearPendingPhotos(list) {
   return [];
 }
 
-/** Soft prefill after a successful create — type + brand only (cheap, low risk of wrong attrs). */
-function softPrefillFromPayload(payload) {
-  const type = String((payload && payload.type) || "").trim();
-  const brandModel = String((payload && payload.brandModel) || "").trim();
-  if (!type && !brandModel) return null;
-  return { type, brandModel };
-}
-
 export function renderCatalogApp(root, { onLogout }) {
   const state = {
     items: [],
@@ -737,19 +729,14 @@ export function renderCatalogApp(root, { onLogout }) {
           const photoIds = await api.uploadFiles(created.uploads, files);
           await api.confirmPhotos(created.item.itemId, photoIds);
         }
-        // Bulk cataloging: land on another Add with soft type/brand prefill.
-        const soft = softPrefillFromPayload(payload);
+        // Bulk cataloging: land on another blank Add (no attr carry-over).
         state.editing = null;
         state.assist = emptyAssist();
         clearAttrHygiene();
         state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
-        state.formDraft = soft
-          ? { type: soft.type || "", brandModel: soft.brandModel || "" }
-          : emptyFormDraft();
+        state.formDraft = emptyFormDraft();
         state.view = "form";
-        state.status = soft
-          ? "Saved. Add next — type/brand kept as a starting point (clear if wrong)."
-          : "Saved. Add next piece.";
+        state.status = "Saved. Add next piece.";
       }
       await loadAttributeOptions();
       // Refresh catalog counts without forcing list view after create.
