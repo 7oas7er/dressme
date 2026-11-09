@@ -95,7 +95,11 @@ function el(tag, attrs = {}, children = []) {
   for (const [key, value] of Object.entries(attrs)) {
     if (key === "className") node.className = value;
     else if (key === "text") node.textContent = value;
-    else if (key.startsWith("on") && typeof value === "function") {
+    else if (key === "style" && value != null) {
+      // CSP style-src has no 'unsafe-inline' — HTML style="" is blocked on
+      // staging/prod. CSSOM cssText still applies (Wada swatch fills).
+      node.style.cssText = String(value);
+    } else if (key.startsWith("on") && typeof value === "function") {
       node.addEventListener(key.slice(2).toLowerCase(), value);
     } else if (value != null) {
       node.setAttribute(key, value);
