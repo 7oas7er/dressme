@@ -75,7 +75,7 @@ var SLOT_DEFS = [
   {
     id: "outer",
     label: "jacket / outerwear",
-    roles: ["outerwear", "jacket", "coat", "layer"],
+    roles: ["outerwear", "jacket", "coat", "layer", "overshirt"],
     types: [/\bjacket\b/, /\bcoat\b/, /blazer/, /overshirt/, /cardigan/],
   },
   {
@@ -177,6 +177,27 @@ function maxTokensForLookCount(lookCount) {
   return Math.min(4096, 512 + n * 280);
 }
 
+/**
+ * Role-match priority: outer before base so multi-token roles like
+ * "layer, knitwear" / "overshirt" layer as outer rather than a second base.
+ */
+var ROLE_MATCH_PRIORITY = [
+  "footwear",
+  "trousers",
+  "outer",
+  "base",
+  "neckwear",
+  "belt",
+  "accessory",
+];
+
+function slotDefById(id) {
+  for (var i = 0; i < SLOT_DEFS.length; i++) {
+    if (SLOT_DEFS[i].id === id) return SLOT_DEFS[i];
+  }
+  return null;
+}
+
 function classifySlot(item) {
   var role = String(item.outfitRole || "")
     .toLowerCase()
@@ -184,26 +205,93 @@ function classifySlot(item) {
   var type = String(item.type || "")
     .toLowerCase()
     .trim();
+  var tokens = role
+    ? role.split(/[^a-z0-9]+/).filter(Boolean)
+    : [];
 
-  // Prefer outfitRole — free-text values often equal seed roles.
+  // Prefer outfitRole. Exact full-string match first (any slot order).
   for (var i = 0; i < SLOT_DEFS.length; i++) {
     var def = SLOT_DEFS[i];
     for (var r = 0; r < def.roles.length; r++) {
-      if (role === def.roles[r] || role.indexOf(def.roles[r]) >= 0) {
-        return def.id;
+      if (role && role === def.roles[r]) return def.id;
+    }
+  }
+
+  // Token equality with outer-before-base priority (comma/slash lists).
+  for (var p = 0; p < ROLE_MATCH_PRIORITY.length; p++) {
+    var prioritized = slotDefById(ROLE_MATCH_PRIORITY[p]);
+    if (!prioritized) continue;
+    for (var t = 0; t < tokens.length; t++) {
+      for (var rr = 0; rr < prioritized.roles.length; rr++) {
+        if (tokens[t] === prioritized.roles[rr]) return prioritized.id;
       }
+    }
+  }
+
+  // Substring fallback with the same priority (e.g. role "dress shirt").
+  for (var p2 = 0; p2 < ROLE_MATCH_PRIORITY.length; p2++) {
+    var subDef = slotDefById(ROLE_MATCH_PRIORITY[p2]);
+    if (!subDef || !role) continue;
+    for (var r2 = 0; r2 < subDef.roles.length; r2++) {
+      if (role.indexOf(subDef.roles[r2]) >= 0) return subDef.id;
     }
   }
 
   for (var j = 0; j < SLOT_DEFS.length; j++) {
     var slot = SLOT_DEFS[j];
-    for (var t = 0; t < slot.types.length; t++) {
-      if (slot.types[t].test(type) || slot.types[t].test(role)) {
+    for (var tt = 0; tt < slot.types.length; tt++) {
+      if (slot.types[tt].test(type) || slot.types[tt].test(role)) {
         return slot.id;
       }
     }
   }
   return null;
+}
+
+/**
+ * Keep the first base-slot item; drop later bases. Shirt + sweater stacks are
+ * a common Bedrock miss; mandatory-core still requires bottom (+ shoes).
+ */
+function salvageCompetingBases(looks, byId) {
+  var out = [];
+  for (var i = 0; i < (looks || []).length; i++) {
+    var look = looks[i] || {};
+    var ids =
+      look.itemIds ||
+      (look.items || [])
+        .map(function (item) {
+          return item && item.itemId ? String(item.itemId) : "";
+        })
+        .filter(Boolean);
+    var baseSeen = false;
+    var kept = [];
+    for (var j = 0; j < ids.length; j++) {
+      var id = ids[j];
+      var record = byId && typeof byId.get === "function" ? byId.get(id) : null;
+      var slot = classifySlot(record || {});
+      if (slot === "base") {
+        if (baseSeen) continue;
+        baseSeen = true;
+      }
+      kept.push(id);
+    }
+    if (look.itemIds) {
+      out.push(Object.assign({}, look, { itemIds: kept }));
+    } else if (look.items) {
+      var keepSet = {};
+      for (var k = 0; k < kept.length; k++) keepSet[kept[k]] = true;
+      out.push(
+        Object.assign({}, look, {
+          items: (look.items || []).filter(function (item) {
+            return item && item.itemId && keepSet[String(item.itemId)];
+          }),
+        })
+      );
+    } else {
+      out.push(Object.assign({}, look, { itemIds: kept }));
+    }
+  }
+  return out;
 }
 
 function shuffleInPlace(arr, random) {
@@ -373,9 +461,10 @@ function filterRandomLooksComplete(looks, catalog) {
     if (slot === "trousers") catalogHasTrousers = true;
   }
   var canBuildCore = catalogHasBase && catalogHasTrousers;
+  var salvaged = salvageCompetingBases(looks, byId);
   var out = [];
-  for (var i = 0; i < (looks || []).length; i++) {
-    var look = looks[i];
+  for (var i = 0; i < (salvaged || []).length; i++) {
+    var look = salvaged[i];
     var ids = (look.items || []).map(function (item) {
       return item && item.itemId ? String(item.itemId) : "";
     }).filter(Boolean);
@@ -831,6 +920,7 @@ async function assembleWithBedrock(catalog, input) {
     });
   }
 
+  validated.looks = salvageCompetingBases(validated.looks, byId);
   var completeness = assertLooksComplete(validated.looks, byId, catalog);
   if (completeness.incomplete.length) {
     try {
@@ -849,6 +939,7 @@ async function assembleWithBedrock(catalog, input) {
         allowedIds,
         lookCount
       );
+      validated.looks = salvageCompetingBases(validated.looks, byId);
     } catch (_repairErr) {
       console.error(
         JSON.stringify({
@@ -1030,6 +1121,7 @@ exports.MAX_RATIONALE = MAX_RATIONALE;
 exports.MAX_TITLE = MAX_TITLE;
 exports.SLOT_DEFS = SLOT_DEFS;
 exports.classifySlot = classifySlot;
+exports.salvageCompetingBases = salvageCompetingBases;
 exports.assembleRandomLooks = assembleRandomLooks;
 exports.assembleWithBedrock = assembleWithBedrock;
 exports.serializeCatalogForPrompt = serializeCatalogForPrompt;

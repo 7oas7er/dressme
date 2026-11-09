@@ -192,6 +192,40 @@ test("classifySlot maps outfitRole/type into menswear slots", function () {
   assert.equal(suggest.classifySlot({ outfitRole: "shirt", type: "oxford" }), "base");
   assert.equal(suggest.classifySlot({ outfitRole: "outerwear", type: "blazer" }), "outer");
   assert.equal(suggest.classifySlot({ outfitRole: "mystery", type: "widget" }), null);
+  // Multi-token / layer roles must not become a second "base".
+  assert.equal(
+    suggest.classifySlot({ outfitRole: "layer, knitwear", type: "cardigan" }),
+    "outer"
+  );
+  assert.equal(
+    suggest.classifySlot({ outfitRole: "overshirt", type: "overshirt" }),
+    "outer"
+  );
+  assert.equal(
+    suggest.classifySlot({ outfitRole: "knitwear", type: "cardigan" }),
+    "base"
+  );
+});
+
+test("salvageCompetingBases keeps the first base only", function () {
+  var catalog = [
+    { itemId: "shirt1", outfitRole: "shirt", type: "oxford" },
+    { itemId: "knit1", outfitRole: "knitwear", type: "sweater" },
+    { itemId: "pants1", outfitRole: "trousers", type: "chinos" },
+    { itemId: "shoe1", outfitRole: "footwear", type: "loafers" },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var salvaged = suggest.salvageCompetingBases(
+    [{ lookId: "1", itemIds: ["shirt1", "knit1", "pants1", "shoe1"] }],
+    byId
+  );
+  assert.deepEqual(salvaged[0].itemIds, ["shirt1", "pants1", "shoe1"]);
+  var ok = suggest.assertLooksComplete(salvaged, byId, catalog);
+  assert.equal(ok.incomplete.length, 0);
 });
 
 test("extractLookCount defaults, parses digits/words, and clamps 1–8", function () {
@@ -782,6 +816,83 @@ test("Bedrock empty catalog skips model and returns empty looks", async function
   assert.equal(body.looks.length, 3);
   assert.equal(body.looks[0].items.length, 0);
   assert.equal(body.modelId, undefined);
+});
+
+test("Bedrock salvages competing bases without repair", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedClassicCatalog(memory);
+  seedItem(memory, {
+    itemId: "knit-1",
+    type: "sweater",
+    fabric: "wool",
+    brandModel: "John Smedley",
+    formality: "smart casual",
+    pattern: "solid",
+    season: "fall",
+    outfitRole: "knitwear",
+  });
+
+  var call = 0;
+  suggest.resetDepsForTests({
+    converse: async function () {
+      call += 1;
+      return {
+        output: {
+          message: {
+            content: [
+              {
+                text: JSON.stringify({
+                  looks: [
+                    {
+                      lookId: "1",
+                      title: "Two Tops",
+                      itemIds: ["shirt-1", "knit-1", "pants-1", "shoes-1"],
+                      rationale: "stacked bases",
+                    },
+                    {
+                      lookId: "2",
+                      title: "Clean",
+                      itemIds: ["knit-1", "pants-1", "shoes-1"],
+                      rationale: "ok",
+                    },
+                    {
+                      lookId: "3",
+                      title: "Blazer",
+                      itemIds: ["shirt-1", "pants-1", "blazer-1", "shoes-1"],
+                      rationale: "layered",
+                    },
+                  ],
+                }),
+              },
+            ],
+          },
+        },
+        usage: { inputTokens: 20, outputTokens: 40 },
+      };
+    },
+  });
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({ context: "office", engine: "bedrock" }),
+    });
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 200);
+  var body = JSON.parse(res.body);
+  assert.equal(body.looks.length, 3);
+  assert.equal(call, 1);
+  var look1Ids = body.looks[0].items.map(function (row) {
+    return row.itemId;
+  });
+  assert.ok(look1Ids.includes("shirt-1"));
+  assert.ok(!look1Ids.includes("knit-1"));
 });
 
 test("Bedrock incomplete looks repair then hard-fail", async function () {
