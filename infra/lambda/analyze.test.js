@@ -75,14 +75,15 @@ test("parseJsonObject extracts fenced JSON", function () {
 test("normalizeProposal fills attr keys", function () {
   var proposal = analyze.normalizeProposal({
     label: "navy blazer",
-    attributes: { type: "blazer", color: "navy" },
+    attributes: { type: "blazer", fabric: "wool" },
     aiContext: "Office jacket",
     followUpQuestions: ["Lined?", ""],
     notes: "Brand unclear",
   });
   assert.equal(proposal.label, "navy blazer");
   assert.equal(proposal.attributes.type, "blazer");
-  assert.equal(proposal.attributes.fabric, "");
+  assert.equal(proposal.attributes.fabric, "wool");
+  assert.equal(proposal.attributes.color, undefined);
   assert.equal(proposal.aiContext, "Office jacket");
   assert.deepEqual(proposal.followUpQuestions, ["Lined?"]);
 });
@@ -101,7 +102,6 @@ test("analyzeItem with mocked Bedrock returns proposal", async function () {
                   label: "dress shirt",
                   attributes: {
                     type: "dress shirt",
-                    color: "white",
                     fabric: "cotton",
                     brandModel: "",
                     formality: "business",
@@ -165,7 +165,7 @@ test("POST /api/items/analyze is routed", async function () {
           message: {
             content: [
               {
-                text: '{"label":"tie","attributes":{"type":"tie","color":"navy","fabric":"silk","brandModel":"","formality":"business","pattern":"solid","season":"all-season","outfitRole":"neckwear"},"aiContext":"Navy silk tie.","followUpQuestions":[]}',
+                text: '{"label":"tie","attributes":{"type":"tie","fabric":"silk","brandModel":"","formality":"business","pattern":"solid","season":"all-season","outfitRole":"neckwear"},"aiContext":"Navy silk tie.","followUpQuestions":[]}',
               },
             ],
           },
@@ -195,7 +195,6 @@ test("createItem persists aiContext", async function () {
     { sub: "test-user" },
     {
       type: "shirt",
-      color: "white",
       fabric: "cotton",
       brandModel: "n/a",
       formality: "business",

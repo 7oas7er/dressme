@@ -6,7 +6,6 @@ test("catalogCardSubLine prefers Brand · Wada English name", () => {
   assert.equal(
     catalogCardSubLine({
       brandModel: "Pierre Cardin",
-      color: "black",
       wadaColorIds: ["wada:v1:0"],
       outfitRole: "belt",
     }),
@@ -14,7 +13,7 @@ test("catalogCardSubLine prefers Brand · Wada English name", () => {
   );
 });
 
-test("catalogCardSubLine falls back to free-text color when no Wada", () => {
+test("catalogCardSubLine omits color segment when no Wada (no free-text fallback)", () => {
   assert.equal(
     catalogCardSubLine({
       brandModel: "Pierre Cardin",
@@ -22,23 +21,21 @@ test("catalogCardSubLine falls back to free-text color when no Wada", () => {
       wadaColorIds: [],
       outfitRole: "belt",
     }),
-    "Pierre Cardin · Black"
+    "Pierre Cardin"
   );
 });
 
-test("catalogCardSubLine omits empty brand (color only)", () => {
+test("catalogCardSubLine omits empty brand (Wada name only)", () => {
   assert.equal(
     catalogCardSubLine({
       brandModel: "  ",
-      color: "navy",
       wadaColorIds: [],
     }),
-    "navy"
+    ""
   );
   assert.equal(
     catalogCardSubLine({
       brandModel: "",
-      color: "olive",
       wadaColorIds: ["wada:v1:0"],
     }),
     "Hermosa Pink"
@@ -48,15 +45,15 @@ test("catalogCardSubLine omits empty brand (color only)", () => {
 test("catalogCardSubLine never includes outfitRole", () => {
   const line = catalogCardSubLine({
     brandModel: "Alden",
-    color: "brown",
+    wadaColorIds: ["wada:v1:0"],
     outfitRole: "footwear",
   });
-  assert.equal(line, "Alden · brown");
+  assert.equal(line, "Alden · Hermosa Pink");
   assert.ok(!/footwear/.test(line));
 });
 
-test("catalogCardSubLine handles missing color and brand", () => {
-  assert.equal(catalogCardSubLine({ brandModel: "Drake's", color: "" }), "Drake's");
-  assert.equal(catalogCardSubLine({ brandModel: "", color: "" }), "");
+test("catalogCardSubLine handles missing Wada and brand", () => {
+  assert.equal(catalogCardSubLine({ brandModel: "Drake's", wadaColorIds: [] }), "Drake's");
+  assert.equal(catalogCardSubLine({ brandModel: "", wadaColorIds: [] }), "");
   assert.equal(catalogCardSubLine(null), "");
 });

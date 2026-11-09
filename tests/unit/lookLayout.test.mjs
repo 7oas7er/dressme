@@ -28,9 +28,9 @@ function item(partial) {
     itemId: partial.itemId || "id",
     type: partial.type || "",
     outfitRole: partial.outfitRole || "",
-    color: partial.color || "",
     pattern: partial.pattern || "",
     brandModel: partial.brandModel || "",
+    wadaColorIds: partial.wadaColorIds || [],
     photos: partial.photos || [photo("https://f.example/a.jpg", "https://t.example/a.jpg")],
     ...partial,
   };
@@ -177,14 +177,41 @@ test("catalog layerImageUrl follows photos[0] after primary reorder", () => {
   assert.equal(layerImageUrl(after, { purpose: "catalog" }), "https://f.example/second.jpg");
 });
 
-test("buildLookVisual orders hero by z-index and strip top-down; fills from color", () => {
+test("buildLookVisual orders hero by z-index and strip top-down; Wada fills when set", () => {
   const look = {
     items: [
-      item({ itemId: "sh", outfitRole: "footwear", type: "shoes", color: "brown" }),
-      item({ itemId: "tr", outfitRole: "trousers", type: "pants", color: "grey", pattern: "solid" }),
-      item({ itemId: "si", outfitRole: "shirt", type: "oxford", color: "white", pattern: "stripe" }),
-      item({ itemId: "jk", outfitRole: "outerwear", type: "blazer", color: "navy" }),
-      item({ itemId: "be", outfitRole: "belt", type: "belt", color: "black" }),
+      item({
+        itemId: "sh",
+        outfitRole: "footwear",
+        type: "shoes",
+        wadaColorIds: ["wada:v1:42"],
+      }),
+      item({
+        itemId: "tr",
+        outfitRole: "trousers",
+        type: "pants",
+        pattern: "solid",
+        wadaColorIds: ["wada:v1:7"],
+      }),
+      item({
+        itemId: "si",
+        outfitRole: "shirt",
+        type: "oxford",
+        pattern: "stripe",
+        wadaColorIds: ["wada:v1:0"],
+      }),
+      item({
+        itemId: "jk",
+        outfitRole: "outerwear",
+        type: "blazer",
+        wadaColorIds: ["wada:v1:0"],
+      }),
+      item({
+        itemId: "be",
+        outfitRole: "belt",
+        type: "belt",
+        wadaColorIds: ["wada:v1:42"],
+      }),
     ],
   };
   const visual = buildLookVisual(look, 0);
@@ -199,21 +226,20 @@ test("buildLookVisual orders hero by z-index and strip top-down; fills from colo
   );
   assert.equal(visual.layers[3].imageUrl, "https://f.example/a.jpg");
   assert.equal(visual.strip[0].thumbUrl, "https://t.example/a.jpg");
-  assert.equal(visual.layers.find((l) => l.slotId === "jacket").fillColor, "#1e3a5f");
+  assert.equal(visual.layers.find((l) => l.slotId === "jacket").fillColor, "#f9c1ce");
   assert.equal(visual.layers.find((l) => l.slotId === "shirt").patternHint, "stripe");
   assert.ok(visual.belt);
   assert.equal(visual.belt.itemId, "be");
-  assert.equal(visual.belt.fillColor, "#1a1a1a");
+  assert.equal(visual.belt.fillColor, "#fdd4bd");
 });
 
-test("Option D prefers primary Wada hex over free-text color map", () => {
+test("Option D uses primary Wada hex when set", () => {
   const look = {
     items: [
       item({
         itemId: "jk",
         outfitRole: "outerwear",
         type: "blazer",
-        color: "navy",
         wadaColorIds: ["wada:v1:0"],
       }),
     ],
@@ -224,21 +250,20 @@ test("Option D prefers primary Wada hex over free-text color map", () => {
   assert.equal(jacket.fillFromWada, true);
 });
 
-test("without Wada, fillFromWada is false and color map still applies", () => {
+test("without Wada, fillFromWada is false and neutral fallback applies", () => {
   const look = {
     items: [
       item({
         itemId: "jk",
         outfitRole: "outerwear",
         type: "blazer",
-        color: "navy",
         wadaColorIds: [],
       }),
     ],
   };
   const visual = buildLookVisual(look, 0);
   const jacket = visual.layers.find((l) => l.slotId === "jacket");
-  assert.equal(jacket.fillColor, "#1e3a5f");
+  assert.equal(jacket.fillColor, "#9aa3ad");
   assert.equal(jacket.fillFromWada, false);
 });
 
@@ -277,19 +302,17 @@ test("renderLookCard DOM is photos-only with Wada plate and tappable pieces", ()
         itemId: "jk",
         outfitRole: "outerwear",
         type: "blazer",
-        color: "navy",
         wadaColorIds: ["wada:v1:42"],
       }),
-      item({ itemId: "si", outfitRole: "shirt", type: "oxford", color: "white", pattern: "stripe" }),
+      item({ itemId: "si", outfitRole: "shirt", type: "oxford", pattern: "stripe" }),
       item({
         itemId: "tr",
         outfitRole: "trousers",
         type: "pants",
-        color: "grey",
         wadaColorIds: ["wada:v1:7"],
       }),
-      item({ itemId: "sh", outfitRole: "footwear", type: "shoes", color: "brown" }),
-      item({ itemId: "be", outfitRole: "belt", type: "belt", color: "black" }),
+      item({ itemId: "sh", outfitRole: "footwear", type: "shoes" }),
+      item({ itemId: "be", outfitRole: "belt", type: "belt" }),
     ],
   };
   let opened = null;

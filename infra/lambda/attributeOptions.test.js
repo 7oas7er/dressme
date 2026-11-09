@@ -65,7 +65,6 @@ function attrs(overrides) {
   return Object.assign(
     {
       type: "jacket",
-      color: "navy",
       fabric: "wool",
       brandModel: "Example Co. Blazer",
       formality: "business",
@@ -87,9 +86,11 @@ test("attribute options returns classic menswear seeds", async function () {
   var body = JSON.parse(res.body);
   assert.ok(body.fields.includes("fabric"));
   assert.ok(body.fields.includes("brandModel"));
+  assert.ok(!body.fields.includes("color"));
   assert.ok(body.options.type.includes("blazer"));
   assert.ok(body.options.fabric.includes("tweed"));
   assert.ok(body.options.formality.includes("smart casual"));
+  assert.equal(body.options.color, undefined);
   assert.deepEqual(body.options.brandModel, []);
   assert.deepEqual(body.custom.fabric, []);
   assert.deepEqual(body.custom.brandModel, []);
@@ -105,7 +106,6 @@ test("create/update remembers free-text values for later dropdowns", async funct
     body: JSON.stringify(
       attrs({
         fabric: "vintage hopsack",
-        color: "petrol",
         brandModel: "Drake's Donegal",
       })
     ),
@@ -119,12 +119,13 @@ test("create/update remembers free-text values for later dropdowns", async funct
   assert.equal(options.statusCode, 200);
   var body = JSON.parse(options.body);
   assert.ok(body.options.fabric.includes("vintage hopsack"));
-  assert.ok(body.options.color.includes("petrol"));
   assert.ok(body.options.brandModel.includes("Drake's Donegal"));
   assert.ok(body.custom.fabric.includes("vintage hopsack"));
   assert.ok(body.custom.brandModel.includes("Drake's Donegal"));
   // Seed values are not stored as custom.
   assert.ok(!body.custom.type.includes("jacket"));
+  // Free-text color is no longer a suggestion field.
+  assert.equal(body.options.color, undefined);
 
   var itemId = JSON.parse(created.body).item.itemId;
   var updated = await api.handler({

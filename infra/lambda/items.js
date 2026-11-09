@@ -24,7 +24,6 @@ var wadaPalette = require("./wadaPalette");
 
 var ATTR_KEYS = [
   "type",
-  "color",
   "fabric",
   "brandModel",
   "formality",
@@ -209,7 +208,6 @@ function publicItem(item, photoUrls, thumbUrls, cutoutUrls) {
   var out = {
     itemId: item.itemId,
     type: item.type,
-    color: item.color,
     fabric: item.fabric,
     brandModel: item.brandModel,
     formality: item.formality,
@@ -566,6 +564,8 @@ async function createItem(user, body) {
   });
   applyAiContext(item, body, false);
   applyWadaColorIds(item, body, false);
+  // Legacy free-text color dropped — never persist or return it.
+  delete item.color;
   item.searchText = buildSearchText(item);
 
   await docClient().send(
@@ -750,6 +750,8 @@ async function updateItem(user, itemId, body) {
     }
   }
 
+  // Strip legacy free-text color on write (ignore leftovers on read).
+  delete next.color;
   next.searchText = buildSearchText(next);
   await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
 
@@ -795,6 +797,7 @@ async function confirmPhotos(user, itemId, body) {
     photos: photos,
     updatedAt: nowIso(),
   });
+  delete next.color;
   next.searchText = buildSearchText(next);
   await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
   return {
@@ -916,6 +919,7 @@ async function backfillDerivative(user, kind, options) {
         photos: nextPhotos,
         updatedAt: nowIso(),
       });
+      delete next.color;
       next.searchText = buildSearchText(next);
       await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
       updatedItems += 1;

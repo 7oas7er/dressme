@@ -17,7 +17,6 @@ import { nearestWadaColor } from "./wadaNearest.js";
 /** Fields that use suggested values + free text (UC-19), including brand/model. */
 const SUGGESTION_KEYS = new Set([
   "type",
-  "color",
   "fabric",
   "brandModel",
   "formality",
@@ -26,9 +25,9 @@ const SUGGESTION_KEYS = new Set([
   "outfitRole",
 ]);
 
+/** Add/Edit form fields — color is Wada-only (UC-26), not free text. */
 const ATTR_FIELDS = [
   { key: "type", label: "Type", placeholder: "jacket, shirt, shoes…" },
-  { key: "color", label: "Color", placeholder: "navy" },
   { key: "fabric", label: "Fabric", placeholder: "wool" },
   { key: "brandModel", label: "Brand / model", placeholder: "maker or model" },
   { key: "formality", label: "Formality", placeholder: "business, casual…" },
@@ -37,16 +36,32 @@ const ATTR_FIELDS = [
   { key: "outfitRole", label: "Outfit role", placeholder: "outerwear, base…" },
 ];
 
+/** UC-07 filter categories; `color` = primary Wada English name in the wardrobe. */
+const FILTER_FIELDS = [
+  { key: "type", label: "Type" },
+  { key: "color", label: "Color" },
+  { key: "fabric", label: "Fabric" },
+  { key: "brandModel", label: "Brand / model" },
+  { key: "formality", label: "Formality" },
+  { key: "pattern", label: "Pattern" },
+  { key: "season", label: "Season / climate" },
+  { key: "outfitRole", label: "Outfit role" },
+];
+
+/** Primary Wada English name, or "" when unset / unresolved. */
+function primaryWadaName(item) {
+  const primaryId = primaryWadaId(item && item.wadaColorIds);
+  return primaryId ? resolveWadaName(primaryId) : "";
+}
+
 /**
  * Catalog card sub line (UC-02): `Brand · color`.
- * Color = primary Wada English name when wadaColorIds[0] resolves, else free-text color.
- * Missing brand → color only; missing color → brand only; both empty → "".
+ * Color = primary Wada English name only (omit segment when unset).
+ * Missing brand → Wada name only; both empty → "".
  */
 export function catalogCardSubLine(item) {
   const brand = String((item && item.brandModel) || "").trim();
-  const primaryId = primaryWadaId(item && item.wadaColorIds);
-  const wadaName = primaryId ? resolveWadaName(primaryId) : "";
-  const color = wadaName || String((item && item.color) || "").trim();
+  const color = primaryWadaName(item);
   if (brand && color) return `${brand} · ${color}`;
   return color || brand || "";
 }
@@ -54,10 +69,13 @@ export function catalogCardSubLine(item) {
 /** Unique non-empty attribute values present in the wardrobe (UC-07). */
 export function collectAttributeFilterValues(items) {
   const out = {};
-  for (const field of ATTR_FIELDS) {
+  for (const field of FILTER_FIELDS) {
     const seen = new Set();
     for (const item of items || []) {
-      const value = String(item[field.key] || "").trim();
+      const value =
+        field.key === "color"
+          ? primaryWadaName(item)
+          : String(item[field.key] || "").trim();
       if (value) seen.add(value);
     }
     out[field.key] = Array.from(seen).sort((a, b) => a.localeCompare(b));
@@ -69,22 +87,26 @@ export function collectAttributeFilterValues(items) {
 export function applyAttributeFilters(items, filters) {
   const active = filters || {};
   return (items || []).filter((item) => {
-    for (const field of ATTR_FIELDS) {
+    for (const field of FILTER_FIELDS) {
       const selected = String(active[field.key] || "").trim();
       if (!selected) continue;
-      if (String(item[field.key] || "").trim() !== selected) return false;
+      const value =
+        field.key === "color"
+          ? primaryWadaName(item)
+          : String(item[field.key] || "").trim();
+      if (value !== selected) return false;
     }
     return true;
   });
 }
 
 function filtersActive(filters) {
-  return ATTR_FIELDS.some((field) => String((filters || {})[field.key] || "").trim());
+  return FILTER_FIELDS.some((field) => String((filters || {})[field.key] || "").trim());
 }
 
 function emptyFilters() {
   const next = {};
-  for (const field of ATTR_FIELDS) next[field.key] = "";
+  for (const field of FILTER_FIELDS) next[field.key] = "";
   return next;
 }
 
@@ -526,7 +548,7 @@ export function renderCatalogApp(root, { onLogout }) {
 
   function pruneStaleFilters() {
     const options = collectAttributeFilterValues(state.items);
-    for (const field of ATTR_FIELDS) {
+    for (const field of FILTER_FIELDS) {
       const selected = String(state.filters[field.key] || "").trim();
       if (selected && !(options[field.key] || []).includes(selected)) {
         state.filters[field.key] = "";
@@ -1069,7 +1091,9 @@ export function renderCatalogApp(root, { onLogout }) {
   }
 
   async function removeItem(item) {
-    if (!window.confirm(`Delete ${item.type} (${item.color})?`)) return;
+    const wadaName = primaryWadaName(item);
+    const label = wadaName ? `${item.type} (${wadaName})` : item.type;
+    if (!window.confirm(`Delete ${label}?`)) return;
     state.busy = true;
     paint();
     try {
@@ -1294,7 +1318,7 @@ export function renderCatalogApp(root, { onLogout }) {
   }
 
   function renderFilters() {
-    const activeCount = ATTR_FIELDS.filter((field) =>
+    const activeCount = FILTER_FIELDS.filter((field) =>
       String(state.filters[field.key] || "").trim()
     ).length;
     const open = state.filtersOpen;
@@ -1330,7 +1354,7 @@ export function renderCatalogApp(root, { onLogout }) {
       "aria-label": "Filter catalog by attributes",
     });
     const grid = el("div", { className: "filter-grid" });
-    for (const field of ATTR_FIELDS) {
+    for (const field of FILTER_FIELDS) {
       const values = options[field.key] || [];
       const select = el("select", {
         name: `filter-${field.key}`,
@@ -1382,7 +1406,7 @@ export function renderCatalogApp(root, { onLogout }) {
         className: "search",
         type: "search",
         name: "q",
-        placeholder: "Search color, type, brand…",
+        placeholder: "Search type, brand, Wada…",
         value: state.query,
         onInput: (event) => {
           state.query = event.target.value;
@@ -1432,7 +1456,10 @@ export function renderCatalogApp(root, { onLogout }) {
             url
               ? el("img", {
                   src: url,
-                  alt: `${item.type} ${item.color}`,
+                  alt: (() => {
+                    const wadaName = primaryWadaName(item);
+                    return wadaName ? `${item.type} ${wadaName}` : item.type;
+                  })(),
                 })
               : el("div", { className: "thumb", text: "No photo" }),
             el("div", { className: "meta" }, [
@@ -2088,7 +2115,7 @@ export function renderCatalogApp(root, { onLogout }) {
 
   function renderDetail(item) {
     const attrParts = [
-      item.color,
+      primaryWadaName(item),
       item.fabric,
       item.formality,
       item.season,

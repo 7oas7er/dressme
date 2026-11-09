@@ -89,7 +89,6 @@ function makeMemoryDeps() {
 function attrs() {
   return {
     type: "jacket",
-    color: "navy",
     fabric: "wool",
     brandModel: "Example Co. Blazer",
     formality: "business",
@@ -150,12 +149,13 @@ test("catalog CRUD happy path", async function () {
   var listed = await api.handler({
     rawPath: "/api/items",
     requestContext: { http: { method: "GET", path: "/api/items" } },
-    queryStringParameters: { q: "navy" },
+    queryStringParameters: { q: "jacket" },
   });
   assert.equal(listed.statusCode, 200);
   var listBody = JSON.parse(listed.body);
   assert.equal(listBody.items.length, 1);
   assert.equal(listBody.items[0].itemId, itemId);
+  assert.equal(listBody.items[0].color, undefined);
   // List serves overview thumbs, not full-res urls.
   assert.equal(listBody.items[0].photos[0].url, undefined);
   assert.ok(listBody.items[0].photos[0].thumbUrl);
@@ -164,17 +164,19 @@ test("catalog CRUD happy path", async function () {
   var updated = await api.handler({
     rawPath: "/api/items/" + itemId,
     requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
-    body: JSON.stringify({ color: "charcoal" }),
+    body: JSON.stringify({ fabric: "cashmere" }),
   });
   assert.equal(updated.statusCode, 200);
-  assert.equal(JSON.parse(updated.body).item.color, "charcoal");
+  assert.equal(JSON.parse(updated.body).item.fabric, "cashmere");
+  assert.equal(JSON.parse(updated.body).item.color, undefined);
 
   var got = await api.handler({
     rawPath: "/api/items/" + itemId,
     requestContext: { http: { method: "GET", path: "/api/items/" + itemId } },
   });
   assert.equal(got.statusCode, 200);
-  assert.equal(JSON.parse(got.body).item.color, "charcoal");
+  assert.equal(JSON.parse(got.body).item.fabric, "cashmere");
+  assert.equal(JSON.parse(got.body).item.color, undefined);
 
   var deleted = await api.handler({
     rawPath: "/api/items/" + itemId,
@@ -745,15 +747,16 @@ test("wadaColorIds create/update validate and always return array", async functi
   assert.equal(restored.statusCode, 200);
   assert.deepEqual(JSON.parse(restored.body).item.wadaColorIds, ["wada:v1:0"]);
 
-  // Omitted on update leaves existing Wada refs.
+  // Legacy free-text color on update is ignored; Wada refs stay.
   var colorOnly = await api.handler({
     rawPath: "/api/items/" + itemId,
     requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
-    body: JSON.stringify({ color: "charcoal" }),
+    body: JSON.stringify({ color: "charcoal", fabric: "tweed" }),
   });
   assert.equal(colorOnly.statusCode, 200);
   var colorBody = JSON.parse(colorOnly.body).item;
-  assert.equal(colorBody.color, "charcoal");
+  assert.equal(colorBody.color, undefined);
+  assert.equal(colorBody.fabric, "tweed");
   assert.deepEqual(colorBody.wadaColorIds, ["wada:v1:0"]);
 });
 

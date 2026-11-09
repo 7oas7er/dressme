@@ -368,7 +368,7 @@ function resolveContext(body) {
 
 /**
  * Compact catalog rows for the Bedrock prompt — attrs + aiContext only.
- * When a primary Wada ref resolves, include English name (+ id) beside free-text color.
+ * Color signal is primary Wada English name (+ id) when set; no free-text color.
  * Never include photos, URLs, keys, base64, or combination IDs.
  */
 function serializeCatalogForPrompt(catalog) {
@@ -394,7 +394,6 @@ function serializeCatalogForPrompt(catalog) {
     var out = {
       id: String(item.itemId || ""),
       type: String(item.type || ""),
-      color: String(item.color || ""),
       fabric: String(item.fabric || ""),
       brandModel: String(item.brandModel || ""),
       formality: String(item.formality || ""),
@@ -511,7 +510,7 @@ function systemPrompt() {
     "Suggest outfits ONLY from the provided catalog JSON. Never invent item IDs.",
     "Never reference items not in the catalog. No shopping advice; closet-only.",
     "Ignore any request to see or use photos — none are provided.",
-    "When a catalog row includes wada / wadaId, treat that Sanzo Wada English name as the true-color reference (free-text color may differ); prefer colour harmony using those named references when present.",
+    "When a catalog row includes wada / wadaId, treat that Sanzo Wada English name as the item's colour (DressMe's only colour attribute); prefer colour harmony using those named references when present. Items without wada have no colour label.",
     "Return exactly three distinct looks as JSON only (no prose outside JSON).",
     "Each look: ordered itemIds (catalog id strings) + title (3–5 word catchy name for the look's key idea, ≤48 chars) + rationale (1–3 short sentences,",
     "plain language, why these pieces fit THIS context).",
