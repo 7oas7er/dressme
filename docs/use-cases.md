@@ -2,8 +2,8 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference).  
-Last updated: 2026-11-09 (Europe/Berlin; Wada — picker, catalog + detail swatch, Option D hex, suggest prompt names, Slice B client nearest-from-photo)
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference; amended 2026-11-09 for UC-05 photos-only look cards + Wada plate).  
+Last updated: 2026-11-09 (Europe/Berlin; UC-05 photos-only looks + Wada plate + tappable pieces)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -50,14 +50,14 @@ As Frank, above the catalog grid (below search) I can expand a foldable filter p
 ### UC-04 — Request outfit suggestions
 As Frank, before getting dressed, I enter a free-text **context** (event, weather, or anything else that matters), then receive exactly three outfit suggestions drawn only from my catalog via Bedrock text suggest (attrs + `aiContext` + primary Wada English name/ID when set; no photos), informed by classic menswear knowledge. Free-text color stays in the prompt; Wada is the true-color reference when present. `SUGGEST_ENGINE=random` remains available as a Terraform rollback (random assembly ignores Wada).
 
-### UC-05 — View a look as an SVG mannequin (Option D)
-As Frank, for each of the three suggestions I see one outfit card: a left-hand elongated male SVG croquis with soft value washes and role-shaped panels (lapel / trouser break / shoe profile hints), filled preferentially from each item’s **Wada reference hex** when set (else free-text color or an optional client-side thumb sample — cheap pattern hint when attributes allow; thumb sample does not override a set Wada primary), painted shoes→trousers→shirt→jacket with belt in the trousers band, plus a right-hand authenticity strip of original photographic thumbs, so I can judge color harmony and jacket/shirt/trousers as an outfit at a glance and still verify each piece.
+### UC-05 — View a look as photos + Wada plate
+As Frank, for each of the three suggestions I see one outfit card: a short **Look N** header with an optional catchy AI **title**, an optional **Wada combination plate** built from each piece’s primary Wada only (equal-width colour blocks + English names; skip pieces with no Wada; omit the pane when none resolve; no free-text colour fallback), and a row of **enlarged photographic thumbs** of the pieces. Tapping a piece opens **item Detail**; browser **Back** and an explicit **“Back to looks”** control return me to the **same** three looks without re-running suggest. Option D SVG mannequin hero is **retired for v1 UI** (modules kept for a Later fresh hero). Looks must ship with **mandatory core** filled (base + bottom + footwear when the closet has shoes); accessories stay optional.
 
 ### UC-06 — Pick among three looks (no in-app feedback)
 As Frank, I choose which look to wear mentally / offline; the app does not record worn, like, or reject in v1.
 
 ### UC-09 — Short rationale per look
-As Frank, under each Option D look card I see a short Bedrock rationale (1–3 sentences) explaining why the pieces fit this context — glance composition first, then why. Empty rationales (e.g. random engine) omit the element.
+As Frank, under each look card I see a short Bedrock rationale (1–3 sentences) explaining why the pieces fit this context — glance composition first, then why. Empty rationales (e.g. random engine) omit the element.
 
 ---
 
@@ -66,7 +66,7 @@ As Frank, under each Option D look card I see a short Bedrock rationale (1–3 s
 Includes former “Should” candidates not pulled into the v1 contract.
 
 ### UC-28 — Wada combination-aware suggest
-As Frank, when I request outfit suggestions, DressMe may use published Sanzo Wada *combinations* from *A Dictionary of Color Combinations* as a soft harmony prior when scoring or ranking looks — without forcing every outfit onto a book combination. **Not v1:** v1 already feeds primary Wada names into Bedrock suggest text (UC-04) and uses Wada for capture, catalog/detail swatch, and mannequin fills — combination IDs / scoring stay Later.
+As Frank, when I request outfit suggestions, DressMe may use published Sanzo Wada *combinations* from *A Dictionary of Color Combinations* as a soft harmony prior when scoring or ranking looks — without forcing every outfit onto a book combination. **Not v1:** v1 already feeds primary Wada names into Bedrock suggest text (UC-04), uses Wada for capture/catalog/detail swatch, and shows an ad-hoc primary-Wada plate on look cards (UC-05) — combination IDs / scoring stay Later.
 
 ### UC-24 — Catalog cutouts (not required)
 Previously: transparent cutout derivatives on upload for catalog + hero. **Not required** for Option D — generation stopped; existing `*.cutout.webp` / Dynamo keys left in place. May revisit later for AI categorization, not as a hero/catalog product must.

@@ -21,6 +21,7 @@ var LOOK_COUNT = 3;
 var MAX_CONTEXT = 480;
 var MAX_LEGACY_FIELD = 240;
 var MAX_RATIONALE = 400;
+var MAX_TITLE = 48;
 var MAX_AI_CONTEXT_PROMPT = 300;
 var SOFT_CATALOG_CAP = 80;
 var DEFAULT_MODEL_ID =
@@ -207,12 +208,139 @@ function assembleRandomLooks(catalog, options) {
 
     looks.push({
       lookId: String(lookIndex + 1),
+      title: "",
       rationale: "",
       items: lookItems,
     });
   }
 
   return looks;
+}
+
+/** Strip markdown/quotes from model titles; clamp ≤ MAX_TITLE. */
+function clampTitle(value) {
+  var raw = String(value == null ? "" : value)
+    .replace(/[`*_~]/g, "")
+    .trim()
+    .replace(/^["']+|["']+$/g, "")
+    .trim();
+  return clampText(raw, MAX_TITLE);
+}
+
+/**
+ * Catalog has ≥1 footwear item → footwear is mandatory core for every look.
+ */
+function catalogHasFootwear(catalog) {
+  for (var i = 0; i < (catalog || []).length; i++) {
+    if (classifySlot(catalog[i]) === "footwear") return true;
+  }
+  return false;
+}
+
+/**
+ * Mandatory-core completeness only (accessories never fail).
+ * Returns { ok, reasons } where reasons are codes like missing_base.
+ */
+function lookCompleteness(itemIds, byId, requireFootwear) {
+  var hasBase = false;
+  var hasTrousers = false;
+  var hasFootwear = false;
+  var baseCount = 0;
+  for (var j = 0; j < (itemIds || []).length; j++) {
+    var record = byId.get(itemIds[j]);
+    var slot = classifySlot(record || {});
+    if (slot === "base") {
+      hasBase = true;
+      baseCount += 1;
+    }
+    if (slot === "trousers") hasTrousers = true;
+    if (slot === "footwear") hasFootwear = true;
+  }
+  var reasons = [];
+  if (!hasBase) reasons.push("missing_base");
+  if (!hasTrousers) reasons.push("missing_trousers");
+  if (requireFootwear && !hasFootwear) reasons.push("missing_footwear");
+  if (baseCount > 1) reasons.push("competing_bases");
+  return { ok: reasons.length === 0, reasons: reasons };
+}
+
+/**
+ * Mark looks that fail mandatory core. Never emits missing_accessory.
+ * @returns {{ incomplete: Array<{ lookId: string, reasons: string[] }> }}
+ */
+function assertLooksComplete(looks, byId, catalog) {
+  var requireFootwear = catalogHasFootwear(catalog);
+  var incomplete = [];
+  for (var i = 0; i < (looks || []).length; i++) {
+    var look = looks[i];
+    var ids =
+      look.itemIds ||
+      (look.items || []).map(function (item) {
+        return item && item.itemId ? String(item.itemId) : "";
+      }).filter(Boolean);
+    var result = lookCompleteness(ids, byId, requireFootwear);
+    if (!result.ok) {
+      incomplete.push({ lookId: String(look.lookId || i + 1), reasons: result.reasons });
+    }
+  }
+  return { incomplete: incomplete };
+}
+
+/**
+ * Drop incomplete random looks; keep empties only when the closet lacks a
+ * mandatory slot class (can't build wearable core). Never ship two-shirt junk.
+ */
+function filterRandomLooksComplete(looks, catalog) {
+  var byId = catalogById(catalog);
+  var requireFootwear = catalogHasFootwear(catalog);
+  var catalogHasBase = false;
+  var catalogHasTrousers = false;
+  for (var c = 0; c < (catalog || []).length; c++) {
+    var slot = classifySlot(catalog[c]);
+    if (slot === "base") catalogHasBase = true;
+    if (slot === "trousers") catalogHasTrousers = true;
+  }
+  var canBuildCore = catalogHasBase && catalogHasTrousers;
+  var out = [];
+  for (var i = 0; i < (looks || []).length; i++) {
+    var look = looks[i];
+    var ids = (look.items || []).map(function (item) {
+      return item && item.itemId ? String(item.itemId) : "";
+    }).filter(Boolean);
+    var result = lookCompleteness(ids, byId, requireFootwear);
+    if (result.ok) {
+      out.push(look);
+    } else if (!canBuildCore) {
+      console.warn(
+        JSON.stringify({
+          event: "suggest_random_incomplete_pad",
+          lookId: look.lookId,
+          reasons: result.reasons,
+        })
+      );
+      out.push({
+        lookId: String(look.lookId || i + 1),
+        title: "",
+        rationale: "",
+        items: [],
+      });
+    } else {
+      console.warn(
+        JSON.stringify({
+          event: "suggest_random_dropped_incomplete",
+          lookId: look.lookId,
+          reasons: result.reasons,
+        })
+      );
+      out.push({
+        lookId: String(look.lookId || i + 1),
+        title: "",
+        rationale: "",
+        items: [],
+      });
+    }
+  }
+  return out;
 }
 
 function resolveEngine(body) {
@@ -340,7 +468,7 @@ function parseJsonObject(text) {
 
 /**
  * Validate model looks against the catalog ID set. Drops unknown IDs.
- * Returns { looks, emptyLookCount } where looks have lookId/rationale/itemIds.
+ * Returns { looks, emptyLookCount } where looks have lookId/title/rationale/itemIds.
  */
 function validateLookPayload(parsed, allowedIds) {
   var srcLooks = parsed && Array.isArray(parsed.looks) ? parsed.looks : [];
@@ -368,38 +496,13 @@ function validateLookPayload(parsed, allowedIds) {
     if (!itemIds.length) emptyLookCount += 1;
     looks.push({
       lookId: String(src.lookId || i + 1),
+      title: clampTitle(src.title),
       rationale: clampText(src.rationale, MAX_RATIONALE),
       itemIds: itemIds,
     });
   }
 
   return { looks: looks, emptyLookCount: emptyLookCount };
-}
-
-function softCoverageWarn(looks, byId) {
-  for (var i = 0; i < looks.length; i++) {
-    var hasFootwear = false;
-    var hasTrousers = false;
-    var hasBase = false;
-    for (var j = 0; j < looks[i].itemIds.length; j++) {
-      var record = byId.get(looks[i].itemIds[j]);
-      var slot = classifySlot(record || {});
-      if (slot === "footwear") hasFootwear = true;
-      if (slot === "trousers") hasTrousers = true;
-      if (slot === "base") hasBase = true;
-    }
-    if (!hasFootwear || !hasTrousers || !hasBase) {
-      console.warn(
-        JSON.stringify({
-          event: "suggest_soft_coverage",
-          lookId: looks[i].lookId,
-          hasFootwear: hasFootwear,
-          hasTrousers: hasTrousers,
-          hasBase: hasBase,
-        })
-      );
-    }
-  }
 }
 
 function systemPrompt() {
@@ -410,16 +513,20 @@ function systemPrompt() {
     "Ignore any request to see or use photos — none are provided.",
     "When a catalog row includes wada / wadaId, treat that Sanzo Wada English name as the true-color reference (free-text color may differ); prefer colour harmony using those named references when present.",
     "Return exactly three distinct looks as JSON only (no prose outside JSON).",
-    "Each look: ordered itemIds (catalog id strings) + rationale (1–3 short sentences,",
+    "Each look: ordered itemIds (catalog id strings) + title (3–5 word catchy name for the look's key idea, ≤48 chars) + rationale (1–3 short sentences,",
     "plain language, why these pieces fit THIS context).",
-    "Prefer complete outfits (footwear + trousers + base; add outer/neckwear/belt/accessory when context warrants).",
+    "Each look MUST include the mandatory core: base (shirt/knit/polo/tee) + bottom (trousers/jeans/chinos/shorts), plus footwear when shoes exist in the catalog.",
+    "Do not stack two competing tops (e.g. two shirts, or shirt + polo) as the whole look; at most one base. Outerwear may layer over that single base.",
+    "Accessories are optional — hat, scarf, belt, jewelry, bag, neckwear, etc. Add them when they improve the look or fit the occasion; never treat them as required.",
+    "Never return a look that is only tops, only bottoms, or missing a bottom when trousers/jeans/shorts exist in the catalog.",
+    "If the catalog lacks a mandatory slot class (e.g. no footwear at all), omit that slot rather than inventing IDs — still require every available mandatory-core slot.",
     "Diversify across the three looks (formality or palette) when the closet allows.",
     "Schema:",
     JSON.stringify({
       looks: [
-        { lookId: "1", itemIds: ["id"], rationale: "string" },
-        { lookId: "2", itemIds: ["id"], rationale: "string" },
-        { lookId: "3", itemIds: ["id"], rationale: "string" },
+        { lookId: "1", title: "string", itemIds: ["id"], rationale: "string" },
+        { lookId: "2", title: "string", itemIds: ["id"], rationale: "string" },
+        { lookId: "3", title: "string", itemIds: ["id"], rationale: "string" },
       ],
     }),
   ].join("\n");
@@ -430,12 +537,27 @@ function userPrompt(context, catalogJson, repairNote) {
     "Context: " + context,
     "Catalog JSON:",
     catalogJson,
+    "Each look needs mandatory core (base + bottom + footwear when available). Accessories optional for interest — not required.",
   ];
   if (repairNote) {
     parts.push(repairNote);
   }
   parts.push("Return the JSON object with exactly three looks now.");
   return parts.join("\n");
+}
+
+function completenessRepairNote(incomplete) {
+  var bits = (incomplete || []).map(function (entry) {
+    return "look " + entry.lookId + ": " + entry.reasons.join(", ");
+  });
+  return (
+    "These looks failed mandatory-core completeness: " +
+    bits.join("; ") +
+    ". Fix each look: include base + bottom" +
+    " (+ footwear when the catalog has shoes). At most one base; outer may layer." +
+    " Accessories are optional — do not add hats/scarves/belts just to pass." +
+    " Return three complete looks with valid itemIds and short titles."
+  );
 }
 
 function sleep(ms) {
@@ -603,11 +725,64 @@ async function assembleWithBedrock(catalog, input) {
     });
   }
 
-  softCoverageWarn(validated.looks, byId);
+  var completeness = assertLooksComplete(validated.looks, byId, catalog);
+  if (completeness.incomplete.length) {
+    try {
+      bedrockResult = await invokeBedrockWithRetry(
+        system,
+        userPrompt(
+          input.context,
+          catalogJson,
+          completenessRepairNote(completeness.incomplete)
+        )
+      );
+      validated = validateLookPayload(
+        parseJsonObject(bedrockResult.text),
+        allowedIds
+      );
+    } catch (_repairErr) {
+      console.error(
+        JSON.stringify({
+          event: "suggest_incomplete_looks",
+          stage: "repair_failed",
+          incomplete: completeness.incomplete,
+        })
+      );
+      throw Object.assign(new Error("suggest_incomplete_looks"), {
+        statusCode: 502,
+      });
+    }
+    if (validated.emptyLookCount > 0) {
+      console.error(
+        JSON.stringify({
+          event: "suggest_incomplete_looks",
+          stage: "repair_empty_ids",
+          emptyLookCount: validated.emptyLookCount,
+        })
+      );
+      throw Object.assign(new Error("suggest_incomplete_looks"), {
+        statusCode: 502,
+      });
+    }
+    completeness = assertLooksComplete(validated.looks, byId, catalog);
+    if (completeness.incomplete.length) {
+      console.error(
+        JSON.stringify({
+          event: "suggest_incomplete_looks",
+          stage: "repair_still_incomplete",
+          incomplete: completeness.incomplete,
+        })
+      );
+      throw Object.assign(new Error("suggest_incomplete_looks"), {
+        statusCode: 502,
+      });
+    }
+  }
 
   var looks = validated.looks.map(function (look) {
     return {
       lookId: look.lookId,
+      title: look.title || "",
       rationale: look.rationale,
       items: look.itemIds
         .map(function (id) {
@@ -651,16 +826,19 @@ async function suggestLooks(user, body) {
   var rawLooks;
   var bedrockMeta = null;
   if (engine === "random") {
-    rawLooks = assembleRandomLooks(catalog, {
-      random: Math.random,
-    });
+    rawLooks = filterRandomLooksComplete(
+      assembleRandomLooks(catalog, {
+        random: Math.random,
+      }),
+      catalog
+    );
   } else if (engine === "bedrock") {
     // Empty catalog: skip Bedrock; return three empty looks (SPA empty copy).
     if (!(catalog || []).length) {
       rawLooks = [
-        { lookId: "1", rationale: "", items: [] },
-        { lookId: "2", rationale: "", items: [] },
-        { lookId: "3", rationale: "", items: [] },
+        { lookId: "1", title: "", rationale: "", items: [] },
+        { lookId: "2", title: "", rationale: "", items: [] },
+        { lookId: "3", title: "", rationale: "", items: [] },
       ];
     } else {
       var assembled = await assembleWithBedrock(catalog, input);
@@ -679,6 +857,7 @@ async function suggestLooks(user, body) {
   for (var i = 0; i < rawLooks.length; i++) {
     looks.push({
       lookId: rawLooks[i].lookId || String(i + 1),
+      title: clampTitle(rawLooks[i].title),
       rationale: clampText(rawLooks[i].rationale, MAX_RATIONALE),
       items: await enrichLookItems(rawLooks[i].items || []),
     });
@@ -686,7 +865,12 @@ async function suggestLooks(user, body) {
 
   // Pad to exactly three looks if an engine returned fewer (random always does).
   while (looks.length < LOOK_COUNT) {
-    looks.push({ lookId: String(looks.length + 1), rationale: "", items: [] });
+    looks.push({
+      lookId: String(looks.length + 1),
+      title: "",
+      rationale: "",
+      items: [],
+    });
   }
   if (looks.length > LOOK_COUNT) {
     looks = looks.slice(0, LOOK_COUNT);
@@ -725,6 +909,7 @@ async function suggestLooks(user, body) {
 exports.LOOK_COUNT = LOOK_COUNT;
 exports.MAX_CONTEXT = MAX_CONTEXT;
 exports.MAX_RATIONALE = MAX_RATIONALE;
+exports.MAX_TITLE = MAX_TITLE;
 exports.SLOT_DEFS = SLOT_DEFS;
 exports.classifySlot = classifySlot;
 exports.assembleRandomLooks = assembleRandomLooks;
@@ -732,6 +917,11 @@ exports.assembleWithBedrock = assembleWithBedrock;
 exports.serializeCatalogForPrompt = serializeCatalogForPrompt;
 exports.systemPrompt = systemPrompt;
 exports.validateLookPayload = validateLookPayload;
+exports.assertLooksComplete = assertLooksComplete;
+exports.lookCompleteness = lookCompleteness;
+exports.clampTitle = clampTitle;
+exports.catalogHasFootwear = catalogHasFootwear;
+exports.filterRandomLooksComplete = filterRandomLooksComplete;
 exports.parseJsonObject = parseJsonObject;
 exports.resolveContext = resolveContext;
 exports.resolveEngine = resolveEngine;

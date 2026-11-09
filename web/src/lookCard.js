@@ -1,11 +1,11 @@
 /**
- * Presentational look card: Option D SVG mannequin hero (left) +
- * authenticity strip of photographic thumbs (right).
- * Phase 1: elongated male croquis, soft washes, optional thumb color/texture.
+ * Presentational look card: photos-only pieces + optional Wada combination plate.
+ * Option D SVG mannequin helpers remain below for a Later hero (un-wired).
  */
 
 import { buildLookVisual } from "./lookLayout.js";
 import { lookHeadline, lookSummary } from "./suggest.js";
+import { lookWadaPlateEntries } from "./lookWadaPlate.js";
 import { sampleThumb } from "./thumbSample.js";
 
 function el(tag, attrs = {}, children = []) {
@@ -13,7 +13,10 @@ function el(tag, attrs = {}, children = []) {
   for (const [key, value] of Object.entries(attrs)) {
     if (key === "className") node.className = value;
     else if (key === "text") node.textContent = value;
-    else if (key.startsWith("on") && typeof value === "function") {
+    else if (key === "style" && value != null) {
+      // CSP style-src has no 'unsafe-inline' — use CSSOM like catalog swatches.
+      node.style.cssText = String(value);
+    } else if (key.startsWith("on") && typeof value === "function") {
       node.addEventListener(key.slice(2).toLowerCase(), value);
     } else if (value != null) {
       node.setAttribute(key, value);
@@ -276,7 +279,7 @@ function panelBaseFill(defs, lookIndex, layer, baseColor) {
 
 /**
  * Elongated male croquis (~9-head fashion proportion) with role panels.
- * Blank/minimal face. Paint order: shoes → trousers → shirt → jacket; belt in waist.
+ * Kept for Later hero — not mounted by renderLookCard.
  * viewBox taller than Phase 0 toy figure.
  */
 function renderMannequinSvg(visual, lookIndex) {
@@ -480,84 +483,122 @@ function applyThumbSamples(defs, lookIndex, panelRefs) {
   }
 }
 
-function renderStripThumb(layer) {
+/** Later hero: Option D SVG mannequin (un-wired from the photos-only card). */
+export { renderMannequinSvg };
+
+function renderWadaPlate(entries) {
+  if (!entries || !entries.length) return null;
+  const plate = el("div", {
+    className: "look-wada-plate",
+    role: "list",
+    "aria-label": "Wada colour plate",
+  });
+  for (const entry of entries) {
+    const cell = el("div", {
+      className: "look-wada-swatch",
+      role: "listitem",
+    });
+    cell.append(
+      el("div", {
+        className: "look-wada-block",
+        title: entry.name,
+        "aria-label": entry.name,
+        style: `background:${entry.hex}`,
+      }),
+      el("span", { className: "look-wada-name", text: entry.name })
+    );
+    plate.append(cell);
+  }
+  return plate;
+}
+
+function itemById(look, itemId) {
+  const id = String(itemId || "");
+  if (!id) return null;
+  return ((look && look.items) || []).find(
+    (item) => String(item.itemId || item.id || "") === id
+  ) || null;
+}
+
+function renderPieceThumb(layer, look, onItemOpen) {
+  const item = itemById(look, layer.itemId);
+  const label = layer.label || "catalog photo";
   const fig = el("figure", {
-    className: "look-strip-thumb",
+    className: "look-piece",
     "data-slot": layer.slotId || "",
     "data-item-id": layer.itemId || "",
     "data-hero": layer.hero ? "1" : "0",
   });
-  if (layer.thumbUrl) {
-    fig.append(
-      el("img", {
+  const media = layer.thumbUrl
+    ? el("img", {
         src: layer.thumbUrl,
-        alt: layer.label || "catalog photo",
+        alt: label,
         loading: "lazy",
       })
-    );
+    : el("div", { className: "thumb", text: "—" });
+
+  if (typeof onItemOpen === "function" && item) {
+    const btn = el("button", {
+      type: "button",
+      className: "look-piece-btn",
+      "aria-label": `Open ${label}`,
+      onClick: () => onItemOpen(item),
+    });
+    btn.append(media);
+    fig.append(btn);
   } else {
-    fig.append(el("div", { className: "thumb", text: "—" }));
+    fig.append(media);
   }
   return fig;
 }
 
 /**
- * Build one look card DOM node (SVG mannequin hero + right authenticity strip).
+ * Build one look card DOM node (Wada plate + enlarged tappable photos + rationale).
+ * @param {object} look
+ * @param {number} index
+ * @param {{ onItemOpen?: (item: object) => void }} [options]
  */
-export function renderLookCard(look, index = 0) {
+export function renderLookCard(look, index = 0, options = {}) {
+  const onItemOpen = options && options.onItemOpen;
   const visual = buildLookVisual(look, index);
+  const headline = lookHeadline(look, index);
   const lookEl = el("article", {
     className: "look-card",
-    "aria-label": lookHeadline(look, index),
+    "aria-label": headline,
   });
-  lookEl.append(el("h2", { text: lookHeadline(look, index) }));
+  lookEl.append(el("h2", { text: headline }));
   lookEl.append(
     el("p", { className: "muted look-summary", text: lookSummary(look) })
   );
 
+  const plate = renderWadaPlate(lookWadaPlateEntries((look && look.items) || []));
+  if (plate) lookEl.append(plate);
+
   const body = el("div", {
     className: "look-body",
     role: "group",
-    "aria-label": `${lookHeadline(look, index)} layered look`,
+    "aria-label": `${headline} pieces`,
   });
 
-  const hero = el("div", {
-    className: "look-hero look-hero--mannequin",
-    "aria-label": "Assembled outfit",
-  });
-
-  if (!visual.layers.length && !visual.belt) {
-    hero.append(
-      el("p", {
-        className: "muted look-hero-empty",
-        text: visual.strip.length
-          ? "No layerable pieces for this look — see originals on the right."
-          : "Add more catalog pieces with outfit roles to fill this look.",
-      })
-    );
-  } else {
-    hero.append(renderMannequinSvg(visual, index));
-  }
-
-  const strip = el("div", {
-    className: "look-strip",
+  const pieces = el("div", {
+    className: "look-pieces",
     role: "list",
-    "aria-label": "Original item photos",
+    "aria-label": "Look piece photos",
   });
   if (!visual.strip.length) {
-    strip.append(el("p", { className: "muted", text: "No photos" }));
+    pieces.append(el("p", { className: "muted", text: "No photos" }));
   } else {
     for (const layer of visual.strip) {
-      const item = renderStripThumb(layer);
+      const item = renderPieceThumb(layer, look, onItemOpen);
       item.setAttribute("role", "listitem");
-      strip.append(item);
+      pieces.append(item);
     }
   }
 
-  body.append(hero, strip);
+  body.append(pieces);
   lookEl.append(body);
 
-  // UC-09: Bedrock rationale below hero+strip (never overlay the SVG).
+  // UC-09: Bedrock rationale below the look body.
   const rationale = String((look && look.rationale) || "").trim().slice(0, 400);
   if (rationale) {
     lookEl.append(

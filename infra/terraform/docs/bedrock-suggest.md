@@ -42,9 +42,10 @@ What this updates:
 
 1. Open https://dressme-stg.7oas7er.com/ and sign in (catalog should already have attrs + `aiContext` from Analyze).
 2. **Suggest outfits** → single **Context** field (e.g. `client lunch, cool and dry`) → **Dress me**.
-3. Expect three Option D cards; each with rationale text **below** the mannequin+strip (no overlays on the SVG).
+3. Expect three photos-only look cards (enlarged piece thumbs + optional Wada plate + AI title); rationale **below** the look body. Incomplete mandatory-core outfits hard-fail with `suggest_incomplete_looks` (502) after one repair attempt.
 4. Engine line: “AI suggestions from your catalog”.
 5. CloudWatch: one `suggest_success` JSON line with `suggestionId`, `modelId`, token counts — **no** prompt/context/catalog dump.
+6. After changing `infra/lambda/suggest.js`, apply AWS Terraform locally so the Lambda zip picks up the new code (no IAM/env change expected for this redesign).
 
 ## Prod
 
