@@ -356,6 +356,92 @@ export function renderCatalogApp(root, { onLogout }) {
     },
   };
 
+  /**
+   * DM-107: in-app History entries so Back restores view.
+   * Never clear Cognito / call onLogout here — Sign out only.
+   */
+  let applyingHistory = false;
+
+  function historyUrl() {
+    return `${window.location.pathname}${window.location.search}`;
+  }
+
+  function navSnapshot() {
+    const creating = state.view === "form" && !state.editing;
+    const itemId =
+      state.editing && (state.view === "detail" || state.view === "form")
+        ? state.editing.itemId || null
+        : null;
+    return {
+      dressme: 1,
+      view: state.view,
+      itemId,
+      creating: Boolean(creating),
+    };
+  }
+
+  function pushNav() {
+    if (applyingHistory) return;
+    window.history.pushState(navSnapshot(), "", historyUrl());
+  }
+
+  function replaceNav() {
+    if (applyingHistory) return;
+    window.history.replaceState(navSnapshot(), "", historyUrl());
+  }
+
+  async function restoreFromHistory(snap) {
+    applyingHistory = true;
+    try {
+      const view = snap.view || "list";
+      state.error = "";
+      if (view === "suggest") {
+        state.view = "suggest";
+        state.editing = null;
+        state.status = "";
+        paint();
+      } else if (view === "form" && snap.creating) {
+        await openCreate({ skipHistory: true });
+      } else if (view === "form" && snap.itemId) {
+        const item =
+          state.items.find((entry) => entry.itemId === snap.itemId) || {
+            itemId: snap.itemId,
+          };
+        await openEdit(item, { skipHistory: true });
+      } else if (view === "detail" && snap.itemId) {
+        const item =
+          state.items.find((entry) => entry.itemId === snap.itemId) || {
+            itemId: snap.itemId,
+          };
+        await openDetail(item, { skipHistory: true });
+      } else {
+        state.view = "list";
+        state.editing = null;
+        state.assist = emptyAssist();
+        state.formDraft = emptyFormDraft();
+        resetWadaPickerUi();
+        state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
+        updateStatusFromItems();
+        paint();
+      }
+    } finally {
+      applyingHistory = false;
+    }
+    // Re-arm leave-app trap at catalog root (Cognito Hosted UI behind SPA).
+    if (state.view === "list") pushNav();
+  }
+
+  function onPopState(event) {
+    const snap = event.state;
+    if (!snap || snap.dressme !== 1) {
+      window.history.pushState(navSnapshot(), "", historyUrl());
+      return;
+    }
+    void restoreFromHistory(snap);
+  }
+
+  window.addEventListener("popstate", onPopState);
+
   async function loadAttributeOptions() {
     try {
       const data = await api.listAttributeOptions();
@@ -536,6 +622,7 @@ export function renderCatalogApp(root, { onLogout }) {
 
   async function openCreate(options = {}) {
     const keepPrefill = options && options.keepPrefill;
+    const skipHistory = options && options.skipHistory;
     state.view = "form";
     state.editing = null;
     state.assist = emptyAssist();
@@ -547,6 +634,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
     state.error = "";
     paint();
+    if (!skipHistory) pushNav();
     await loadAttributeOptions();
     if (state.view === "form" && !state.editing) paint();
   }
@@ -556,7 +644,8 @@ export function renderCatalogApp(root, { onLogout }) {
     return data.item;
   }
 
-  async function openEdit(item) {
+  async function openEdit(item, options = {}) {
+    const skipHistory = options && options.skipHistory;
     state.view = "form";
     state.editing = item;
     state.assist = emptyAssist();
@@ -567,6 +656,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.error = "";
     state.busy = true;
     paint();
+    if (!skipHistory) pushNav();
     try {
       // List payloads use thumbs only; edit needs full-res photo URLs (UC-20).
       const full = await loadFullItem(item.itemId);
@@ -582,12 +672,14 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
-  async function openDetail(item) {
+  async function openDetail(item, options = {}) {
+    const skipHistory = options && options.skipHistory;
     state.view = "detail";
     state.editing = item;
     state.error = "";
     state.busy = true;
     paint();
+    if (!skipHistory) pushNav();
     try {
       // Overview cards use thumbUrl; detail shows full-resolution photos (UC-20).
       const full = await loadFullItem(item.itemId);
@@ -602,7 +694,9 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
-  function backToList() {
+  function backToList(options = {}) {
+    const skipHistory = options && options.skipHistory;
+    const wasList = state.view === "list" && !state.editing;
     state.view = "list";
     state.editing = null;
     state.assist = emptyAssist();
@@ -612,6 +706,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.error = "";
     updateStatusFromItems();
     paint();
+    if (!skipHistory && !wasList) pushNav();
   }
 
   function fieldValue(key) {
@@ -805,12 +900,14 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
-  function openSuggest() {
+  function openSuggest(options = {}) {
+    const skipHistory = options && options.skipHistory;
     state.view = "suggest";
     state.editing = null;
     state.error = "";
     state.status = "";
     paint();
+    if (!skipHistory) pushNav();
   }
 
   async function runSuggest(form) {
@@ -935,6 +1032,7 @@ export function renderCatalogApp(root, { onLogout }) {
       }
       state.busy = false;
       paint();
+      replaceNav();
     } catch (err) {
       state.error = err.message || "Save failed.";
       state.busy = false;
@@ -954,6 +1052,7 @@ export function renderCatalogApp(root, { onLogout }) {
       state.formDraft = emptyFormDraft();
       state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
       await refresh();
+      replaceNav();
     } catch (err) {
       state.error = err.message || "Delete failed.";
       state.busy = false;
@@ -2094,6 +2193,9 @@ export function renderCatalogApp(root, { onLogout }) {
     return panel;
   }
 
+  // Seed History + one buffer entry so the first Back does not hit Cognito.
+  replaceNav();
+  pushNav();
   refresh();
   return { refresh };
 }
