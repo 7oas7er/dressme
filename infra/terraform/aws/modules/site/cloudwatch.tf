@@ -56,7 +56,8 @@ resource "aws_cloudwatch_metric_alarm" "high_scores_throttles" {
   }
 }
 
-# Approach ~80% of the 90s API timeout (thumbs + Bedrock multimodal). No SNS yet.
+# Approach ~80% of the 90s Lambda timeout (thumbs + Bedrock). Edge /api/* is also
+# capped by CloudFront origin_read_timeout (60s without quota). No SNS yet.
 resource "aws_cloudwatch_metric_alarm" "high_scores_duration" {
   alarm_name          = local.high_scores_duration_alarm_name
   alarm_description   = "API Lambda Duration Maximum approached ${local.lambda_duration_alarm_threshold_ms} ms (~80% of ${local.lambda_timeout_seconds}s timeout)."

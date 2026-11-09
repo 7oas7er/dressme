@@ -996,7 +996,8 @@ export function renderCatalogApp(root, { onLogout }) {
         code === "suggest_invalid_model_json" ||
         code === "suggest_invalid_item_ids" ||
         code === "http_502" ||
-        code === "http_503"
+        code === "http_503" ||
+        code === "http_504"
       ) {
         state.error =
           "Outfit suggestions are temporarily unavailable. Try again in a moment.";

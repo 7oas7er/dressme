@@ -31,6 +31,12 @@ var MAX_RATIONALE = 400;
 var MAX_TITLE = 48;
 var MAX_AI_CONTEXT_PROMPT = 300;
 var SOFT_CATALOG_CAP = 80;
+/**
+ * Skip optional Bedrock repair/fill if the primary call already burned most of
+ * the CloudFront origin_read_timeout budget (60s without quota). Keeps the
+ * response under the edge timeout even when Sonnet + N looks is slow.
+ */
+var SECOND_PASS_DEADLINE_MS = 40000;
 /** Analyze default; Suggest prefers SUGGEST_MODEL_ID when set. */
 var DEFAULT_MODEL_ID =
   "eu.anthropic.claude-haiku-4-5-20251001-v1:0";
@@ -126,11 +132,17 @@ var SLOT_DEFS = [
 var deps = {
   bedrock: null,
   converse: null,
+  now: null,
 };
 
 function resetDepsForTests(next) {
   deps.bedrock = next && next.bedrock ? next.bedrock : null;
   deps.converse = next && typeof next.converse === "function" ? next.converse : null;
+  deps.now = next && typeof next.now === "function" ? next.now : null;
+}
+
+function nowMs() {
+  return deps.now ? deps.now() : Date.now();
 }
 
 function bedrockClient() {
@@ -1259,7 +1271,9 @@ async function invokeBedrockWithRetry(system, userText, lookCount) {
 /**
  * Bedrock text suggest: attrs + aiContext only; validate IDs; repair; backfill.
  * Caps Bedrock at primary (+ optional JSON/id/completeness repair) + at most
- * one fill pass. Hard layer/waist fixes prefer deterministic attach.
+ * one fill pass. Hard layer/waist fixes prefer deterministic attach. Optional
+ * second passes are skipped once SECOND_PASS_DEADLINE_MS elapses so CloudFront
+ * (origin_read_timeout 60s) does not 504 a successful Lambda.
  */
 async function assembleWithBedrock(catalog, input) {
   var lookCount = clampLookCount(
@@ -1275,6 +1289,15 @@ async function assembleWithBedrock(catalog, input) {
   var inputTokens = 0;
   var outputTokens = 0;
   var lastModelId = modelId();
+  var startedAt = nowMs();
+
+  function withinSecondPassBudget() {
+    return nowMs() - startedAt < SECOND_PASS_DEADLINE_MS;
+  }
+
+  function canOptionalBedrockPass() {
+    return bedrockCalls < 2 && withinSecondPassBudget();
+  }
 
   async function callBedrock(userText) {
     var result = await invokeBedrockWithRetry(system, userText, lookCount);
@@ -1337,7 +1360,7 @@ async function assembleWithBedrock(catalog, input) {
     }
   }
 
-  if (validated.emptyLookCount > 0 && bedrockCalls < 2) {
+  if (validated.emptyLookCount > 0 && canOptionalBedrockPass()) {
     var idList = compact
       .map(function (row) {
         return row.id;
@@ -1370,6 +1393,15 @@ async function assembleWithBedrock(catalog, input) {
         })
       );
     }
+  } else if (validated.emptyLookCount > 0 && bedrockCalls < 2) {
+    console.warn(
+      JSON.stringify({
+        event: "suggest_second_pass_skipped",
+        reason: "time_budget",
+        stage: "invalid_item_ids",
+        elapsedMs: nowMs() - startedAt,
+      })
+    );
   }
 
   // Keep non-empty looks; empties are dropped and may be backfilled below.
@@ -1389,7 +1421,7 @@ async function assembleWithBedrock(catalog, input) {
     catalog,
     context
   );
-  if (completeness.incomplete.length && bedrockCalls < 2) {
+  if (completeness.incomplete.length && canOptionalBedrockPass()) {
     try {
       bedrockResult = await callBedrock(
         userPrompt(
@@ -1414,6 +1446,15 @@ async function assembleWithBedrock(catalog, input) {
         })
       );
     }
+  } else if (completeness.incomplete.length && bedrockCalls < 2) {
+    console.warn(
+      JSON.stringify({
+        event: "suggest_second_pass_skipped",
+        reason: "time_budget",
+        stage: "completeness_repair",
+        elapsedMs: nowMs() - startedAt,
+      })
+    );
   }
 
   var local = repairLooksLocally(validated.looks, byId, catalog, context);
@@ -1433,8 +1474,8 @@ async function assembleWithBedrock(catalog, input) {
     );
   }
 
-  // Optional one Bedrock fill when still short and call budget allows.
-  if (completeLooks.length < lookCount && bedrockCalls < 2) {
+  // Optional one Bedrock fill when still short and call + time budget allow.
+  if (completeLooks.length < lookCount && canOptionalBedrockPass()) {
     var missing = lookCount - completeLooks.length;
     try {
       bedrockResult = await callBedrock(
@@ -1483,6 +1524,17 @@ async function assembleWithBedrock(catalog, input) {
         })
       );
     }
+  } else if (completeLooks.length < lookCount && bedrockCalls < 2) {
+    console.warn(
+      JSON.stringify({
+        event: "suggest_second_pass_skipped",
+        reason: "time_budget",
+        stage: "fill_pass",
+        elapsedMs: nowMs() - startedAt,
+        requested: lookCount,
+        have: completeLooks.length,
+      })
+    );
   }
 
   if (!completeLooks.length) {
@@ -1770,6 +1822,7 @@ exports.resolveEngine = resolveEngine;
 exports.suggestLooks = suggestLooks;
 exports.resetDepsForTests = resetDepsForTests;
 exports.DEFAULT_MODEL_ID = DEFAULT_MODEL_ID;
+exports.SECOND_PASS_DEADLINE_MS = SECOND_PASS_DEADLINE_MS;
 exports.modelId = modelId;
 exports.contextNeedsColdLayer = contextNeedsColdLayer;
 exports.trousersNeedWaistFinish = trousersNeedWaistFinish;

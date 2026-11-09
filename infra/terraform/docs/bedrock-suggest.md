@@ -51,6 +51,16 @@ What this updates:
 
 Only after Frank asks to promote `staging` → `main`, then the same `suggest_engine = "bedrock"` apply under `envs/prod`.
 
+## Timeouts (edge vs Lambda)
+
+| Layer | Limit | Notes |
+|-------|-------|-------|
+| CloudFront → Lambda Function URL `origin_read_timeout` | **60s** (AWS max without quota) | Binding edge timeout for `/api/*`. Default 30s caused SPA `http_504` on Sonnet Suggest while Lambda still logged `suggest_success` (~37s, 4 looks, 2 Bedrock calls). |
+| Lambda `timeout` | 90s | Still higher than CF; unused headroom unless AWS raises the CF quota. |
+| Suggest optional 2nd Bedrock pass | skipped after ~40s wall clock | Repair/fill only; primary + JSON-repair still run. Local layer/waist repair + deterministic backfill continue. |
+
+If Suggest still 504s after a 60s CF apply, either shorten the catalog prompt / look count or request a CloudFront origin-read quota increase (up to 180s).
+
 ## Cost note
 
-Text Haiku suggest is typically cents/month at personal volume. Multimodal cost stays on Analyze (once per item care), not on every suggest.
+Text Haiku suggest is typically cents/month at personal volume. Multimodal cost stays on Analyze (once per item care), not on every suggest. Sonnet Suggest + large catalogs costs more and is slower — watch CloudWatch Duration vs the 60s edge cap.

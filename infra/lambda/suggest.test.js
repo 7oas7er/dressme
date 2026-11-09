@@ -1069,6 +1069,115 @@ test("Bedrock incomplete looks get local core repair instead of hard-fail", asyn
   assert.ok(call >= 1 && call <= 2);
 });
 
+test("Bedrock skips optional fill when second-pass time budget is exhausted", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedItem(memory, {
+    itemId: "shoes-1",
+    type: "loafers",
+    fabric: "leather",
+    brandModel: "Alden",
+    formality: "business",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "footwear",
+  });
+  seedItem(memory, {
+    itemId: "pants-1",
+    type: "chinos",
+    fabric: "cotton",
+    brandModel: "Incotex",
+    formality: "smart casual",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "trousers",
+  });
+  seedItem(memory, {
+    itemId: "shirt-1",
+    type: "oxford",
+    fabric: "cotton",
+    brandModel: "Gitman",
+    formality: "business",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "shirt",
+  });
+
+  var call = 0;
+  var clock = 0;
+  suggest.resetDepsForTests({
+    now: function () {
+      return clock;
+    },
+    converse: async function () {
+      call += 1;
+      // After the primary returns, jump past the second-pass deadline.
+      clock = suggest.SECOND_PASS_DEADLINE_MS + 1;
+      return {
+        output: {
+          message: {
+            content: [
+              {
+                text: JSON.stringify({
+                  looks: [
+                    {
+                      lookId: "1",
+                      title: "Only One",
+                      itemIds: ["shirt-1", "pants-1", "shoes-1"],
+                      rationale: "core",
+                    },
+                    {
+                      lookId: "2",
+                      title: "Ghost",
+                      itemIds: ["nope-a"],
+                      rationale: "bad",
+                    },
+                    {
+                      lookId: "3",
+                      title: "Ghost2",
+                      itemIds: ["nope-b"],
+                      rationale: "bad",
+                    },
+                    {
+                      lookId: "4",
+                      title: "Ghost3",
+                      itemIds: ["nope-c"],
+                      rationale: "bad",
+                    },
+                  ],
+                }),
+              },
+            ],
+          },
+        },
+        usage: { inputTokens: 9, outputTokens: 9 },
+      };
+    },
+  });
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({
+        context: "garden party — 4 looks please",
+        engine: "bedrock",
+      }),
+    });
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(call, 1, "fill/repair Bedrock pass skipped under time budget");
+  var body = JSON.parse(res.body);
+  assert.equal(body.requestedLookCount, 4);
+  assert.ok(body.returnedLookCount >= 1);
+  assert.ok(body.returnedLookCount < 4);
+  assert.equal(body.lookCountShortfall, true);
+});
+
 test("Bedrock shortfall flags when closet cannot reach requested N", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);
