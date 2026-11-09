@@ -11,14 +11,10 @@ UC-04 / UC-09 (DM-44): Cognito-gated `POST /api/suggest` → Bedrock **text** Co
 
 ## Flip default to Bedrock (stg)
 
-In `infra/terraform/aws/envs/stg`, pass the module override (or set via whatever pattern you use for site vars):
-
-```hcl
-module "site" {
-  # …
-  suggest_engine = "bedrock"
-}
-```
+`envs/stg/main.tf` pins `suggest_engine = "bedrock"` on the site module so routine
+stg applies keep Lambda `SUGGEST_ENGINE=bedrock` (module default is still `random`
+for prod / rollback). If Recommend shows “Random assembly…”, confirm live Lambda
+env and re-apply stg after that pin is present.
 
 Then:
 

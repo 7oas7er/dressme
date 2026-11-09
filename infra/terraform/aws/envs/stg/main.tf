@@ -9,4 +9,7 @@ module "site" {
   origin_verify_secret          = var.origin_verify_secret
   origin_verify_secret_previous = var.origin_verify_secret_previous
   cognito_owner_email           = var.cognito_owner_email
+  # UC-04 cutover: pin Bedrock so later stg applies do not reset SUGGEST_ENGINE
+  # to the module default ("random"). Rollback = "random" + apply.
+  suggest_engine = "bedrock"
 }
