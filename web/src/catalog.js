@@ -9,6 +9,7 @@ import {
   getWadaColor,
   normalizeWadaColorIdsClient,
   primaryWadaId,
+  resolveWadaName,
   searchWadaColors,
 } from "./wadaPalette.js";
 import { nearestWadaColor } from "./wadaNearest.js";
@@ -35,6 +36,20 @@ const ATTR_FIELDS = [
   { key: "season", label: "Season / climate", placeholder: "all-season" },
   { key: "outfitRole", label: "Outfit role", placeholder: "outerwear, base…" },
 ];
+
+/**
+ * Catalog card sub line (UC-02): `Brand · color`.
+ * Color = primary Wada English name when wadaColorIds[0] resolves, else free-text color.
+ * Missing brand → color only; missing color → brand only; both empty → "".
+ */
+export function catalogCardSubLine(item) {
+  const brand = String((item && item.brandModel) || "").trim();
+  const primaryId = primaryWadaId(item && item.wadaColorIds);
+  const wadaName = primaryId ? resolveWadaName(primaryId) : "";
+  const color = wadaName || String((item && item.color) || "").trim();
+  if (brand && color) return `${brand} · ${color}`;
+  return color || brand || "";
+}
 
 /** Unique non-empty attribute values present in the wardrobe (UC-07). */
 export function collectAttributeFilterValues(items) {
@@ -1298,7 +1313,7 @@ export function renderCatalogApp(root, { onLogout }) {
               el("div", { className: "sub-row" }, [
                 el("p", {
                   className: "sub",
-                  text: `${item.color} · ${item.outfitRole}`,
+                  text: catalogCardSubLine(item),
                 }),
                 wadaPrimarySwatch(item.wadaColorIds),
               ]),

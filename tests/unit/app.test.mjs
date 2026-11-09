@@ -165,11 +165,18 @@ test("item detail shows catalog entry date from createdAt (UC-02)", () => {
   assert.match(catalog, /detail-entry-date/);
   assert.match(catalog, /Entry date/);
   assert.match(catalog, /item\.createdAt/);
+  // Catalog card sub: Brand · Wada name (else free-text color); no outfit role.
+  assert.match(catalog, /catalogCardSubLine/);
+  assert.doesNotMatch(
+    catalog,
+    /className:\s*"sub"[\s\S]{0,80}item\.color.*item\.outfitRole/
+  );
   assert.match(styles, /\.detail-actions/);
   assert.match(styles, /\.detail-entry-date/);
   assert.match(itemsSrc, /createdAt:\s*ts/);
   assert.match(itemsSrc, /createdAt:\s*item\.createdAt/);
   assert.match(useCases, /entry date/i);
+  assert.match(useCases, /Brand · color/);
 });
 
 test("catalog list exposes attribute filters above the grid (UC-07)", () => {
