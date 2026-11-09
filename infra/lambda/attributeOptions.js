@@ -160,8 +160,8 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function normalizeValue(value) {
-  return attrNormalize.normalizeAttrValue(value);
+function normalizeValue(value, field) {
+  return attrNormalize.normalizeAttrValue(value, field);
 }
 
 /**
@@ -194,7 +194,7 @@ function normalizeCustomMap(raw) {
     var seen = Object.create(null);
     var cleaned = [];
     for (var j = 0; j < list.length; j++) {
-      var value = normalizeValue(list[j]);
+      var value = normalizeValue(list[j], key);
       if (!value) continue;
       var fold = value.toLowerCase();
       if (seen[fold]) continue;
@@ -209,7 +209,7 @@ function normalizeCustomMap(raw) {
 
 function isSeedValue(field, value) {
   var seeds = SEED_OPTIONS[field] || [];
-  var fold = normalizeValue(value).toLowerCase();
+  var fold = normalizeValue(value, field).toLowerCase();
   if (!fold) return true;
   for (var i = 0; i < seeds.length; i++) {
     if (seeds[i].toLowerCase() === fold) return true;
@@ -277,7 +277,7 @@ async function rememberCustomValues(user, attrs) {
   for (var i = 0; i < SUGGESTION_FIELDS.length; i++) {
     var key = SUGGESTION_FIELDS[i];
     if (!Object.prototype.hasOwnProperty.call(src, key)) continue;
-    var value = normalizeValue(src[key]);
+    var value = normalizeValue(src[key], key);
     if (!value || isSeedValue(key, value)) continue;
     additions[key] = value;
     any = true;

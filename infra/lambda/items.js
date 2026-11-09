@@ -136,7 +136,8 @@ async function normalizeAttributes(user, input, partial) {
       out[key] = attrNormalize.canonicalizeAttrValue(
         src[key],
         (catalog.options && catalog.options[key]) || [],
-        (catalog.custom && catalog.custom[key]) || []
+        (catalog.custom && catalog.custom[key]) || [],
+        key
       );
     }
     if (out[key] === undefined) {

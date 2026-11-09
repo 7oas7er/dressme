@@ -494,7 +494,8 @@ export function renderCatalogApp(root, { onLogout }) {
     return matchAttrOption(
       raw,
       state.attributeOptions[key] || [],
-      state.attributeCustom[key] || []
+      state.attributeCustom[key] || [],
+      key
     );
   }
 
@@ -540,7 +541,7 @@ export function renderCatalogApp(root, { onLogout }) {
   function keepMineAttr(key) {
     const normalized =
       (state.formDraft && state.formDraft[key]) ||
-      normalizeAttrValue(fieldValue(key));
+      normalizeAttrValue(fieldValue(key), key);
     state.attrChipDismissed[key] = normalized;
     delete state.attrChips[key];
     paint();

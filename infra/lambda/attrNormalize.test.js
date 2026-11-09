@@ -21,6 +21,44 @@ test("normalizeAttrValue unifies delimiters and strips trailing punct", function
   assert.equal(attrNormalize.normalizeAttrValue("navy,"), "navy");
 });
 
+test("brandModel keeps ampersand; other delimiters still unify", function () {
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Mey & Edlich", "brandModel"),
+    "Mey & Edlich"
+  );
+  assert.equal(attrNormalize.normalizeAttrValue("H&M", "brandModel"), "H&M");
+  assert.equal(attrNormalize.normalizeAttrValue("H & M", "brandModel"), "H & M");
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Rooks/Rocks", "brandModel"),
+    "Rooks, Rocks"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("white&blue", "color"),
+    "white, blue"
+  );
+});
+
+test("brandModel prefers & option over comma form on fold-match", function () {
+  var options = ["Mey, Edlich", "Mey & Edlich", "H&M"];
+  var customs = ["Mey, Edlich", "Mey & Edlich", "H&M"];
+  assert.equal(
+    attrNormalize.canonicalizeAttrValue("Mey, Edlich", options, customs, "brandModel"),
+    "Mey & Edlich"
+  );
+  assert.equal(
+    attrNormalize.canonicalizeAttrValue("H, M", options, customs, "brandModel"),
+    "H&M"
+  );
+  var mey = attrNormalize.matchAttrOption(
+    "Mey, Edlich",
+    options,
+    customs,
+    "brandModel"
+  );
+  assert.equal(mey.action, "silent");
+  assert.equal(mey.suggestion, "Mey & Edlich");
+});
+
 test("foldForMatch drops case and periods", function () {
   assert.equal(attrNormalize.foldForMatch("U.S.A."), "usa");
   assert.equal(attrNormalize.foldForMatch("USA"), "usa");
