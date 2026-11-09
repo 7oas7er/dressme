@@ -19,6 +19,10 @@ locals {
   # Source of truth for aws_lambda_function.high_scores.timeout; Duration alarm at 80%.
   lambda_timeout_seconds             = 90
   lambda_duration_alarm_threshold_ms = floor(local.lambda_timeout_seconds * 1000 * 0.8)
+  # CloudFront → Lambda Function URL origin read timeout (seconds). Default 30
+  # caused SPA http_504 on Sonnet Suggest while Lambda still finished (~37s).
+  # Max without quota increase is 60; this is the binding edge limit for /api/*.
+  cloudfront_api_origin_read_timeout = 60
   # Geographic CRIS profile IDs are "{eu|us}.<foundation-model-id>"; strip for FM ARNs.
   bedrock_foundation_model_id = (
     startswith(var.bedrock_model_id, "eu.") ? trimprefix(var.bedrock_model_id, "eu.") :

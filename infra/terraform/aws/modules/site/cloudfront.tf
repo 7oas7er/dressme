@@ -131,6 +131,11 @@ resource "aws_cloudfront_distribution" "site" {
       https_port             = 443
       origin_protocol_policy = "https-only"
       origin_ssl_protocols   = ["TLSv1.2"]
+      # Binding edge timeout for /api/* (Lambda Function URL). Default 30s is too
+      # low for Sonnet Suggest with a repair/fill pass (~37s observed on stg).
+      # AWS max without a quota increase is 60; Lambda timeout remains 90s.
+      origin_read_timeout      = local.cloudfront_api_origin_read_timeout
+      origin_keepalive_timeout = 5
     }
   }
 
