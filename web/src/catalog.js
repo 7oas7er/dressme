@@ -3,6 +3,7 @@ import { matchAttrOption, normalizeAttrValue } from "./attrNormalize.js";
 import { layerImageUrl } from "./lookLayout.js";
 import { renderLookCard } from "./lookCard.js";
 import { rotateImageFromUrl } from "./rotateImage.js";
+import { sampleThumb } from "./thumbSample.js";
 import {
   MAX_WADA_COLORS,
   getWadaColor,
@@ -10,6 +11,7 @@ import {
   primaryWadaId,
   searchWadaColors,
 } from "./wadaPalette.js";
+import { nearestWadaColor } from "./wadaNearest.js";
 
 /** Fields that use suggested values + free text (UC-19), including brand/model. */
 const SUGGESTION_KEYS = new Set([
@@ -329,6 +331,8 @@ export function renderCatalogApp(root, { onLogout }) {
     /** Wada picker search + expanded results (Add/Edit; UC-26). */
     wadaSearch: "",
     wadaPickerOpen: false,
+    /** Slice B: client nearest-from-photo in flight (draft only). */
+    wadaProposing: false,
     suggest: {
       context: "",
       looks: null,
@@ -626,6 +630,52 @@ export function renderCatalogApp(root, { onLogout }) {
     state.wadaPickerOpen = false;
   }
 
+  /** Photo URL for client Lab nearest (pending blob first, else first ready thumb). */
+  function samplePhotoUrlForWada() {
+    if (state.pendingPhotos.length) {
+      return state.pendingPhotos[0].url || "";
+    }
+    if (!state.editing) return "";
+    const ready = (state.editing.photos || []).find(
+      (photo) => photo && photo.status === "ready"
+    );
+    if (!ready) return "";
+    return ready.thumbUrl || ready.url || "";
+  }
+
+  /**
+   * Slice B: sample dominant hex → Lab nearest Wada into draft chips.
+   * Never writes Dynamo. Empty draft → fill top-1; else no-op unless replace.
+   * @returns {Promise<{ applied: boolean, color?: object, reason?: string }>}
+   */
+  async function proposeWadaFromPhoto({ replace = false } = {}) {
+    const url = samplePhotoUrlForWada();
+    if (!url) {
+      return { applied: false, reason: "no_photo" };
+    }
+    const current = wadaIdsValue();
+    if (current.length && !replace) {
+      return { applied: false, reason: "keep_existing" };
+    }
+    state.wadaProposing = true;
+    paint();
+    try {
+      const sample = await sampleThumb(url);
+      if (!sample || !sample.dominantHex) {
+        return { applied: false, reason: "sample_failed" };
+      }
+      const match = nearestWadaColor(sample.dominantHex);
+      if (!match) {
+        return { applied: false, reason: "no_match" };
+      }
+      // Top-1 only into draft; Frank edits / Clear / Save as usual.
+      setWadaIds([match.id]);
+      return { applied: true, color: match };
+    } finally {
+      state.wadaProposing = false;
+    }
+  }
+
   function readFormAttributes(form) {
     const attrs = {};
     for (const field of ATTR_FIELDS) {
@@ -645,7 +695,7 @@ export function renderCatalogApp(root, { onLogout }) {
     }
     const proposed = String((proposal && proposal.aiContext) || "").trim();
     draft.aiContext = (proposed || fieldValue("aiContext")).slice(0, 2000);
-    // Slice A: Appraise does not propose Wada; keep any draft picks.
+    // Bedrock does not invent Wada IDs; Slice B fills via client nearest after Appraise.
     draft.wadaColorIds = wadaIdsValue();
     return draft;
   }
@@ -710,6 +760,14 @@ export function renderCatalogApp(root, { onLogout }) {
       } else {
         state.status = "Appraise returned no proposal. Fill attributes manually.";
       }
+      // Slice B: client Lab nearest into empty draft chips only (never auto-save).
+      const wadaResult = await proposeWadaFromPhoto({ replace: false });
+      if (wadaResult.applied && wadaResult.color) {
+        const name = wadaResult.color.name;
+        state.status = proposal
+          ? `Filled from photo + Wada “${name}” — tweak, then Save.`
+          : `Proposed Wada “${name}” from photo — tweak, then Save.`;
+      }
     } catch (err) {
       const code = err && err.message ? String(err.message) : "";
       if (
@@ -727,6 +785,7 @@ export function renderCatalogApp(root, { onLogout }) {
     } finally {
       state.assist.analyzing = false;
       state.busy = false;
+      state.wadaProposing = false;
       paint();
     }
   }
@@ -1275,9 +1334,27 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
+  async function onProposeWadaFromPhoto({ replace }) {
+    if (state.busy || state.wadaProposing) return;
+    state.error = "";
+    const result = await proposeWadaFromPhoto({ replace: !!replace });
+    if (result.applied && result.color) {
+      state.status = replace
+        ? `Replaced Wada with “${result.color.name}” from photo — tweak, then Save.`
+        : `Proposed Wada “${result.color.name}” from photo — tweak, then Save.`;
+    } else if (result.reason === "sample_failed" || result.reason === "no_match") {
+      state.error =
+        "Could not sample a colour from this photo. Pick a Wada colour manually.";
+    } else if (result.reason === "no_photo") {
+      state.error = "Add a photo first to propose a Wada colour.";
+    }
+    paint();
+  }
+
   function renderWadaField() {
     const selected = wadaIdsValue();
     const atMax = selected.length >= MAX_WADA_COLORS;
+    const canSample = Boolean(samplePhotoUrlForWada());
     const results = state.wadaPickerOpen
       ? searchWadaColors(state.wadaSearch, { excludeIds: selected }).slice(0, 40)
       : [];
@@ -1319,7 +1396,7 @@ export function renderCatalogApp(root, { onLogout }) {
                   type: "button",
                   className: "secondary wada-chip-primary",
                   text: "Primary",
-                  disabled: state.busy ? "disabled" : null,
+                  disabled: state.busy || state.wadaProposing ? "disabled" : null,
                   "aria-label": `Make ${color.name} primary`,
                   onClick: () => {
                     const next = [id, ...selected.filter((x) => x !== id)];
@@ -1332,7 +1409,7 @@ export function renderCatalogApp(root, { onLogout }) {
               type: "button",
               className: "secondary wada-chip-remove",
               text: "Remove",
-              disabled: state.busy ? "disabled" : null,
+              disabled: state.busy || state.wadaProposing ? "disabled" : null,
               "aria-label": `Remove ${color.name}`,
               onClick: () => {
                 setWadaIds(selected.filter((x) => x !== id));
@@ -1352,7 +1429,7 @@ export function renderCatalogApp(root, { onLogout }) {
       placeholder: "Search Wada colour…",
       value: state.wadaSearch,
       autocomplete: "off",
-      disabled: state.busy || atMax ? "disabled" : null,
+      disabled: state.busy || state.wadaProposing || atMax ? "disabled" : null,
       onFocus: () => {
         if (!state.wadaPickerOpen) {
           state.wadaPickerOpen = true;
@@ -1403,7 +1480,8 @@ export function renderCatalogApp(root, { onLogout }) {
                 type: "button",
                 className: "wada-result",
                 role: "option",
-                disabled: state.busy || atMax ? "disabled" : null,
+                disabled:
+                  state.busy || state.wadaProposing || atMax ? "disabled" : null,
                 onClick: () => {
                   if (atMax) return;
                   setWadaIds([...selected, color.id]);
@@ -1425,25 +1503,48 @@ export function renderCatalogApp(root, { onLogout }) {
       }
     }
 
+    const fromPhotoLabel = state.wadaProposing
+      ? "Sampling…"
+      : selected.length
+        ? "Replace from photo"
+        : "From photo";
+    const fromPhotoBtn = el("button", {
+      type: "button",
+      className: "secondary wada-from-photo",
+      text: fromPhotoLabel,
+      disabled:
+        state.busy || state.wadaProposing || !canSample ? "disabled" : null,
+      "aria-label": selected.length
+        ? "Replace Wada colours from photo sample"
+        : "Propose Wada colour from photo sample",
+      onClick: () => onProposeWadaFromPhoto({ replace: selected.length > 0 }),
+    });
+
     return el("div", { className: "wada-field stack" }, [
       el("div", { className: "wada-field-head" }, [
         el("span", { className: "field-title", text: "Wada reference" }),
-        el("button", {
-          type: "button",
-          className: "secondary wada-clear",
-          text: "Clear",
-          disabled: state.busy || !selected.length ? "disabled" : null,
-          "aria-label": "Clear Wada colours",
-          onClick: () => {
-            setWadaIds([]);
-            resetWadaPickerUi();
-            paint();
-          },
-        }),
+        el("div", { className: "wada-field-actions" }, [
+          fromPhotoBtn,
+          el("button", {
+            type: "button",
+            className: "secondary wada-clear",
+            text: "Clear",
+            disabled:
+              state.busy || state.wadaProposing || !selected.length
+                ? "disabled"
+                : null,
+            "aria-label": "Clear Wada colours",
+            onClick: () => {
+              setWadaIds([]);
+              resetWadaPickerUi();
+              paint();
+            },
+          }),
+        ]),
       ]),
       el("p", {
         className: "muted wada-hint",
-        text: "True color for catalog + mannequin. Free-text Color stays your everyday label.",
+        text: "True color for catalog + mannequin. Free-text Color stays your everyday label. Appraise / From photo propose a nearest match into empty chips — edit before Save.",
       }),
       chips,
       search,
@@ -1462,7 +1563,7 @@ export function renderCatalogApp(root, { onLogout }) {
             type: "button",
             className: "secondary wada-expand",
             text: atMax ? "Palette full" : "Browse palette",
-            disabled: state.busy || atMax ? "disabled" : null,
+            disabled: state.busy || state.wadaProposing || atMax ? "disabled" : null,
             onClick: () => {
               state.wadaPickerOpen = true;
               paint();

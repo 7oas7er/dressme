@@ -353,3 +353,19 @@ test("Wada Slice A: picker, catalog swatch, API ids, attribution (UC-26/27)", ()
   assert.match(useCases, /UC-27/);
   assert.match(useCases, /item detail/);
 });
+
+test("Wada Slice B: client Lab nearest propose after Appraise / from photo", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.ok(fs.existsSync(path.join(root, "web/src/wadaNearest.js")));
+  assert.ok(fs.existsSync(path.join(root, "tests/unit/wadaNearest.test.mjs")));
+  assert.match(catalog, /proposeWadaFromPhoto|nearestWadaColor|sampleThumb/);
+  assert.match(catalog, /Replace from photo|From photo/);
+  assert.match(catalog, /wada-from-photo/);
+  // Still CSP-safe for dynamic swatch fills.
+  assert.match(catalog, /style\.cssText/);
+  assert.doesNotMatch(catalog, /setAttribute\(\s*["']style["']/);
+  assert.match(styles, /\.wada-from-photo|\.wada-field-actions/);
+  assert.match(useCases, /nearest|from photo|Slice B/i);
+});
