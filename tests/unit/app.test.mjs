@@ -341,13 +341,15 @@ test("Wada Slice A: picker, catalog swatch, API ids, attribution (UC-26/27)", ()
   assert.ok(fs.existsSync(path.join(root, "THIRD_PARTY.md")));
   assert.match(catalog, /Wada reference/);
   assert.match(catalog, /renderWadaField|wadaColorIds|wada-swatch/);
+  assert.match(catalog, /wadaPrimarySwatch|lede-row/);
   assert.match(catalog, /Browse palette|Clear/);
   // Swatch fills must use CSSOM (cssText), not style="" — CSP blocks unsafe-inline.
   assert.match(catalog, /style\.cssText/);
-  assert.match(styles, /\.wada-swatch|\.wada-field|\.sub-row/);
+  assert.match(styles, /\.wada-swatch|\.wada-field|\.sub-row|\.lede-row/);
   assert.match(itemsSrc, /applyWadaColorIds|wadaColorIds/);
   assert.match(itemsSrc, /wadaPalette/);
   assert.match(imprint, /dictionary-of-colour-combinations|THIRD_PARTY/);
   assert.match(useCases, /UC-26/);
   assert.match(useCases, /UC-27/);
+  assert.match(useCases, /item detail/);
 });

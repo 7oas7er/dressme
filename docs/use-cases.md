@@ -3,7 +3,7 @@
 Derived from the frozen Product Canvas (Project store).
 
 **Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference).  
-Last updated: 2026-11-09 (Europe/Berlin; Wada Slice A — picker, catalog swatch, prefer Wada hex in Option D)
+Last updated: 2026-11-09 (Europe/Berlin; Wada — picker, catalog + detail swatch, prefer Wada hex in Option D)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -23,8 +23,8 @@ As Frank, when I add or edit an item, I assign **1–N Sanzo Wada reference colo
 ### UC-02 — Browse and look up the catalog
 As Frank, I browse/search my items (with photos) so I can see what I own — including opening the app while shopping for a quick visual check (no gap analysis, no near-duplicate detection). On each catalog card, beside the item description (to the right), a small filled circle shows the primary Wada color when set (UC-27). Opening an item shows its **entry date** (when it was added to the catalog) in the detail footer beside Edit / Delete.
 
-### UC-27 — Catalog true-color swatch
-As Frank, on each catalog card, beside the item description (to the right), I see a **small filled circle** of the item’s primary Wada reference color when one is set, so true color is visible even when the phone photo is wrong.
+### UC-27 — Catalog / detail true-color swatch
+As Frank, on each catalog card and on item detail (beside the color line, to the right), I see a **small filled circle** of the item’s primary Wada reference color when one is set, so true color is visible even when the phone photo is wrong.
 
 ### UC-03 — Edit or remove a wardrobe item
 As Frank, I update attributes/photos (including free-text color and Wada reference palette via UC-26) or delete an item so the catalog stays accurate.
