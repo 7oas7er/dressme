@@ -968,20 +968,22 @@ export function renderCatalogApp(root, { onLogout }) {
     state.suggest.context = context;
     state.busy = true;
     state.error = "";
-    state.status = "Assembling three looks…";
+    state.status = "Assembling looks…";
     paint();
     try {
       const data = await api.suggestOutfits({ context });
       state.suggest.looks = data.looks || [];
       state.suggest.engine = data.engine || "random";
       state.suggest.suggestionId = data.suggestionId || "";
+      const n = state.suggest.looks.length;
       state.status =
-        "Three looks — pick one mentally. Nothing is recorded in the app.";
+        (n === 1 ? "1 look" : `${n} looks`) +
+        " — pick one mentally. Nothing is recorded in the app.";
     } catch (err) {
       const code = err && err.message ? String(err.message) : "";
       if (code === "suggest_incomplete_looks") {
         state.error =
-          "Couldn’t build three complete outfits from this closet. Add a base, bottom, and shoes (when you have them), then try again.";
+          "Couldn’t build complete outfits from this closet. Add a base, bottom, and shoes (when you have them), then try again.";
       } else if (
         code === "suggest_unavailable" ||
         code === "suggest_invalid_model_json" ||
@@ -2206,7 +2208,7 @@ export function renderCatalogApp(root, { onLogout }) {
           name: "context",
           required: "required",
           maxlength: "480",
-          placeholder: "e.g. client lunch, cool and dry",
+          placeholder: "e.g. client lunch, cool and dry — or ‘5 looks please’",
           value: state.suggest.context || "",
           autocomplete: "off",
         }),

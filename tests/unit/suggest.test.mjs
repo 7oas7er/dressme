@@ -19,6 +19,7 @@ test("collagePhotoUrl prefers full-res over thumb", () => {
 
 test("look helpers summarize pieces without feedback UI", () => {
   assert.equal(lookHeadline({ lookId: "2" }, 0), "Look 2");
+  assert.equal(lookHeadline({ lookId: "5" }, 4), "Look 5");
   assert.equal(
     lookHeadline({ lookId: "2", title: "Soft Navy Stack" }, 0),
     "Look 2 · Soft Navy Stack"
