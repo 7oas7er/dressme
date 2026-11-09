@@ -2059,28 +2059,30 @@ export function renderCatalogApp(root, { onLogout }) {
   }
 
   function renderDetail(item) {
+    const attrParts = [
+      item.color,
+      item.fabric,
+      item.formality,
+      item.season,
+      item.brandModel || "—",
+      item.outfitRole,
+      item.pattern,
+    ].filter((part) => String(part || "").trim());
     const panel = el("section", { className: "panel stack" }, [
       el("h1", { text: item.type }),
       el("div", { className: "lede-row" }, [
         el("p", {
           className: "lede",
-          text: `${item.color} · ${item.fabric} · ${item.formality} · ${item.season}`,
+          text: attrParts.join(" · "),
         }),
         wadaPrimarySwatch(item.wadaColorIds),
       ]),
       item.aiContext
-        ? el("div", { className: "stack ai-context-block" }, [
-            el("p", { className: "field-label", text: "AI context" }),
-            el("p", {
-              className: "ai-context",
-              text: item.aiContext,
-            }),
-          ])
+        ? el("p", {
+            className: "ai-context",
+            text: item.aiContext,
+          })
         : null,
-      el("p", {
-        className: "muted",
-        text: `${item.brandModel || "—"} · role: ${item.outfitRole} · pattern: ${item.pattern}`,
-      }),
     ]);
 
     const photos = el("div", { className: "detail-photos" });

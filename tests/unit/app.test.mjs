@@ -375,12 +375,26 @@ test("Wada Slice A: picker, catalog swatch, API ids, attribution (UC-26/27)", ()
   // Swatch fills must use CSSOM (cssText), not style="" — CSP blocks unsafe-inline.
   assert.match(catalog, /style\.cssText/);
   assert.match(styles, /\.wada-swatch|\.wada-field|\.sub-row|\.lede-row/);
+  // Detail swatch is 2× catalog (1.7rem); fills still CSSOM / CSP-safe.
+  assert.match(styles, /\.lede-row\s+\.wada-swatch\s*\{[^}]*1\.7rem/s);
   assert.match(itemsSrc, /applyWadaColorIds|wadaColorIds/);
   assert.match(itemsSrc, /wadaPalette/);
   assert.match(imprint, /dictionary-of-colour-combinations|THIRD_PARTY/);
   assert.match(useCases, /UC-26/);
   assert.match(useCases, /UC-27/);
   assert.match(useCases, /item detail/);
+});
+
+test("item detail: dotted attrs above AI text, no AI context label (UC-02/27)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const detailFn = catalog.match(/function renderDetail\([\s\S]*?\n  function renderSuggest/);
+  assert.ok(detailFn, "renderDetail present");
+  const body = detailFn[0];
+  assert.match(body, /attrParts\.join\(" · "\)/);
+  assert.match(body, /className: "ai-context"/);
+  assert.doesNotMatch(body, /text: "AI context"/);
+  assert.doesNotMatch(body, /ai-context-block|field-label/);
+  assert.doesNotMatch(body, /role: \$\{item\.outfitRole\}/);
 });
 
 test("Wada Slice B: client Lab nearest propose after Appraise / from photo", () => {
