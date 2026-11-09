@@ -222,6 +222,28 @@ test("catalog chrome: Catalog / Add item / DressMe nav, Sign out with Imprint, A
   assert.match(styles, /\.page-footer[\s\S]*justify-content:\s*space-between/);
 });
 
+test("in-app History: pushState/popstate restore view; logout only via Sign out", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const authSrc = fs.readFileSync(path.join(root, "web/src/auth.js"), "utf8");
+  const mainSrc = fs.readFileSync(path.join(root, "web/src/main.js"), "utf8");
+  assert.match(catalog, /history\.pushState/);
+  assert.match(catalog, /history\.replaceState/);
+  assert.match(catalog, /addEventListener\("popstate"/);
+  assert.match(catalog, /restoreFromHistory|dressme:\s*1/);
+  assert.match(catalog, /skipHistory/);
+  // popstate path must not clear session or call logout.
+  assert.doesNotMatch(
+    catalog,
+    /onPopState[\s\S]{0,400}onLogout|onPopState[\s\S]{0,400}clearSession|onPopState[\s\S]{0,400}logout\(/
+  );
+  assert.match(mainSrc, /onLogout:\s*\(\)\s*=>\s*auth\.logout/);
+  assert.match(authSrc, /export function logout/);
+  assert.match(
+    catalog,
+    /className: "secondary sign-out"[\s\S]*onClick:\s*onLogout/
+  );
+});
+
 test("add/edit form exposes Appraise assist (UC-25)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
