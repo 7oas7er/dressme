@@ -117,6 +117,20 @@ function thumbUrl(item) {
   return layerImageUrl(item, { purpose: "catalog" });
 }
 
+/** Primary Wada true-color circle (catalog + detail). Omit when unset. */
+function wadaPrimarySwatch(wadaColorIds) {
+  const primaryId = primaryWadaId(wadaColorIds);
+  const wada = primaryId ? getWadaColor(primaryId) : null;
+  if (!wada) return null;
+  return el("span", {
+    className: "wada-swatch",
+    // cssText via el() — CSP blocks style="" attributes (#85).
+    style: `background:${wada.hex}`,
+    title: wada.name,
+    "aria-label": `Wada ${wada.name}`,
+  });
+}
+
 /** Catalog entry day from Dynamo `createdAt` (Europe/Berlin calendar date). */
 function formatEntryDate(iso) {
   if (!iso) return "";
@@ -1222,27 +1236,13 @@ export function renderCatalogApp(root, { onLogout }) {
               : el("div", { className: "thumb", text: "No photo" }),
             el("div", { className: "meta" }, [
               el("p", { className: "title", text: item.type }),
-              (() => {
-                const primaryId = primaryWadaId(item.wadaColorIds);
-                const wada = primaryId ? getWadaColor(primaryId) : null;
-                const subRow = el("div", { className: "sub-row" }, [
-                  el("p", {
-                    className: "sub",
-                    text: `${item.color} · ${item.outfitRole}`,
-                  }),
-                ]);
-                if (wada) {
-                  subRow.append(
-                    el("span", {
-                      className: "wada-swatch",
-                      style: `background:${wada.hex}`,
-                      title: wada.name,
-                      "aria-label": `Wada ${wada.name}`,
-                    })
-                  );
-                }
-                return subRow;
-              })(),
+              el("div", { className: "sub-row" }, [
+                el("p", {
+                  className: "sub",
+                  text: `${item.color} · ${item.outfitRole}`,
+                }),
+                wadaPrimarySwatch(item.wadaColorIds),
+              ]),
             ]),
           ]
         );
@@ -1857,10 +1857,13 @@ export function renderCatalogApp(root, { onLogout }) {
   function renderDetail(item) {
     const panel = el("section", { className: "panel stack" }, [
       el("h1", { text: item.type }),
-      el("p", {
-        className: "lede",
-        text: `${item.color} · ${item.fabric} · ${item.formality} · ${item.season}`,
-      }),
+      el("div", { className: "lede-row" }, [
+        el("p", {
+          className: "lede",
+          text: `${item.color} · ${item.fabric} · ${item.formality} · ${item.season}`,
+        }),
+        wadaPrimarySwatch(item.wadaColorIds),
+      ]),
       item.aiContext
         ? el("div", { className: "stack ai-context-block" }, [
             el("p", { className: "field-label", text: "AI context" }),
