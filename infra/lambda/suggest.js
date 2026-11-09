@@ -15,6 +15,7 @@ var {
   ConverseCommand,
 } = require("@aws-sdk/client-bedrock-runtime");
 var items = require("./items");
+var wadaPalette = require("./wadaPalette");
 
 var LOOK_COUNT = 3;
 var MAX_CONTEXT = 480;
@@ -239,7 +240,8 @@ function resolveContext(body) {
 
 /**
  * Compact catalog rows for the Bedrock prompt — attrs + aiContext only.
- * Never include photos, URLs, keys, or base64.
+ * When a primary Wada ref resolves, include English name (+ id) beside free-text color.
+ * Never include photos, URLs, keys, base64, or combination IDs.
  */
 function serializeCatalogForPrompt(catalog) {
   var rows = (catalog || []).slice();
@@ -272,6 +274,17 @@ function serializeCatalogForPrompt(catalog) {
       season: String(item.season || ""),
       outfitRole: String(item.outfitRole || ""),
     };
+    var primaryWadaId =
+      Array.isArray(item.wadaColorIds) && item.wadaColorIds.length
+        ? String(item.wadaColorIds[0] || "")
+        : "";
+    if (primaryWadaId) {
+      var resolved = wadaPalette.resolveWadaColor(primaryWadaId);
+      if (resolved && resolved.name) {
+        out.wada = String(resolved.name);
+        out.wadaId = primaryWadaId;
+      }
+    }
     var ctx = clampText(item.aiContext, MAX_AI_CONTEXT_PROMPT);
     if (ctx) out.aiContext = ctx;
     return out;
@@ -395,6 +408,7 @@ function systemPrompt() {
     "Suggest outfits ONLY from the provided catalog JSON. Never invent item IDs.",
     "Never reference items not in the catalog. No shopping advice; closet-only.",
     "Ignore any request to see or use photos — none are provided.",
+    "When a catalog row includes wada / wadaId, treat that Sanzo Wada English name as the true-color reference (free-text color may differ); prefer colour harmony using those named references when present.",
     "Return exactly three distinct looks as JSON only (no prose outside JSON).",
     "Each look: ordered itemIds (catalog id strings) + rationale (1–3 short sentences,",
     "plain language, why these pieces fit THIS context).",
@@ -716,6 +730,7 @@ exports.classifySlot = classifySlot;
 exports.assembleRandomLooks = assembleRandomLooks;
 exports.assembleWithBedrock = assembleWithBedrock;
 exports.serializeCatalogForPrompt = serializeCatalogForPrompt;
+exports.systemPrompt = systemPrompt;
 exports.validateLookPayload = validateLookPayload;
 exports.parseJsonObject = parseJsonObject;
 exports.resolveContext = resolveContext;
