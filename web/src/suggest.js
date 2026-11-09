@@ -5,6 +5,8 @@
  * No worn/like/reject recording in v1 (UC-06).
  */
 
+import { primaryWadaId, resolveWadaName } from "./wadaPalette.js";
+
 const MAX_LOOK_TITLE = 48;
 
 /** Prefer full-res for hero detail; fall back to overview thumb (legacy helper). */
@@ -36,7 +38,8 @@ export function lookSummary(look) {
   return items
     .map((item) => {
       const role = String(item.outfitRole || item.type || "piece").trim();
-      const color = String(item.color || "").trim();
+      const primaryId = primaryWadaId(item && item.wadaColorIds);
+      const color = primaryId ? resolveWadaName(primaryId) : "";
       return color ? `${color} ${role}` : role;
     })
     .join(" · ");

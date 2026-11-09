@@ -9,56 +9,57 @@ const sample = [
   {
     itemId: "1",
     type: "jacket",
-    color: "navy",
     fabric: "wool",
     brandModel: "Drake's",
     formality: "business",
     pattern: "solid",
     season: "all-season",
     outfitRole: "outerwear",
+    wadaColorIds: ["wada:v1:0"],
   },
   {
     itemId: "2",
     type: "shirt",
-    color: "white",
     fabric: "cotton",
     brandModel: "Drake's",
     formality: "business",
     pattern: "solid",
     season: "all-season",
     outfitRole: "base",
+    wadaColorIds: ["wada:v1:42"],
   },
   {
     itemId: "3",
     type: "jacket",
-    color: "olive",
     fabric: "cotton",
     brandModel: "Private White V.C.",
     formality: "casual",
     pattern: "solid",
     season: "cool",
     outfitRole: "outerwear",
+    wadaColorIds: [],
   },
 ];
 
 test("collectAttributeFilterValues lists unique wardrobe values per category", () => {
   const options = collectAttributeFilterValues(sample);
   assert.deepEqual(options.type, ["jacket", "shirt"]);
-  assert.deepEqual(options.color, ["navy", "olive", "white"]);
+  // Color filter = primary Wada English names present in wardrobe.
+  assert.deepEqual(options.color, ["Hermosa Pink", "Seashell Pink"]);
   assert.deepEqual(options.brandModel, ["Drake's", "Private White V.C."]);
   assert.deepEqual(options.outfitRole, ["base", "outerwear"]);
 });
 
-test("applyAttributeFilters ANDs across categories", () => {
+test("applyAttributeFilters ANDs across categories including Wada color", () => {
   const jackets = applyAttributeFilters(sample, { type: "jacket" });
   assert.equal(jackets.length, 2);
 
-  const navyJacket = applyAttributeFilters(sample, {
+  const pinkJacket = applyAttributeFilters(sample, {
     type: "jacket",
-    color: "navy",
+    color: "Hermosa Pink",
   });
-  assert.equal(navyJacket.length, 1);
-  assert.equal(navyJacket[0].itemId, "1");
+  assert.equal(pinkJacket.length, 1);
+  assert.equal(pinkJacket[0].itemId, "1");
 
   const none = applyAttributeFilters(sample, {
     type: "jacket",

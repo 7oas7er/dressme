@@ -30,11 +30,15 @@ test("look helpers summarize pieces without feedback UI", () => {
   assert.equal(
     lookSummary({
       items: [
-        { color: "navy", outfitRole: "outerwear", type: "blazer" },
-        { color: "white", outfitRole: "shirt", type: "oxford" },
+        {
+          outfitRole: "outerwear",
+          type: "blazer",
+          wadaColorIds: ["wada:v1:0"],
+        },
+        { outfitRole: "shirt", type: "oxford", wadaColorIds: [] },
       ],
     }),
-    "navy outerwear · white shirt"
+    "Hermosa Pink outerwear · shirt"
   );
   assert.match(lookSummary({ items: [] }), /No pieces/);
 });

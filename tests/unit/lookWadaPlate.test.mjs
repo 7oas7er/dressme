@@ -6,7 +6,7 @@ test("lookWadaPlateEntries skips missing Wada, dedupes primaries, no free-text f
   const entries = lookWadaPlateEntries([
     { itemId: "a", wadaColorIds: ["wada:v1:42"] },
     { itemId: "b", wadaColorIds: [] },
-    { itemId: "c", color: "navy" },
+    { itemId: "c" },
     { itemId: "d", wadaColorIds: ["wada:v1:42"] },
     { itemId: "e", wadaColorIds: ["wada:v1:7"] },
     { itemId: "f", wadaColorIds: ["wada:v1:999"] },
@@ -20,5 +20,5 @@ test("lookWadaPlateEntries skips missing Wada, dedupes primaries, no free-text f
 
 test("lookWadaPlateEntries returns empty when no resolvable primaries", () => {
   assert.deepEqual(lookWadaPlateEntries([]), []);
-  assert.deepEqual(lookWadaPlateEntries([{ color: "navy" }]), []);
+  assert.deepEqual(lookWadaPlateEntries([{ type: "blazer" }]), []);
 });

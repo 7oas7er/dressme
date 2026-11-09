@@ -99,7 +99,6 @@ function seedClassicCatalog(memory) {
   seedItem(memory, {
     itemId: "shoes-1",
     type: "loafers",
-    color: "brown",
     fabric: "leather",
     brandModel: "Alden",
     formality: "business",
@@ -111,7 +110,6 @@ function seedClassicCatalog(memory) {
   seedItem(memory, {
     itemId: "pants-1",
     type: "chinos",
-    color: "khaki",
     fabric: "cotton",
     brandModel: "Incotex",
     formality: "smart casual",
@@ -122,7 +120,6 @@ function seedClassicCatalog(memory) {
   seedItem(memory, {
     itemId: "shirt-1",
     type: "oxford",
-    color: "white",
     fabric: "cotton",
     brandModel: "Gitman",
     formality: "business",
@@ -133,7 +130,6 @@ function seedClassicCatalog(memory) {
   seedItem(memory, {
     itemId: "blazer-1",
     type: "blazer",
-    color: "navy",
     fabric: "wool",
     brandModel: "Ring Jacket",
     formality: "business",
@@ -247,7 +243,6 @@ test("serializeCatalogForPrompt omits photos/URLs and clamps aiContext", functio
     {
       itemId: "a1",
       type: "shirt",
-      color: "white",
       fabric: "cotton",
       brandModel: "Gitman",
       formality: "business",
@@ -270,6 +265,7 @@ test("serializeCatalogForPrompt omits photos/URLs and clamps aiContext", functio
   assert.equal(rows.length, 1);
   assert.equal(rows[0].id, "a1");
   assert.equal(rows[0].type, "shirt");
+  assert.equal(rows[0].color, undefined);
   assert.ok(rows[0].aiContext.length <= 300);
   assert.equal(rows[0].photos, undefined);
   assert.equal(rows[0].url, undefined);
@@ -287,7 +283,6 @@ test("serializeCatalogForPrompt includes primary Wada name and id", function () 
     {
       itemId: "navy-suit",
       type: "suit jacket",
-      color: "navy",
       fabric: "wool",
       brandModel: "",
       formality: "business",
@@ -299,7 +294,6 @@ test("serializeCatalogForPrompt includes primary Wada name and id", function () 
     {
       itemId: "no-wada",
       type: "shirt",
-      color: "white",
       fabric: "cotton",
       brandModel: "",
       formality: "business",
@@ -311,7 +305,6 @@ test("serializeCatalogForPrompt includes primary Wada name and id", function () 
     {
       itemId: "stale-wada",
       type: "trousers",
-      color: "grey",
       fabric: "wool",
       brandModel: "",
       formality: "business",
@@ -321,7 +314,7 @@ test("serializeCatalogForPrompt includes primary Wada name and id", function () 
       wadaColorIds: ["wada:v1:999"],
     },
   ]);
-  assert.equal(rows[0].color, "navy");
+  assert.equal(rows[0].color, undefined);
   assert.equal(rows[0].wada, "Seashell Pink");
   assert.equal(rows[0].wadaId, "wada:v1:42");
   assert.equal(rows[0].wadaColorIds, undefined);
@@ -331,13 +324,15 @@ test("serializeCatalogForPrompt includes primary Wada name and id", function () 
   assert.equal(rows[2].wadaId, undefined);
   var dumped = JSON.stringify(rows);
   assert.ok(!/wadaColorIds/i.test(dumped));
+  assert.ok(!/"color"/i.test(dumped));
   assert.ok(!/combination/i.test(dumped));
 });
 
-test("systemPrompt mentions Wada true-color reference and mandatory core", function () {
+test("systemPrompt mentions Wada colour reference and mandatory core", function () {
   var prompt = suggest.systemPrompt();
   assert.match(prompt, /wada/i);
-  assert.match(prompt, /true-color/i);
+  assert.match(prompt, /colour/i);
+  assert.doesNotMatch(prompt, /free-text color/i);
   assert.match(prompt, /Never invent item IDs/);
   assert.match(prompt, /mandatory core/i);
   assert.match(prompt, /Accessories are optional/i);

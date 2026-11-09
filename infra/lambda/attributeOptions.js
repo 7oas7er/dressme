@@ -11,7 +11,6 @@ var attrNormalize = require("./attrNormalize");
 /** Fields that offer suggested values + free text (UC-19), including brand/model. */
 var SUGGESTION_FIELDS = [
   "type",
-  "color",
   "fabric",
   "brandModel",
   "formality",
@@ -23,6 +22,7 @@ var SUGGESTION_FIELDS = [
 /**
  * Classic menswear-oriented seed suggestions per field.
  * brandModel has no fixed seeds — wardrobe brands vary; every free-text value is remembered.
+ * Color is Wada-only (UC-26) — not a free-text suggestion field.
  */
 var SEED_OPTIONS = {
   brandModel: [],
@@ -54,28 +54,6 @@ var SEED_OPTIONS = {
     "socks",
     "cufflinks",
     "watch",
-  ],
-  color: [
-    "navy",
-    "charcoal",
-    "black",
-    "grey",
-    "light grey",
-    "white",
-    "ivory",
-    "cream",
-    "beige",
-    "brown",
-    "olive",
-    "forest green",
-    "burgundy",
-    "wine",
-    "light blue",
-    "mid blue",
-    "pink",
-    "purple",
-    "tan",
-    "camel",
   ],
   fabric: [
     "wool",
