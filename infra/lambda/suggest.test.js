@@ -139,8 +139,9 @@ function seedClassicCatalog(memory) {
   });
 }
 
-function mockBedrockLooks(overrides) {
-  var looks = [
+function mockBedrockLooks(overrides, lookCount) {
+  var count = lookCount != null ? lookCount : 3;
+  var templates = [
     {
       lookId: "1",
       title: "Boardroom Navy",
@@ -160,9 +161,19 @@ function mockBedrockLooks(overrides) {
       rationale: "Same palette with loafers keeping the look grounded.",
     },
   ];
+  var looks = [];
+  for (var i = 0; i < count; i++) {
+    var base = templates[i % templates.length];
+    looks.push(
+      Object.assign({}, base, {
+        lookId: String(i + 1),
+        title: base.title + (i >= templates.length ? " " + (i + 1) : ""),
+      })
+    );
+  }
   if (overrides) {
-    for (var i = 0; i < overrides.length; i++) {
-      looks[i] = Object.assign({}, looks[i], overrides[i]);
+    for (var j = 0; j < overrides.length; j++) {
+      looks[j] = Object.assign({}, looks[j], overrides[j]);
     }
   }
   return {
@@ -181,6 +192,22 @@ test("classifySlot maps outfitRole/type into menswear slots", function () {
   assert.equal(suggest.classifySlot({ outfitRole: "shirt", type: "oxford" }), "base");
   assert.equal(suggest.classifySlot({ outfitRole: "outerwear", type: "blazer" }), "outer");
   assert.equal(suggest.classifySlot({ outfitRole: "mystery", type: "widget" }), null);
+});
+
+test("extractLookCount defaults, parses digits/words, and clamps 1–8", function () {
+  assert.equal(suggest.extractLookCount(""), 3);
+  assert.equal(suggest.extractLookCount("client lunch, cool and dry"), 3);
+  assert.equal(suggest.extractLookCount("5 looks please"), 5);
+  assert.equal(suggest.extractLookCount("give me two outfits"), 2);
+  assert.equal(suggest.extractLookCount("one look for the opera"), 1);
+  assert.equal(suggest.extractLookCount("a look tonight"), 1);
+  assert.equal(suggest.extractLookCount("looks: 7"), 7);
+  assert.equal(suggest.extractLookCount("99 looks"), 8);
+  assert.equal(suggest.extractLookCount("0 outfits"), 1);
+  assert.equal(suggest.extractLookCount("ten looks"), 8);
+  assert.equal(suggest.maxTokensForLookCount(3), 512 + 3 * 280);
+  assert.equal(suggest.maxTokensForLookCount(8), 512 + 8 * 280);
+  assert.ok(suggest.maxTokensForLookCount(8) > suggest.maxTokensForLookCount(3));
 });
 
 test("assembleRandomLooks returns exactly three looks and skips empty slots", function () {
@@ -217,6 +244,25 @@ test("assembleRandomLooks returns exactly three looks and skips empty slots", fu
     });
   });
   assert.ok(new Set(allIds).size >= 4, "prefer variety across looks when catalog allows");
+});
+
+test("assembleRandomLooks honors requested lookCount", function () {
+  var catalog = [
+    { itemId: "a", outfitRole: "footwear", type: "loafers" },
+    { itemId: "b", outfitRole: "trousers", type: "chinos" },
+    { itemId: "c", outfitRole: "shirt", type: "oxford" },
+    { itemId: "d", outfitRole: "outerwear", type: "blazer" },
+    { itemId: "e", outfitRole: "footwear", type: "boots" },
+    { itemId: "f", outfitRole: "trousers", type: "jeans" },
+    { itemId: "g", outfitRole: "base", type: "knit" },
+  ];
+  var looks = suggest.assembleRandomLooks(catalog, {
+    lookCount: 5,
+    random: function () {
+      return 0.2;
+    },
+  });
+  assert.equal(looks.length, 5);
 });
 
 test("resolveContext prefers context and shims occasion/weather", function () {
@@ -337,6 +383,10 @@ test("systemPrompt mentions Wada colour reference and mandatory core", function 
   assert.match(prompt, /mandatory core/i);
   assert.match(prompt, /Accessories are optional/i);
   assert.match(prompt, /title/);
+  assert.match(prompt, /exactly 3 distinct looks/);
+  var five = suggest.systemPrompt(5);
+  assert.match(five, /exactly 5 distinct looks/);
+  assert.match(five, /"lookId":"5"/);
 });
 
 test("assertLooksComplete accepts core-only and rejects competing bases", function () {
@@ -468,6 +518,23 @@ test("POST /api/suggest requires context and returns three enriched looks", asyn
   assert.match(first.items[0].photos[0].url, /^https:\/\/read\.example\//);
 });
 
+test("POST /api/suggest honors look count from context for random engine", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedClassicCatalog(memory);
+
+  var ok = await api.handler({
+    rawPath: "/api/suggest",
+    requestContext: { http: { method: "POST", path: "/api/suggest" } },
+    body: JSON.stringify({
+      context: "Tuesday client lunch — 5 looks please",
+    }),
+  });
+  assert.equal(ok.statusCode, 200);
+  var body = JSON.parse(ok.body);
+  assert.equal(body.looks.length, 5);
+});
+
 test("legacy occasion/weather shim still works for random engine", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);
@@ -498,8 +565,12 @@ test("Bedrock engine returns three looks with rationale and logs tokens", async 
       calls.push(input);
       assert.equal(input.modelId, "test-suggest-model");
       assert.equal(input.inferenceConfig.temperature, 0.3);
+      assert.equal(input.inferenceConfig.maxTokens, suggest.maxTokensForLookCount(3));
+      var systemText = input.system[0].text;
+      assert.match(systemText, /exactly 3 distinct looks/);
       var userText = input.messages[0].content[0].text;
       assert.match(userText, /Catalog JSON:/);
+      assert.match(userText, /exactly 3 looks now/);
       assert.ok(!/https?:\/\//i.test(userText));
       assert.ok(!/"photos"/i.test(userText));
       return mockBedrockLooks();
@@ -551,6 +622,42 @@ test("Bedrock engine returns three looks with rationale and logs tokens", async 
   assert.equal(parsedLog.lookCount, 3);
   assert.ok(parsedLog.suggestionId);
   assert.equal(parsedLog.context, undefined);
+});
+
+test("Bedrock engine honors five looks from context and bumps maxTokens", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedClassicCatalog(memory);
+
+  var calls = [];
+  suggest.resetDepsForTests({
+    converse: async function (input) {
+      calls.push(input);
+      assert.equal(input.inferenceConfig.maxTokens, suggest.maxTokensForLookCount(5));
+      assert.match(input.system[0].text, /exactly 5 distinct looks/);
+      assert.match(input.messages[0].content[0].text, /exactly 5 looks now/);
+      return mockBedrockLooks(null, 5);
+    },
+  });
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({
+        context: "board meeting — 5 looks please",
+        engine: "bedrock",
+      }),
+    });
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 200);
+  var body = JSON.parse(res.body);
+  assert.equal(body.looks.length, 5);
+  assert.equal(calls.length, 1);
 });
 
 test("Bedrock drops hallucinated IDs and repairs empty looks", async function () {

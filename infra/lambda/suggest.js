@@ -17,7 +17,13 @@ var {
 var items = require("./items");
 var wadaPalette = require("./wadaPalette");
 
-var LOOK_COUNT = 3;
+/** Default when context does not state a count (legacy habit). */
+var DEFAULT_LOOK_COUNT = 3;
+/** Inclusive clamp for parsed look count. */
+var MIN_LOOK_COUNT = 1;
+var MAX_LOOK_COUNT = 8;
+/** @deprecated Prefer DEFAULT_LOOK_COUNT — kept for callers/tests. */
+var LOOK_COUNT = DEFAULT_LOOK_COUNT;
 var MAX_CONTEXT = 480;
 var MAX_LEGACY_FIELD = 240;
 var MAX_RATIONALE = 400;
@@ -26,6 +32,21 @@ var MAX_AI_CONTEXT_PROMPT = 300;
 var SOFT_CATALOG_CAP = 80;
 var DEFAULT_MODEL_ID =
   "eu.anthropic.claude-haiku-4-5-20251001-v1:0";
+
+var WORD_COUNTS = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+
+var LOOK_NOUN = "(?:looks?|outfits?|suggestions?|options?)";
 
 /**
  * Ordered slots for a classic menswear flat-lay. Empty slots are skipped.
@@ -108,6 +129,54 @@ function clampText(value, max) {
   return String(value).trim().slice(0, max || MAX_CONTEXT);
 }
 
+function clampLookCount(n) {
+  var num = Number(n);
+  if (!Number.isFinite(num)) return DEFAULT_LOOK_COUNT;
+  return Math.max(MIN_LOOK_COUNT, Math.min(MAX_LOOK_COUNT, Math.round(num)));
+}
+
+/**
+ * Deterministic look-count extract from free-text context.
+ * Digits or word numbers next to look/outfit synonyms; default 3; clamp 1–8.
+ * Never 400s — out-of-range values clamp and still suggest.
+ */
+function extractLookCount(context) {
+  var text = String(context || "").toLowerCase();
+  if (!text.trim()) return DEFAULT_LOOK_COUNT;
+
+  var patterns = [
+    // "5 looks", "5 outfits please"
+    new RegExp("\\b(\\d{1,2})\\s*" + LOOK_NOUN + "\\b", "i"),
+    // "looks: 5", "outfits = 4"
+    new RegExp("\\b" + LOOK_NOUN + "\\s*[:=]?\\s*(\\d{1,2})\\b", "i"),
+    // "five looks", "two outfits"
+    new RegExp(
+      "\\b(one|two|three|four|five|six|seven|eight|nine|ten)\\s*" +
+        LOOK_NOUN +
+        "\\b",
+      "i"
+    ),
+    // "a look" / "an outfit" → 1
+    new RegExp("\\b(?:a|an)\\s+" + LOOK_NOUN + "\\b", "i"),
+  ];
+
+  for (var i = 0; i < patterns.length; i++) {
+    var match = text.match(patterns[i]);
+    if (!match) continue;
+    if (i === 3) return 1;
+    var raw = match[1];
+    if (WORD_COUNTS[raw] != null) return clampLookCount(WORD_COUNTS[raw]);
+    return clampLookCount(parseInt(raw, 10));
+  }
+  return DEFAULT_LOOK_COUNT;
+}
+
+function maxTokensForLookCount(lookCount) {
+  var n = clampLookCount(lookCount);
+  // ~280 tokens per look (ids + title + rationale) + prompt overhead.
+  return Math.min(4096, 512 + n * 280);
+}
+
 function classifySlot(item) {
   var role = String(item.outfitRole || "")
     .toLowerCase()
@@ -163,17 +232,20 @@ function bucketBySlot(catalog) {
 }
 
 /**
- * Build exactly LOOK_COUNT looks. Prefer unused items across looks when the
- * catalog allows; skip empty slots rather than inventing pieces.
+ * Build exactly `lookCount` looks (default 3). Prefer unused items across looks
+ * when the catalog allows; skip empty slots rather than inventing pieces.
  */
 function assembleRandomLooks(catalog, options) {
   var opts = options || {};
   var random = opts.random || Math.random;
+  var lookCount = clampLookCount(
+    opts.lookCount != null ? opts.lookCount : DEFAULT_LOOK_COUNT
+  );
   var buckets = bucketBySlot(catalog);
   var usedIds = new Set();
   var looks = [];
 
-  for (var lookIndex = 0; lookIndex < LOOK_COUNT; lookIndex++) {
+  for (var lookIndex = 0; lookIndex < lookCount; lookIndex++) {
     var lookItems = [];
     for (var s = 0; s < SLOT_DEFS.length; s++) {
       var slotId = SLOT_DEFS[s].id;
@@ -192,7 +264,7 @@ function assembleRandomLooks(catalog, options) {
     }
 
     // If role matching found nothing but the catalog has items, fall back to
-    // a small random sample so the UX still shows three looks.
+    // a small random sample so the UX still shows N looks.
     if (!lookItems.length && (catalog || []).length) {
       var leftover = (catalog || []).filter(function (item) {
         return !usedIds.has(item.itemId);
@@ -467,14 +539,17 @@ function parseJsonObject(text) {
 
 /**
  * Validate model looks against the catalog ID set. Drops unknown IDs.
- * Returns { looks, emptyLookCount } where looks have lookId/title/rationale/itemIds.
+ * Pads/truncates to lookCount. Returns { looks, emptyLookCount }.
  */
-function validateLookPayload(parsed, allowedIds) {
+function validateLookPayload(parsed, allowedIds, lookCount) {
+  var count = clampLookCount(
+    lookCount != null ? lookCount : DEFAULT_LOOK_COUNT
+  );
   var srcLooks = parsed && Array.isArray(parsed.looks) ? parsed.looks : [];
   var looks = [];
   var emptyLookCount = 0;
 
-  for (var i = 0; i < LOOK_COUNT; i++) {
+  for (var i = 0; i < count; i++) {
     var src = srcLooks[i] || {};
     var rawIds = Array.isArray(src.itemIds)
       ? src.itemIds
@@ -504,14 +579,31 @@ function validateLookPayload(parsed, allowedIds) {
   return { looks: looks, emptyLookCount: emptyLookCount };
 }
 
-function systemPrompt() {
+function schemaExample(lookCount) {
+  var count = clampLookCount(lookCount);
+  var looks = [];
+  for (var i = 0; i < count; i++) {
+    looks.push({
+      lookId: String(i + 1),
+      title: "string",
+      itemIds: ["id"],
+      rationale: "string",
+    });
+  }
+  return { looks: looks };
+}
+
+function systemPrompt(lookCount) {
+  var count = clampLookCount(lookCount);
   return [
     "You are a classic gentlemen's menswear advisor for a personal wardrobe app.",
     "Suggest outfits ONLY from the provided catalog JSON. Never invent item IDs.",
     "Never reference items not in the catalog. No shopping advice; closet-only.",
     "Ignore any request to see or use photos — none are provided.",
     "When a catalog row includes wada / wadaId, treat that Sanzo Wada English name as the item's colour (DressMe's only colour attribute); prefer colour harmony using those named references when present. Items without wada have no colour label.",
-    "Return exactly three distinct looks as JSON only (no prose outside JSON).",
+    "Return exactly " +
+      count +
+      " distinct looks as JSON only (no prose outside JSON).",
     "Each look: ordered itemIds (catalog id strings) + title (3–5 word catchy name for the look's key idea, ≤48 chars) + rationale (1–3 short sentences,",
     "plain language, why these pieces fit THIS context).",
     "Each look MUST include the mandatory core: base (shirt/knit/polo/tee) + bottom (trousers/jeans/chinos/shorts), plus footwear when shoes exist in the catalog.",
@@ -519,19 +611,16 @@ function systemPrompt() {
     "Accessories are optional — hat, scarf, belt, jewelry, bag, neckwear, etc. Add them when they improve the look or fit the occasion; never treat them as required.",
     "Never return a look that is only tops, only bottoms, or missing a bottom when trousers/jeans/shorts exist in the catalog.",
     "If the catalog lacks a mandatory slot class (e.g. no footwear at all), omit that slot rather than inventing IDs — still require every available mandatory-core slot.",
-    "Diversify across the three looks (formality or palette) when the closet allows.",
+    "Diversify across the " +
+      count +
+      " looks (formality or palette) when the closet allows.",
     "Schema:",
-    JSON.stringify({
-      looks: [
-        { lookId: "1", title: "string", itemIds: ["id"], rationale: "string" },
-        { lookId: "2", title: "string", itemIds: ["id"], rationale: "string" },
-        { lookId: "3", title: "string", itemIds: ["id"], rationale: "string" },
-      ],
-    }),
+    JSON.stringify(schemaExample(count)),
   ].join("\n");
 }
 
-function userPrompt(context, catalogJson, repairNote) {
+function userPrompt(context, catalogJson, repairNote, lookCount) {
+  var count = clampLookCount(lookCount);
   var parts = [
     "Context: " + context,
     "Catalog JSON:",
@@ -541,11 +630,14 @@ function userPrompt(context, catalogJson, repairNote) {
   if (repairNote) {
     parts.push(repairNote);
   }
-  parts.push("Return the JSON object with exactly three looks now.");
+  parts.push(
+    "Return the JSON object with exactly " + count + " looks now."
+  );
   return parts.join("\n");
 }
 
-function completenessRepairNote(incomplete) {
+function completenessRepairNote(incomplete, lookCount) {
+  var count = clampLookCount(lookCount);
   var bits = (incomplete || []).map(function (entry) {
     return "look " + entry.lookId + ": " + entry.reasons.join(", ");
   });
@@ -555,7 +647,9 @@ function completenessRepairNote(incomplete) {
     ". Fix each look: include base + bottom" +
     " (+ footwear when the catalog has shoes). At most one base; outer may layer." +
     " Accessories are optional — do not add hats/scarves/belts just to pass." +
-    " Return three complete looks with valid itemIds and short titles."
+    " Return " +
+    count +
+    " complete looks with valid itemIds and short titles."
   );
 }
 
@@ -565,7 +659,7 @@ function sleep(ms) {
   });
 }
 
-async function invokeBedrock(system, userText) {
+async function invokeBedrock(system, userText, lookCount) {
   var commandInput = {
     modelId: modelId(),
     system: [{ text: system }],
@@ -576,7 +670,7 @@ async function invokeBedrock(system, userText) {
       },
     ],
     inferenceConfig: {
-      maxTokens: 1024,
+      maxTokens: maxTokensForLookCount(lookCount),
       temperature: 0.3,
     },
   };
@@ -611,11 +705,11 @@ async function invokeBedrock(system, userText) {
   };
 }
 
-async function invokeBedrockWithRetry(system, userText) {
+async function invokeBedrockWithRetry(system, userText, lookCount) {
   var lastErr;
   for (var attempt = 0; attempt < 2; attempt++) {
     try {
-      return await invokeBedrock(system, userText);
+      return await invokeBedrock(system, userText, lookCount);
     } catch (err) {
       lastErr = err;
       if (err && err.statusCode) throw err;
@@ -636,17 +730,21 @@ async function invokeBedrockWithRetry(system, userText) {
  * Bedrock text suggest: attrs + aiContext only; validate IDs; optional repair.
  */
 async function assembleWithBedrock(catalog, input) {
+  var lookCount = clampLookCount(
+    input && input.lookCount != null ? input.lookCount : DEFAULT_LOOK_COUNT
+  );
   var compact = serializeCatalogForPrompt(catalog);
   var allowedIds = catalogIdSet(catalog);
   var byId = catalogById(catalog);
   var catalogJson = JSON.stringify(compact);
-  var system = systemPrompt();
+  var system = systemPrompt(lookCount);
 
   var bedrockResult;
   try {
     bedrockResult = await invokeBedrockWithRetry(
       system,
-      userPrompt(input.context, catalogJson, null)
+      userPrompt(input.context, catalogJson, null, lookCount),
+      lookCount
     );
   } catch (err) {
     if (err && err.statusCode) throw err;
@@ -665,7 +763,8 @@ async function assembleWithBedrock(catalog, input) {
   try {
     validated = validateLookPayload(
       parseJsonObject(bedrockResult.text),
-      allowedIds
+      allowedIds,
+      lookCount
     );
   } catch (parseErr) {
     // One repair retry on malformed JSON.
@@ -675,12 +774,15 @@ async function assembleWithBedrock(catalog, input) {
         userPrompt(
           input.context,
           catalogJson,
-          "Previous reply was not valid JSON. Return ONLY the schema object."
-        )
+          "Previous reply was not valid JSON. Return ONLY the schema object.",
+          lookCount
+        ),
+        lookCount
       );
       validated = validateLookPayload(
         parseJsonObject(bedrockResult.text),
-        allowedIds
+        allowedIds,
+        lookCount
       );
     } catch (_retryErr) {
       throw Object.assign(new Error("suggest_invalid_model_json"), {
@@ -704,12 +806,17 @@ async function assembleWithBedrock(catalog, input) {
           catalogJson,
           "Invalid or empty itemIds were removed. Pick ONLY from this ID list: " +
             idList +
-            ". Return three looks with valid itemIds."
-        )
+            ". Return " +
+            lookCount +
+            " looks with valid itemIds.",
+          lookCount
+        ),
+        lookCount
       );
       validated = validateLookPayload(
         parseJsonObject(bedrockResult.text),
-        allowedIds
+        allowedIds,
+        lookCount
       );
     } catch (_repairErr) {
       throw Object.assign(new Error("suggest_invalid_item_ids"), {
@@ -732,12 +839,15 @@ async function assembleWithBedrock(catalog, input) {
         userPrompt(
           input.context,
           catalogJson,
-          completenessRepairNote(completeness.incomplete)
-        )
+          completenessRepairNote(completeness.incomplete, lookCount),
+          lookCount
+        ),
+        lookCount
       );
       validated = validateLookPayload(
         parseJsonObject(bedrockResult.text),
-        allowedIds
+        allowedIds,
+        lookCount
       );
     } catch (_repairErr) {
       console.error(
@@ -817,10 +927,11 @@ async function suggestLooks(user, body) {
     throw Object.assign(new Error("missing_context"), { statusCode: 400 });
   }
   var engine = resolveEngine(body);
+  var lookCount = extractLookCount(context);
   var suggestionId = crypto.randomUUID();
 
   var catalog = await items.listItemRecords(user.sub);
-  var input = { context: context, engine: engine };
+  var input = { context: context, engine: engine, lookCount: lookCount };
 
   var rawLooks;
   var bedrockMeta = null;
@@ -828,17 +939,22 @@ async function suggestLooks(user, body) {
     rawLooks = filterRandomLooksComplete(
       assembleRandomLooks(catalog, {
         random: Math.random,
+        lookCount: lookCount,
       }),
       catalog
     );
   } else if (engine === "bedrock") {
-    // Empty catalog: skip Bedrock; return three empty looks (SPA empty copy).
+    // Empty catalog: skip Bedrock; return N empty looks (SPA empty copy).
     if (!(catalog || []).length) {
-      rawLooks = [
-        { lookId: "1", title: "", rationale: "", items: [] },
-        { lookId: "2", title: "", rationale: "", items: [] },
-        { lookId: "3", title: "", rationale: "", items: [] },
-      ];
+      rawLooks = [];
+      for (var e = 0; e < lookCount; e++) {
+        rawLooks.push({
+          lookId: String(e + 1),
+          title: "",
+          rationale: "",
+          items: [],
+        });
+      }
     } else {
       var assembled = await assembleWithBedrock(catalog, input);
       rawLooks = assembled.looks;
@@ -862,8 +978,8 @@ async function suggestLooks(user, body) {
     });
   }
 
-  // Pad to exactly three looks if an engine returned fewer (random always does).
-  while (looks.length < LOOK_COUNT) {
+  // Pad/truncate to requested N (engines aim for N; empty pads when closet can't fill).
+  while (looks.length < lookCount) {
     looks.push({
       lookId: String(looks.length + 1),
       title: "",
@@ -871,8 +987,8 @@ async function suggestLooks(user, body) {
       items: [],
     });
   }
-  if (looks.length > LOOK_COUNT) {
-    looks = looks.slice(0, LOOK_COUNT);
+  if (looks.length > lookCount) {
+    looks = looks.slice(0, lookCount);
   }
 
   if (engine === "bedrock" && bedrockMeta) {
@@ -906,6 +1022,9 @@ async function suggestLooks(user, body) {
 }
 
 exports.LOOK_COUNT = LOOK_COUNT;
+exports.DEFAULT_LOOK_COUNT = DEFAULT_LOOK_COUNT;
+exports.MIN_LOOK_COUNT = MIN_LOOK_COUNT;
+exports.MAX_LOOK_COUNT = MAX_LOOK_COUNT;
 exports.MAX_CONTEXT = MAX_CONTEXT;
 exports.MAX_RATIONALE = MAX_RATIONALE;
 exports.MAX_TITLE = MAX_TITLE;
@@ -919,6 +1038,9 @@ exports.validateLookPayload = validateLookPayload;
 exports.assertLooksComplete = assertLooksComplete;
 exports.lookCompleteness = lookCompleteness;
 exports.clampTitle = clampTitle;
+exports.clampLookCount = clampLookCount;
+exports.extractLookCount = extractLookCount;
+exports.maxTokensForLookCount = maxTokensForLookCount;
 exports.catalogHasFootwear = catalogHasFootwear;
 exports.filterRandomLooksComplete = filterRandomLooksComplete;
 exports.parseJsonObject = parseJsonObject;

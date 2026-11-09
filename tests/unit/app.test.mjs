@@ -362,7 +362,15 @@ test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   assert.match(styles, /\.looks-grid/);
   assert.match(useCases, /UC-04 — Request outfit suggestions/);
   assert.match(useCases, /UC-05 — View a look as photos \+ Wada plate/);
-  assert.match(useCases, /UC-06 — Pick among three looks/);
+  assert.match(useCases, /UC-06 — Pick among looks/);
+  assert.match(useCases, /clamped \*\*1–8\*\*|clamped \*\*1-8\*\*|default \*\*3\*\*/);
+  assert.match(catalog, /Assembling looks/);
+  assert.doesNotMatch(catalog, /Assembling three looks/);
+  assert.match(catalog, /5 looks please/);
+  assert.match(catalog, /pick one mentally/);
+  const mainSrc = fs.readFileSync(path.join(root, "web/src/main.js"), "utf8");
+  assert.doesNotMatch(mainSrc, /three looks/);
+  assert.match(mainSrc, /outfit looks|looks from it/);
   assert.match(useCases, /UC-09 — Short rationale per look/);
 });
 

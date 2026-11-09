@@ -9,8 +9,8 @@ function renderGate(root, { cognito, message, onLogin }) {
   card.className = "panel gate-card stack";
   card.innerHTML = `
     <p class="brand">DressMe</p>
-    <h1>Your wardrobe, three looks.</h1>
-    <p class="lede">Sign in to browse your wardrobe and get three outfit looks.</p>
+    <h1>Your wardrobe, outfit looks.</h1>
+    <p class="lede">Sign in to browse your wardrobe and get looks from it.</p>
     <p class="status" id="status" role="status"></p>
     <div class="row">
       <button type="button" id="sign-in">Sign in</button>
