@@ -18,6 +18,10 @@ data "archive_file" "high_scores" {
     "health.test.js",
     "items.test.js",
     "attributeOptions.test.js",
+    "suggest.test.js",
+    "analyze.test.js",
+    "thumbs.test.js",
+    "cutouts.test.js",
     "package.json",
     "package-lock.json",
     "README.md",
@@ -34,15 +38,16 @@ resource "random_password" "score_ticket_secret" {
 
 resource "aws_lambda_function" "high_scores" {
   function_name    = local.high_scores_function_name
-  description      = "DressMe API (/api/health, /api/config, /api/items, /api/attribute-options)."
+  description      = "DressMe API (/api/health, /api/config, /api/items, /api/attribute-options, /api/items/analyze, /api/suggest)."
   role             = aws_iam_role.high_scores.arn
   handler          = "api.handler"
   runtime          = "nodejs22.x"
   architectures    = ["arm64"]
   filename         = data.archive_file.high_scores.output_path
   source_code_hash = data.archive_file.high_scores.output_base64sha256
-  timeout          = 20
-  memory_size      = 256
+  # UC-20 thumbs + UC-25 Bedrock multimodal analyze need more headroom than CRUD.
+  timeout     = local.lambda_timeout_seconds
+  memory_size = 512
 
   environment {
     variables = {
@@ -58,6 +63,10 @@ resource "aws_lambda_function" "high_scores" {
       COGNITO_AUTH_DOMAIN  = local.cognito_auth_domain
       COGNITO_REDIRECT_URI = "https://${var.site_domain_name}/"
       COGNITO_LOGOUT_URL   = "https://${var.site_domain_name}/"
+      BEDROCK_REGION       = data.aws_region.current.region
+      # Claude Haiku 4.5 EU inference profile (swap via tf / console if needed).
+      BEDROCK_MODEL_ID = var.bedrock_model_id
+      SUGGEST_ENGINE   = var.suggest_engine
     }
   }
 

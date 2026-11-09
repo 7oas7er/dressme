@@ -17,6 +17,9 @@ var {
 } = require("@aws-sdk/client-s3");
 var { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 var attributeOptions = require("./attributeOptions");
+var attrNormalize = require("./attrNormalize");
+var cutouts = require("./cutouts");
+var thumbs = require("./thumbs");
 
 var ATTR_KEYS = [
   "type",
@@ -29,8 +32,16 @@ var ATTR_KEYS = [
   "outfitRole",
 ];
 
+/**
+ * Option D spike: stop generating / backfilling cutouts.
+ * Existing *.cutout.webp + Dynamo cutoutKey values are left in place (no delete).
+ * SPA prefers originals/thumbs; may revisit cutouts later for AI categorization.
+ */
+var CUTOUTS_ENABLED = false;
+
 var MAX_PHOTOS = 8;
-var MAX_ATTR_LEN = 120;
+/** Durable free-text context for later Bedrock text suggest (UC-25). */
+var MAX_AI_CONTEXT = 2000;
 var PRESIGN_PUT_SECONDS = 900;
 var PRESIGN_GET_SECONDS = 3600;
 
@@ -38,12 +49,18 @@ var deps = {
   doc: null,
   s3: null,
   sign: getSignedUrl,
+  makeThumb: thumbs.makeThumbWithSharp,
+  makeCutout: cutouts.makeCutoutWithSharp,
 };
 
 function resetDepsForTests(next) {
   deps.doc = next && next.doc ? next.doc : null;
   deps.s3 = next && next.s3 ? next.s3 : null;
   deps.sign = next && next.sign ? next.sign : getSignedUrl;
+  deps.makeThumb =
+    next && next.makeThumb ? next.makeThumb : thumbs.makeThumbWithSharp;
+  deps.makeCutout =
+    next && next.makeCutout ? next.makeCutout : cutouts.makeCutoutWithSharp;
   attributeOptions.resetDepsForTests(next);
 }
 
@@ -95,26 +112,33 @@ function skForItem(itemId) {
   return "ITEM#" + itemId;
 }
 
-function clampString(value, fallback) {
-  if (value == null) {
-    return fallback;
-  }
-  var text = String(value).trim();
-  if (!text) {
-    return fallback;
-  }
-  return text.slice(0, MAX_ATTR_LEN);
-}
-
-function normalizeAttributes(input, partial) {
+/**
+ * Phase 1 hygiene: rules 1–4 + silent fold rewrite to seed/custom spelling.
+ * Typo (Levenshtein) matches are never auto-applied — SPA chips only.
+ */
+async function normalizeAttributes(user, input, partial) {
   var src = input || {};
+  var catalog = { options: {}, custom: {} };
+  try {
+    catalog = await attributeOptions.getOptionsForUser(user.sub);
+  } catch (_err) {
+    // Still apply deterministic normalize without option fold-match.
+  }
   var out = {};
   for (var i = 0; i < ATTR_KEYS.length; i++) {
     var key = ATTR_KEYS[i];
     if (partial && !Object.prototype.hasOwnProperty.call(src, key)) {
       continue;
     }
-    out[key] = clampString(src[key], partial ? undefined : "");
+    if (src[key] == null || String(src[key]).trim() === "") {
+      out[key] = partial ? undefined : "";
+    } else {
+      out[key] = attrNormalize.canonicalizeAttrValue(
+        src[key],
+        (catalog.options && catalog.options[key]) || [],
+        (catalog.custom && catalog.custom[key]) || []
+      );
+    }
     if (out[key] === undefined) {
       delete out[key];
     }
@@ -129,17 +153,39 @@ function normalizeAttributes(input, partial) {
   return out;
 }
 
+function normalizeAiContext(value) {
+  if (value == null) return "";
+  return String(value).trim().slice(0, MAX_AI_CONTEXT);
+}
+
+function applyAiContext(target, body, partial) {
+  if (!body || !Object.prototype.hasOwnProperty.call(body, "aiContext")) {
+    if (!partial) {
+      // Create without aiContext: leave unset.
+      return target;
+    }
+    return target;
+  }
+  var text = normalizeAiContext(body.aiContext);
+  if (text) {
+    target.aiContext = text;
+  } else {
+    delete target.aiContext;
+  }
+  return target;
+}
+
 function buildSearchText(item) {
   return ATTR_KEYS.map(function (key) {
     return item[key] || "";
   })
-    .concat([item.itemId || ""])
+    .concat([item.aiContext || "", item.itemId || ""])
     .join(" ")
     .toLowerCase();
 }
 
-function publicItem(item, photoUrls) {
-  return {
+function publicItem(item, photoUrls, thumbUrls, cutoutUrls) {
+  var out = {
     itemId: item.itemId,
     type: item.type,
     color: item.color,
@@ -158,14 +204,35 @@ function publicItem(item, photoUrls) {
       if (photoUrls && photoUrls[photo.photoId]) {
         row.url = photoUrls[photo.photoId];
       }
+      if (thumbUrls && thumbUrls[photo.photoId]) {
+        row.thumbUrl = thumbUrls[photo.photoId];
+      }
+      if (cutoutUrls && cutoutUrls[photo.photoId]) {
+        row.cutoutUrl = cutoutUrls[photo.photoId];
+      }
       return row;
     }),
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
+  if (item.aiContext) {
+    out.aiContext = item.aiContext;
+  }
+  return out;
 }
 
-async function signedGetUrls(item) {
+async function signKey(key) {
+  return deps.sign(
+    s3Client(),
+    new GetObjectCommand({
+      Bucket: mediaBucket(),
+      Key: key,
+    }),
+    { expiresIn: PRESIGN_GET_SECONDS }
+  );
+}
+
+async function signedFullUrls(item) {
   var urls = {};
   var photos = item.photos || [];
   for (var i = 0; i < photos.length; i++) {
@@ -173,16 +240,173 @@ async function signedGetUrls(item) {
     if (photo.status !== "ready" || !photo.key) {
       continue;
     }
-    urls[photo.photoId] = await deps.sign(
-      s3Client(),
-      new GetObjectCommand({
-        Bucket: mediaBucket(),
-        Key: photo.key,
-      }),
-      { expiresIn: PRESIGN_GET_SECONDS }
-    );
+    urls[photo.photoId] = await signKey(photo.key);
   }
   return urls;
+}
+
+async function signedThumbUrls(item) {
+  var urls = {};
+  var photos = item.photos || [];
+  for (var i = 0; i < photos.length; i++) {
+    var photo = photos[i];
+    if (photo.status !== "ready" || !photo.key) {
+      continue;
+    }
+    var key = photo.thumbKey || photo.key;
+    urls[photo.photoId] = await signKey(key);
+  }
+  return urls;
+}
+
+async function signedCutoutUrls(item) {
+  var urls = {};
+  var photos = item.photos || [];
+  for (var i = 0; i < photos.length; i++) {
+    var photo = photos[i];
+    if (photo.status !== "ready" || !photo.cutoutKey) {
+      continue;
+    }
+    urls[photo.photoId] = await signKey(photo.cutoutKey);
+  }
+  return urls;
+}
+
+async function deleteMediaKey(key) {
+  if (!key) return;
+  try {
+    await s3Client().send(
+      new DeleteObjectCommand({ Bucket: mediaBucket(), Key: key })
+    );
+  } catch (_err) {
+    // Best-effort media cleanup; metadata remains authoritative.
+  }
+}
+
+async function loadPhotoBuffer(photo) {
+  var obj = await s3Client().send(
+    new GetObjectCommand({
+      Bucket: mediaBucket(),
+      Key: photo.key,
+    })
+  );
+  return thumbs.streamToBuffer(obj.Body);
+}
+
+async function ensureThumbForPhoto(photo, cachedBuffer) {
+  if (!photo || photo.status !== "ready" || !photo.key) {
+    return photo;
+  }
+  if (photo.thumbKey) {
+    return photo;
+  }
+  try {
+    var input = cachedBuffer || (await loadPhotoBuffer(photo));
+    var thumbBuf = await deps.makeThumb(input);
+    var thumbKey = thumbs.thumbKeyFor(photo.key);
+    await s3Client().send(
+      new PutObjectCommand({
+        Bucket: mediaBucket(),
+        Key: thumbKey,
+        Body: thumbBuf,
+        ContentType: thumbs.THUMB_CONTENT_TYPE,
+      })
+    );
+    return Object.assign({}, photo, { thumbKey: thumbKey });
+  } catch (err) {
+    console.error(
+      "thumb_failed",
+      photo.photoId,
+      err && err.message ? err.message : err
+    );
+    return photo;
+  }
+}
+
+async function ensureCutoutForPhoto(photo, cachedBuffer, options) {
+  if (!CUTOUTS_ENABLED) {
+    return photo;
+  }
+  if (!photo || photo.status !== "ready" || !photo.key) {
+    return photo;
+  }
+  var opts = options || {};
+  var force = Boolean(opts.force);
+  var currentVersion = photo.cutoutVersion || 0;
+  var needs =
+    force ||
+    !photo.cutoutKey ||
+    currentVersion !== cutouts.CUTOUT_VERSION;
+  if (!needs) {
+    return photo;
+  }
+  try {
+    var input = cachedBuffer || (await loadPhotoBuffer(photo));
+    var cutoutBuf = await deps.makeCutout(input);
+    var cutoutKey = cutouts.cutoutKeyFor(photo.key);
+    await s3Client().send(
+      new PutObjectCommand({
+        Bucket: mediaBucket(),
+        Key: cutoutKey,
+        Body: cutoutBuf,
+        ContentType: cutouts.CUTOUT_CONTENT_TYPE,
+      })
+    );
+    return Object.assign({}, photo, {
+      cutoutKey: cutoutKey,
+      cutoutVersion: cutouts.CUTOUT_VERSION,
+    });
+  } catch (err) {
+    // Never block item save / confirm on matting failure (design §4a).
+    console.error(
+      "cutout_failed",
+      photo.photoId,
+      err && err.message ? err.message : err
+    );
+    return photo;
+  }
+}
+
+function photoNeedsCutout(photo, force) {
+  if (!CUTOUTS_ENABLED) return false;
+  if (!photo || photo.status !== "ready" || !photo.key) return false;
+  if (force) return true;
+  if (!photo.cutoutKey) return true;
+  return (photo.cutoutVersion || 0) !== cutouts.CUTOUT_VERSION;
+}
+
+async function ensureDerivativesForPhotos(photos, options) {
+  var opts = options || {};
+  var forceCutouts = Boolean(opts.forceCutouts);
+  var out = [];
+  for (var i = 0; i < (photos || []).length; i++) {
+    var photo = photos[i];
+    if (!photo || photo.status !== "ready" || !photo.key) {
+      out.push(photo);
+      continue;
+    }
+    var cached = null;
+    var needsCutout = photoNeedsCutout(photo, forceCutouts);
+    if (!photo.thumbKey || needsCutout) {
+      try {
+        cached = await loadPhotoBuffer(photo);
+      } catch (err) {
+        console.error(
+          "photo_load_failed",
+          photo.photoId,
+          err && err.message ? err.message : err
+        );
+        out.push(photo);
+        continue;
+      }
+    }
+    var withThumb = await ensureThumbForPhoto(photo, cached);
+    var withCutout = await ensureCutoutForPhoto(withThumb, cached, {
+      force: forceCutouts,
+    });
+    out.push(withCutout);
+  }
+  return out;
 }
 
 async function getItemRecord(userId, itemId) {
@@ -195,18 +419,22 @@ async function getItemRecord(userId, itemId) {
   return result.Item || null;
 }
 
-async function listItems(user, query) {
+async function listItemRecords(userId) {
   var result = await docClient().send(
     new QueryCommand({
       TableName: tableName(),
       KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
       ExpressionAttributeValues: {
-        ":pk": pkForUser(user.sub),
+        ":pk": pkForUser(userId),
         ":sk": "ITEM#",
       },
     })
   );
-  var rows = result.Items || [];
+  return result.Items || [];
+}
+
+async function listItems(user, query) {
+  var rows = await listItemRecords(user.sub);
   var q = (query.q || query.search || "").trim().toLowerCase();
   if (q) {
     rows = rows.filter(function (item) {
@@ -219,8 +447,10 @@ async function listItems(user, query) {
 
   var out = [];
   for (var i = 0; i < rows.length; i++) {
-    var urls = await signedGetUrls(rows[i]);
-    out.push(publicItem(rows[i], urls));
+    // Overview: thumbs + cutouts when present (full-res still on get/edit).
+    var thumbUrls = await signedThumbUrls(rows[i]);
+    var cutoutUrls = await signedCutoutUrls(rows[i]);
+    out.push(publicItem(rows[i], null, thumbUrls, cutoutUrls));
   }
   return { statusCode: 200, body: { items: out } };
 }
@@ -230,8 +460,13 @@ async function getItem(user, itemId) {
   if (!item) {
     return { statusCode: 404, body: { error: "not_found" } };
   }
-  var urls = await signedGetUrls(item);
-  return { statusCode: 200, body: { item: publicItem(item, urls) } };
+  var urls = await signedFullUrls(item);
+  var thumbUrls = await signedThumbUrls(item);
+  var cutoutUrls = await signedCutoutUrls(item);
+  return {
+    statusCode: 200,
+    body: { item: publicItem(item, urls, thumbUrls, cutoutUrls) },
+  };
 }
 
 function photoKey(userId, itemId, photoId, contentType) {
@@ -289,7 +524,7 @@ async function buildUploadSlots(userId, itemId, photoSpecs) {
 }
 
 async function createItem(user, body) {
-  var attrs = normalizeAttributes(body, false);
+  var attrs = await normalizeAttributes(user, body, false);
   var photoSpecs = Array.isArray(body.photos) ? body.photos : [];
   if (photoSpecs.length > MAX_PHOTOS) {
     throw Object.assign(new Error("too_many_photos"), { statusCode: 400 });
@@ -307,6 +542,7 @@ async function createItem(user, body) {
     createdAt: ts,
     updatedAt: ts,
   });
+  applyAiContext(item, body, false);
   item.searchText = buildSearchText(item);
 
   await docClient().send(
@@ -335,18 +571,26 @@ async function updateItem(user, itemId, body) {
     return { statusCode: 404, body: { error: "not_found" } };
   }
 
-  var attrs = normalizeAttributes(body, true);
+  var attrs = await normalizeAttributes(user, body, true);
   var next = Object.assign({}, existing, attrs, { updatedAt: nowIso() });
+  applyAiContext(next, body, true);
   var uploads = [];
 
   // Removals first so a single PUT can drop photos and request new upload slots.
+  // When the same request also addPhotos, rebuild in place so replacements keep
+  // the removed indices (order-preserving remove+add; UC-18 rotate uses replacePhotos).
+  var originalPhotos = next.photos || [];
   var removePhotoIds = Array.isArray(body.removePhotoIds) ? body.removePhotoIds : [];
+  var removeSet = {};
+  for (var ri = 0; ri < removePhotoIds.length; ri++) {
+    removeSet[String(removePhotoIds[ri])] = true;
+  }
+  var keep = [];
+  var removed = [];
   if (removePhotoIds.length) {
-    var keep = [];
-    var removed = [];
-    for (var i = 0; i < (next.photos || []).length; i++) {
-      var photo = next.photos[i];
-      if (removePhotoIds.indexOf(photo.photoId) >= 0) {
+    for (var i = 0; i < originalPhotos.length; i++) {
+      var photo = originalPhotos[i];
+      if (removeSet[String(photo.photoId)]) {
         removed.push(photo);
       } else {
         keep.push(photo);
@@ -354,16 +598,68 @@ async function updateItem(user, itemId, body) {
     }
     next.photos = keep;
     for (var r = 0; r < removed.length; r++) {
-      if (removed[r].key) {
-        try {
-          await s3Client().send(
-            new DeleteObjectCommand({ Bucket: mediaBucket(), Key: removed[r].key })
-          );
-        } catch (_err) {
-          // Best-effort media cleanup; metadata remains authoritative.
+      await deleteMediaKey(removed[r].key);
+      await deleteMediaKey(removed[r].thumbKey);
+      await deleteMediaKey(removed[r].cutoutKey);
+    }
+  }
+
+  // UC-18 rotate: same photoId rewrite — pending slot + presign PUT overwrite;
+  // photos/complete regenerates thumb (thumbKey cleared below).
+  var replacePhotos = Array.isArray(body.replacePhotos) ? body.replacePhotos : [];
+  if (replacePhotos.length) {
+    var photosNow = (next.photos || []).slice();
+    for (var rp = 0; rp < replacePhotos.length; rp++) {
+      var spec = replacePhotos[rp] || {};
+      var replaceId = spec.photoId != null ? String(spec.photoId) : "";
+      if (!replaceId) {
+        throw Object.assign(new Error("photo_id_required"), { statusCode: 400 });
+      }
+      if (removeSet[replaceId]) {
+        throw Object.assign(new Error("photo_replaced_and_removed"), {
+          statusCode: 400,
+        });
+      }
+      var replaceIndex = -1;
+      for (var pi = 0; pi < photosNow.length; pi++) {
+        if (String(photosNow[pi].photoId) === replaceId) {
+          replaceIndex = pi;
+          break;
         }
       }
+      if (replaceIndex < 0) {
+        return { statusCode: 404, body: { error: "photo_not_found" } };
+      }
+      var existingPhoto = photosNow[replaceIndex];
+      var contentType = normalizeContentType(spec.contentType || "image/jpeg");
+      var newKey = photoKey(user.sub, itemId, replaceId, contentType);
+      if (existingPhoto.key && existingPhoto.key !== newKey) {
+        await deleteMediaKey(existingPhoto.key);
+      }
+      await deleteMediaKey(existingPhoto.thumbKey);
+      await deleteMediaKey(existingPhoto.cutoutKey);
+      var uploadUrl = await deps.sign(
+        s3Client(),
+        new PutObjectCommand({
+          Bucket: mediaBucket(),
+          Key: newKey,
+          ContentType: contentType,
+        }),
+        { expiresIn: PRESIGN_PUT_SECONDS }
+      );
+      photosNow[replaceIndex] = {
+        photoId: replaceId,
+        key: newKey,
+        contentType: contentType,
+        status: "pending",
+      };
+      uploads.push({
+        photoId: replaceId,
+        uploadUrl: uploadUrl,
+        contentType: contentType,
+      });
     }
+    next.photos = photosNow;
   }
 
   var addPhotos = Array.isArray(body.addPhotos) ? body.addPhotos : [];
@@ -373,8 +669,61 @@ async function updateItem(user, itemId, body) {
       throw Object.assign(new Error("too_many_photos"), { statusCode: 400 });
     }
     var slot = await buildUploadSlots(user.sub, itemId, addPhotos);
-    next.photos = (next.photos || []).concat(slot.photos);
-    uploads = slot.uploads;
+    uploads = uploads.concat(slot.uploads);
+    if (removed.length > 0) {
+      var rebuilt = [];
+      var addCursor = 0;
+      for (var oi = 0; oi < originalPhotos.length; oi++) {
+        if (removeSet[String(originalPhotos[oi].photoId)]) {
+          if (addCursor < slot.photos.length) {
+            rebuilt.push(slot.photos[addCursor++]);
+          }
+          // Extra removals without a matching add are dropped (omit slot).
+        } else {
+          // Prefer post-replace photos when present (same photoId, updated slot).
+          var keptId = String(originalPhotos[oi].photoId);
+          var fromNext = null;
+          for (var ni = 0; ni < (next.photos || []).length; ni++) {
+            if (String(next.photos[ni].photoId) === keptId) {
+              fromNext = next.photos[ni];
+              break;
+            }
+          }
+          rebuilt.push(fromNext || originalPhotos[oi]);
+        }
+      }
+      while (addCursor < slot.photos.length) {
+        rebuilt.push(slot.photos[addCursor++]);
+      }
+      next.photos = rebuilt;
+    } else {
+      next.photos = (next.photos || []).concat(slot.photos);
+    }
+  }
+
+  // UC-18 designate catalog photo: move primaryPhotoId to index 0 (last so
+  // remove/replace/add can run in the same PUT). Relative order of others kept.
+  if (
+    body.primaryPhotoId != null &&
+    String(body.primaryPhotoId).length > 0
+  ) {
+    var primaryId = String(body.primaryPhotoId);
+    var photosForPrimary = (next.photos || []).slice();
+    var primaryIndex = -1;
+    for (var pri = 0; pri < photosForPrimary.length; pri++) {
+      if (String(photosForPrimary[pri].photoId) === primaryId) {
+        primaryIndex = pri;
+        break;
+      }
+    }
+    if (primaryIndex < 0) {
+      return { statusCode: 400, body: { error: "photo_not_found" } };
+    }
+    if (primaryIndex > 0) {
+      var primaryPhoto = photosForPrimary.splice(primaryIndex, 1)[0];
+      photosForPrimary.unshift(primaryPhoto);
+      next.photos = photosForPrimary;
+    }
   }
 
   next.searchText = buildSearchText(next);
@@ -384,7 +733,14 @@ async function updateItem(user, itemId, body) {
     await attributeOptions.rememberCustomValues(user, attrs);
   }
 
-  var responseBody = { item: publicItem(next, await signedGetUrls(next)) };
+  var responseBody = {
+    item: publicItem(
+      next,
+      await signedFullUrls(next),
+      await signedThumbUrls(next),
+      await signedCutoutUrls(next)
+    ),
+  };
   if (uploads.length) {
     responseBody.uploads = uploads;
   }
@@ -409,6 +765,8 @@ async function confirmPhotos(user, itemId, body) {
     }
     return photo;
   });
+  // UC-20 thumbs for newly ready photos. Cutout generation stopped (Option D).
+  photos = await ensureDerivativesForPhotos(photos);
   var next = Object.assign({}, existing, {
     photos: photos,
     updatedAt: nowIso(),
@@ -417,8 +775,162 @@ async function confirmPhotos(user, itemId, body) {
   await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
   return {
     statusCode: 200,
-    body: { item: publicItem(next, await signedGetUrls(next)) },
+    body: {
+      item: publicItem(
+        next,
+        await signedFullUrls(next),
+        await signedThumbUrls(next),
+        await signedCutoutUrls(next)
+      ),
+    },
   };
+}
+
+async function backfillDerivative(user, kind, options) {
+  var opts = options || {};
+  var force = Boolean(opts.force);
+  var wantThumb = kind === "thumbs" || kind === "both";
+  var wantCutout = kind === "cutouts" || kind === "both";
+  var result = await docClient().send(
+    new QueryCommand({
+      TableName: tableName(),
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+      ExpressionAttributeValues: {
+        ":pk": pkForUser(user.sub),
+        ":sk": "ITEM#",
+      },
+    })
+  );
+  var rows = result.Items || [];
+  var processed = 0;
+  var skipped = 0;
+  var failed = 0;
+  var updatedItems = 0;
+
+  for (var i = 0; i < rows.length; i++) {
+    var item = rows[i];
+    var photos = item.photos || [];
+    var changed = false;
+    var nextPhotos = [];
+    for (var p = 0; p < photos.length; p++) {
+      var photo = photos[p];
+      if (photo.status !== "ready" || !photo.key) {
+        nextPhotos.push(photo);
+        skipped += 1;
+        continue;
+      }
+
+      var needsThumb = wantThumb && !photo.thumbKey;
+      var needsCutout = wantCutout && photoNeedsCutout(photo, force);
+      if (!needsThumb && !needsCutout) {
+        nextPhotos.push(photo);
+        skipped += 1;
+        continue;
+      }
+
+      var cached = null;
+      try {
+        cached = await loadPhotoBuffer(photo);
+      } catch (err) {
+        console.error(
+          "photo_load_failed",
+          photo.photoId,
+          err && err.message ? err.message : err
+        );
+        failed += 1;
+        nextPhotos.push(photo);
+        continue;
+      }
+
+      var nextPhoto = photo;
+      var madeProgress = false;
+      var hadFailure = false;
+
+      if (needsThumb) {
+        var withThumb = await ensureThumbForPhoto(nextPhoto, cached);
+        if (withThumb.thumbKey && withThumb.thumbKey !== photo.thumbKey) {
+          nextPhoto = withThumb;
+          madeProgress = true;
+        } else if (!withThumb.thumbKey) {
+          hadFailure = true;
+        }
+      }
+
+      if (needsCutout) {
+        var prevKey = photo.cutoutKey || null;
+        var prevVersion = photo.cutoutVersion || 0;
+        var withCutout = await ensureCutoutForPhoto(nextPhoto, cached, {
+          force: force || prevVersion !== cutouts.CUTOUT_VERSION,
+        });
+        if (!withCutout.cutoutKey) {
+          hadFailure = true;
+        } else if (
+          force ||
+          withCutout.cutoutKey !== prevKey ||
+          (withCutout.cutoutVersion || 0) !== prevVersion
+        ) {
+          // Force regenerates in place (same key); still count as processed.
+          nextPhoto = withCutout;
+          madeProgress = true;
+        }
+      }
+
+      if (madeProgress) {
+        processed += 1;
+        changed = true;
+        nextPhotos.push(nextPhoto);
+      } else if (hadFailure) {
+        failed += 1;
+        nextPhotos.push(photo);
+      } else {
+        skipped += 1;
+        nextPhotos.push(nextPhoto);
+      }
+    }
+    if (changed) {
+      var next = Object.assign({}, item, {
+        photos: nextPhotos,
+        updatedAt: nowIso(),
+      });
+      next.searchText = buildSearchText(next);
+      await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
+      updatedItems += 1;
+    }
+  }
+
+  return {
+    statusCode: 200,
+    body: {
+      processed: processed,
+      skipped: skipped,
+      failed: failed,
+      updatedItems: updatedItems,
+      cutoutVersion: cutouts.CUTOUT_VERSION,
+    },
+  };
+}
+
+async function backfillThumbs(user) {
+  return backfillDerivative(user, "thumbs");
+}
+
+async function backfillCutouts(user, body) {
+  if (!CUTOUTS_ENABLED) {
+    // Noop: leave existing keys; SPA no longer auto-calls this.
+    return {
+      statusCode: 200,
+      body: {
+        processed: 0,
+        skipped: 0,
+        failed: 0,
+        updatedItems: 0,
+        cutoutVersion: cutouts.CUTOUT_VERSION,
+        disabled: true,
+      },
+    };
+  }
+  var force = Boolean(body && (body.force || body.upgrade));
+  return backfillDerivative(user, "cutouts", { force: force });
 }
 
 async function deleteItem(user, itemId) {
@@ -428,15 +940,9 @@ async function deleteItem(user, itemId) {
   }
   for (var i = 0; i < (existing.photos || []).length; i++) {
     var photo = existing.photos[i];
-    if (photo.key) {
-      try {
-        await s3Client().send(
-          new DeleteObjectCommand({ Bucket: mediaBucket(), Key: photo.key })
-        );
-      } catch (_err) {
-        // Best-effort.
-      }
-    }
+    await deleteMediaKey(photo.key);
+    await deleteMediaKey(photo.thumbKey);
+    await deleteMediaKey(photo.cutoutKey);
   }
   await docClient().send(
     new DeleteCommand({
@@ -448,10 +954,21 @@ async function deleteItem(user, itemId) {
 }
 
 exports.listItems = listItems;
+exports.listItemRecords = listItemRecords;
+exports.getItemRecord = getItemRecord;
 exports.getItem = getItem;
 exports.createItem = createItem;
 exports.updateItem = updateItem;
 exports.confirmPhotos = confirmPhotos;
+exports.backfillThumbs = backfillThumbs;
+exports.backfillCutouts = backfillCutouts;
 exports.deleteItem = deleteItem;
+exports.publicItem = publicItem;
+exports.signedFullUrls = signedFullUrls;
+exports.signedThumbUrls = signedThumbUrls;
+exports.signedCutoutUrls = signedCutoutUrls;
+exports.loadPhotoBuffer = loadPhotoBuffer;
 exports.ATTR_KEYS = ATTR_KEYS;
+exports.MAX_AI_CONTEXT = MAX_AI_CONTEXT;
+exports.CUTOUTS_ENABLED = CUTOUTS_ENABLED;
 exports.resetDepsForTests = resetDepsForTests;

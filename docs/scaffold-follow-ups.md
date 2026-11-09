@@ -26,9 +26,10 @@ Scaffold creates the isolated app repo. These steps are **not** done by the firs
 - [x] Terraform Environment plan role + `CLOUDFLARE_API_TOKEN` / origin-verify secrets for plan CI
 - [x] Ruleset `default` active on `main`+`staging` (`Required CI` only; no force-push/delete; PR required)
 - [x] Issues / Wiki / Projects off
-- [ ] Dependabot alerts + secret scanning + push protection — confirm in Settings (this App token lacks `administration=read`, cannot API-verify)
-- [ ] Actions `GITHUB_TOKEN` read-only + cannot approve PRs — same (UI confirm)
-- [ ] CodeQL **default** setup off — same (in-repo advanced workflow only)
+- [x] Dependabot alerts + secret scanning + push protection — API-verified 2026-11-07 (admin `gh` on Mac)
+- [x] Actions `GITHUB_TOKEN` read-only + cannot approve PRs — API-verified 2026-11-07
+- [x] CodeQL **default** setup off (`not-configured`) — API-verified 2026-11-07 (in-repo advanced workflow only)
+- [x] Environment deployment branch policies — `staging`→`staging`, `production`→`main`; `terraform` unrestricted (match Block Drop; API-set 2026-11-07)
 - [x] Cursor GitHub App installed on this repo (for cloud agents) — Contents R/W verified 2026-10-25; Administration still Read
 - [ ] Production Environment vars after prod apply
 - [ ] Grafana `github_access_token` / `enable_github_ci = true` for CI panels
@@ -42,4 +43,8 @@ Scaffold creates the isolated app repo. These steps are **not** done by the firs
 
 - [x] Cognito + DynamoDB + S3 media + catalog CRUD (UC-01–03)
 - [x] Manage photos while editing an item (UC-18)
-- [ ] Suggest + collage + Bedrock (UC-04–06)
+- [x] Suggest + collage UX (UC-04–06) — random assembly MVP; Bedrock still follow-up
+- [x] Layered look layout B1 (hero + right strip; SPA `lookLayout` / `lookCard`)
+- [x] Layered look cutouts B2 (lean sharp matte + S3; hero/catalog prefer cutout; backfill) — **superseded by Option D**: SVG mannequin hero; cutout gen stopped (`CUTOUTS_ENABLED=false`); existing keys left in place
+- [x] Add-time AI catalog assist (UC-25) — `POST /api/items/analyze` + `aiContext`; Mac Terraform apply for Bedrock IAM/env
+- [x] Bedrock text suggest engine (DM-44; `SUGGEST_ENGINE` / `engine: "bedrock"`; UC-09 rationale) — flip stg default via TF apply after smoke

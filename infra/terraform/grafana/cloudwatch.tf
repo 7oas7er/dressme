@@ -52,6 +52,85 @@ resource "grafana_cloud_provider_aws_cloudwatch_scrape_job" "dressme" {
     tags_to_add_to_metrics = ["Name"]
   }
 
+  # UC-25 Analyze (Converse). Account/region + ModelId dimensions — not env-tagged.
+  # Still scraped so token/invocation panels are not dark (gap P0).
+  service {
+    name                    = "AWS/Bedrock"
+    scrape_interval_seconds = 300
+
+    metric {
+      name       = "Invocations"
+      statistics = ["Sum"]
+    }
+
+    metric {
+      name       = "InputTokenCount"
+      statistics = ["Sum"]
+    }
+
+    metric {
+      name       = "OutputTokenCount"
+      statistics = ["Sum"]
+    }
+
+    metric {
+      name       = "InvocationClientErrors"
+      statistics = ["Sum"]
+    }
+
+    metric {
+      name       = "InvocationServerErrors"
+      statistics = ["Sum"]
+    }
+
+    metric {
+      name       = "InvocationThrottles"
+      statistics = ["Sum"]
+    }
+  }
+
+  service {
+    name                    = "AWS/DynamoDB"
+    scrape_interval_seconds = 300
+
+    metric {
+      name       = "ConsumedReadCapacityUnits"
+      statistics = ["Sum"]
+    }
+
+    metric {
+      name       = "ConsumedWriteCapacityUnits"
+      statistics = ["Sum"]
+    }
+
+    metric {
+      name       = "UserErrors"
+      statistics = ["Sum"]
+    }
+
+    metric {
+      name       = "SystemErrors"
+      statistics = ["Sum"]
+    }
+
+    metric {
+      name       = "ThrottledRequests"
+      statistics = ["Sum"]
+    }
+
+    metric {
+      name       = "ReadThrottleEvents"
+      statistics = ["Sum"]
+    }
+
+    metric {
+      name       = "WriteThrottleEvents"
+      statistics = ["Sum"]
+    }
+
+    tags_to_add_to_metrics = ["Name"]
+  }
+
   service {
     name                    = "AWS/CloudFront"
     scrape_interval_seconds = 300

@@ -45,14 +45,15 @@ distribution `Name` tag, and synthetic probe jobs. Do not mix prod and stg serie
 
 Keep this order and these row titles (env-specific hostnames/jobs inside panels):
 
-1. **Traffic — requests** — five fixed windows (see below)
-2. **Errors — 4xx / 5xx (CF counts ≤30d; year = CloudWatch rates)**
+1. **Traffic — request rate (req/s)** — five fixed windows (see below). CF Adaptive: `count / bucket_seconds` (`datetimeMinute` → `/60`, `datetimeHour` → `/3600`); year CloudWatch: PromQL `rate(…[1h])` (already /s). Use rate, not absolute bucket counts, so hour/day/month y-scales are comparable.
+2. **Errors — 4xx / 5xx (% of requests; CF Adaptive ≤30d; year = CloudWatch)** — y-axis 0–100%. CF Adaptive: one query per panel selecting `ratio { status4xx status5xx }` (Cloudflare's `count(4xx|5xx) / count` per time bucket, 0–1) plotted with unit `percentunit`, no panel transforms. Do **not** split total/4xx/5xx into separate queries + `joinByField` + `calculateField`: the join suffixes field display names with the refId (`total A`, `4xx B`), the by-name lookup misses, and `parseFloat("4xx…")` = 4 yields a flat 400% (pinned at 100%). Year: CloudWatch `4xxErrorRate` / `5xxErrorRate` via Prom (already %).
 3. **Latency — origin (CloudFront) + CF `originResponseDurationMs`**
 4. **Synthetics — availability** — site + critical API uptime stats, success/latency charts, check logs
-5. **Cloudflare — volume** — bandwidth, visits, status mix
-6. **Cloudflare — cache & bots** — cache status, verified bots, countries
-7. **Cloudflare — paths & firewall** — top paths; firewall **events table** (not aggregated groups)
-8. **GitHub Actions CI** — deploy + terraform-plan workflow runs/usage
+5. **API / backend (when the app scrapes them)** — env-scoped Lambda (Invocations / Errors / Throttles / Duration); Bedrock tokens/invocations if used (often account-level); DynamoDB errors/throttles/capacity if used. Do **not** replace or reorder the edge traffic/errors/latency rows above.
+6. **Cloudflare — volume** — bandwidth, visits, status mix
+7. **Cloudflare — cache & bots** — cache status, verified bots, countries
+8. **Cloudflare — paths & firewall** — top paths; firewall **events table** (not aggregated groups)
+9. **GitHub Actions CI** — deploy + terraform-plan workflow runs/usage
 
 Annotation: **GitHub commits** on the GitHub DS (`owner`/`repository` from variables).
 
@@ -87,8 +88,9 @@ Metric tiles use **panel `timeFrom`**, not the dashboard picker alone — so hou
 
 ## CloudWatch scrape expectations
 
-- Scrape `AWS/CloudFront` (include **`OriginLatency` Average**) and app compute (e.g. `AWS/Lambda`) in `eu-north-1` + `us-east-1` when CloudFront is involved.
-- Label `project=<slug>`. No dedicated “CloudWatch section” on the dashboard — scrape feeds origin latency + short-retention Prom series (not a full year on Free).
+- Scrape `AWS/CloudFront` (include **`OriginLatency` Average**) and app compute / data stores the product depends on (e.g. `AWS/Lambda`, and when present `AWS/Bedrock`, `AWS/DynamoDB`) in `eu-north-1` + `us-east-1` when CloudFront is involved.
+- Label `project=<slug>`. Prefer `Name` tags on Lambda / DynamoDB / CloudFront so panels can filter by env. Bedrock metrics are typically account + `ModelId` (not env-tagged) — document that on panels if both env boards share the series.
+- Edge traffic/errors/latency rows stay CF Adaptive (+ year CloudWatch). Backend Lambda / Bedrock / Dynamo rows are separate sections after synthetics (DressMe pattern) — do not fold them into the fixed-window edge tiles.
 
 ## GitHub CI panels
 

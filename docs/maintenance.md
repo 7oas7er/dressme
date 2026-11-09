@@ -47,6 +47,25 @@ Roots with lockfiles: `infra/terraform/aws/bootstrap`, `aws/envs/stg`, `aws/envs
 [ ] Custom domain still 200; raw CloudFront URL still 403 (origin-verify)
 ```
 
+## Cognito owner stuck / no reset email (stg)
+
+Terraform creates the owner with a **temporary** password (`FORCE_CHANGE_PASSWORD`). Hosted UI “Forgot password?” is unreliable until the user is `CONFIRMED`: the SPA client has `prevent_user_existence_errors`, and Cognito’s default mailer (`COGNITO_DEFAULT` → `no-reply@verificationemail.com`, 50/day) often never lands.
+
+**Unblock without email** (sets a permanent password → `CONFIRMED`):
+
+```bash
+export AWS_PROFILE=7oas7er AWS_DEFAULT_REGION=eu-north-1
+POOL=$(cd infra/terraform/aws/envs/stg && terraform output -raw cognito_user_pool_id)
+# Generate a 12+ char password yourself (upper/lower/number/symbol); do not paste into chat.
+aws cognito-idp admin-set-user-password \
+  --user-pool-id "$POOL" \
+  --username frank@schlesinger.com \
+  --password 'YOUR_NEW_PASSWORD' \
+  --permanent
+```
+
+Then sign in at https://dressme-stg.7oas7er.com/ with that password (email all lowercase). Optional first-login path while still `FORCE_CHANGE_PASSWORD`: Hosted UI + `terraform output -raw cognito_owner_temporary_password` → set a new permanent password there.
+
 ## Quarterly (optional)
 
 - Terraform / Node / Playwright **major** upgrades when pain or support ends

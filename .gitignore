@@ -10,3 +10,6 @@ strix_runs/
 # Raw review dumps under docs/security-reviews/; curated *.md summaries are committed.
 docs/security-reviews/**
 !docs/security-reviews/*.md
+
+# Local agent/operator scratch (OTP files, etc. — never commit)
+.local/

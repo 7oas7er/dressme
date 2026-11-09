@@ -102,6 +102,24 @@ data "aws_iam_policy_document" "high_scores" {
     ]
     resources = ["${aws_s3_bucket.media.arn}/*"]
   }
+
+  # UC-25 add-time catalog assist (multimodal). DM-44 text suggest will reuse.
+  # Pin inference-profile to configured bedrock_model_id; keep explicit CRIS FM
+  # destinations for that model family (not foundation-model/*).
+  statement {
+    sid = "BedrockInvokeCatalogAssist"
+    actions = [
+      "bedrock:InvokeModel",
+      "bedrock:InvokeModelWithResponseStream",
+    ]
+    resources = concat(
+      [local.bedrock_inference_profile_arn],
+      [
+        for region in local.bedrock_cris_foundation_model_regions :
+        "arn:aws:bedrock:${region}::foundation-model/${local.bedrock_foundation_model_id}"
+      ],
+    )
+  }
 }
 
 data "aws_iam_policy_document" "media_bucket" {

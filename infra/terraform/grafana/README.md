@@ -10,11 +10,11 @@ CloudWatch scrape is enabled by default (`enable_cloudwatch_scrape = true`). Org
 |----------|---------|
 | `shared-dressme-grafana-cloudwatch-role` | IAM role Grafana Labs assumes to read CloudWatch |
 | `grafana_cloud_provider_aws_account` | Links the AWS account to the Grafana stack |
-| `grafana_cloud_provider_aws_cloudwatch_scrape_job` | Scrapes Lambda + CloudFront metrics |
-| Synthetic HTTP checks | Prod/stg site + `/api/health` (prod: ≤2 EU probes @ 5m; stg: 1 probe @ 15m) |
+| `grafana_cloud_provider_aws_cloudwatch_scrape_job` | Scrapes Lambda + Bedrock + DynamoDB + CloudFront metrics |
+| Synthetic HTTP checks | Prod/stg site + `/api/health` (prod: ≤2 EU probes @ 15m; stg: 1 probe @ 30m) |
 | Infinity data source | Cloudflare GraphQL edge traffic + firewall / rate-limit events (optional until token set) |
 | GitHub data source | Actions workflow runs / usage for deploy + terraform-plan (optional until token set) |
-| Folder + dashboards `DressMe — Production` / `DressMe — Staging` | Fixed-window traffic/errors/latency + synthetics + Cloudflare edge + GitHub CI |
+| Folder + dashboards `DressMe — Production` / `DressMe — Staging` | Fixed-window traffic/errors/latency + synthetics + API Lambda / Bedrock / DynamoDB + Cloudflare edge + GitHub CI |
 
 State key: `grafana/terraform.tfstate` in `shared-dressme-terraform-state-bucket`.
 
@@ -39,14 +39,22 @@ Probe script (optional) still lives under `scripts/` here, or use platform
 
 ### GitHub Actions CI
 
-1. Create a fine-grained PAT for repo `7oas7er/dressme` with **Actions: Read**, **Metadata: Read**, and **Contents: Read** if the plugin requires it.
-2. Set `github_access_token` in `terraform.tfvars` (or `GITHUB_GRAFANA_TOKEN`).
-3. The `grafana-github-datasource` **plugin** is installed by platform `shared-obs`. This root only creates DS `github-dressme`.
-4. Both env dashboards include GitHub panels for `deploy-dressme.yml` and `terraform-plan.yml`.
+1. Create a fine-grained PAT for repo `7oas7er/dressme` with **Actions: Read**,
+   **Metadata: Read**, and **Contents: Read** if the plugin requires it.
+2. Set `github_access_token` in `terraform.tfvars` (or export `TF_VAR_github_access_token`).
+3. For CI Plan Grafana, also set Environment **`terraform`** secret `GRAFANA_GITHUB_TOKEN`
+   to the same PAT (see [`../docs/terraform-plan-ci.md`](../docs/terraform-plan-ci.md)).
+   Without it, every CI plan proposes destroying DS `github-dressme` once the DS exists
+   in state (or never creates it). Actions forbids secret names starting with `GITHUB_`.
+4. The `grafana-github-datasource` **plugin** is installed by platform `shared-obs`.
+   This root only creates DS `github-dressme`.
+5. Both env dashboards include GitHub panels for `deploy-dressme.yml` and `terraform-plan.yml`.
    Panel targets must put the file name in `options.workflow` (not a top-level `workflow`
    field) — otherwise the plugin queries an empty name and returns `workflow not found`.
 
 Without the GitHub token, synthetics + CloudWatch still apply; the GitHub DS is skipped.
+Dashboards still reference `${github}` → `github-dressme`, so the GitHub filter shows
+**Datasource not found** until you apply with the token.
 
 ## Dashboards
 
@@ -60,11 +68,11 @@ Platform template (structure / windows / Free limits / new-app checklist):
 
 Top rows use **fixed relative ranges** (hour / day / week / month / year):
 
-- **Requests / 4xx+5xx** — Cloudflare GraphQL Adaptive for ≤29d windows (`${__timeFrom}`/`${__timeTo}` so panel `timeFrom` is honored); **year panels query CloudWatch scrape → Prometheus** (Grafana Cloud Free retains metrics **14 days** — not a real year unless native CloudWatch DS / Pro)
+- **Traffic (req/s) / Errors (% of requests)** — Cloudflare GraphQL Adaptive for ≤29d windows (`${__timeFrom}`/`${__timeTo}` so panel `timeFrom` is honored): traffic = Adaptive `count / bucket_seconds`; errors = one query with `ratio { status4xx status5xx }` (`percentunit`, no join). **Year panels query CloudWatch scrape → Prometheus** (Grafana Cloud Free retains metrics **14 days** — not a real year unless native CloudWatch DS / Pro)
 - **Latency** — CloudFront `OriginLatency` + Cloudflare `avg.originResponseDurationMs` (Free does **not** expose edge TTFB)
 - Month window is `now-29d` with hourly buckets (`datetimeDay_ASC` is not a valid Adaptive orderBy; `now-30d` can exceed Free `maxDuration`)
 
-Below that: synthetics (env-scoped site + `/api/health`); Cloudflare volume / cache & bots / paths & firewall; GitHub CI. CloudWatch scrape remains for year-window / OriginLatency series only (no dedicated CloudWatch dashboard section).
+Below that: synthetics (env-scoped site + `/api/health`); **API / Lambda**, **Bedrock** (account-level tokens/invocations — shared by stg/prod Analyze), **DynamoDB** (errors / throttles / consumed capacity); Cloudflare volume / cache & bots / paths & firewall; GitHub CI. CloudWatch scrape also feeds year-window traffic/errors and OriginLatency.
 
 Infinity GraphQL panels must put the query in `url_options.body_graphql_query` (or `url_options.data`). A top-level `data` field is ignored by the backend parser, so Cloudflare gets an empty query, returns `null`, and Infinity surfaces a misleading “JSONata / paths” frame error.
 
@@ -74,7 +82,7 @@ Regenerate JSON after layout edits:
 python3 infra/terraform/grafana/scripts/generate-env-dashboards.py
 ```
 
-CloudWatch scrape includes `OriginLatency` (Average). After changing `cloudwatch.tf`, `terraform apply` this root so Grafana re-exports the metric before latency panels fill in.
+CloudWatch scrape includes Lambda (Invocations/Errors/Throttles/Duration), Bedrock (Invocations/tokens/errors), DynamoDB (capacity/errors/throttles), and CloudFront (`OriginLatency` Average). After changing `cloudwatch.tf`, `terraform apply` this root so Grafana re-exports metrics before new panels fill in.
 
 ## Apply
 
@@ -92,6 +100,6 @@ AWS profile: `7oas7er`. Tokens may also be supplied via `GRAFANA_*` env vars whe
 
 - Set `enable_cloudwatch_scrape = false` in `terraform.tfvars` to remove the Cloud Provider AWS account + scrape job without deleting the IAM role.
 - Set `enable_cloudflare_edge = false` to skip Cloudflare zoneTag dashboard wiring; `enable_github_ci = false` skips DS `github-dressme`.
-- CloudWatch scrape covers `eu-north-1` and `us-east-1` (CloudFront metrics).
-- Tagged AWS resources (`Name` tags on DressMe) improve metric discovery.
+- CloudWatch scrape covers `eu-north-1` and `us-east-1` (CloudFront metrics live in `us-east-1`; Lambda / Bedrock / DynamoDB in `eu-north-1`).
+- Tagged AWS resources (`Name` tags on Lambda, DynamoDB, CloudFront) improve metric discovery and env filtering. Bedrock is account + ModelId (no env `Name` tag).
 - Metrics-only for now — no CloudWatch Logs shipping into Grafana.
