@@ -22,11 +22,12 @@ Platform layout/CI: `app-terraform`.
 | stg | `dressme-stg.7oas7er.com` |
 | prod | `dressme.7oas7er.com` |
 
-## App-specific (scaffold → Option A)
+## App-specific (Option A as-built)
 
 - OIDC provider managed in **stg** only; prod looks it up. After repo create, set immutable OIDC subjects to `repo:7oas7er@2952810/dressme@<repo_id>:environment:…`.
-- Scaffold Lambda: `/api/health` (Node 22 via `infra/lambda`). Planned: Cognito, DynamoDB items, S3 media + presigns, suggest Lambda (Bedrock attrs-only).
-- Site bucket unversioned; data/media buckets follow Option A when added.
+- API Lambda (Node 22 via `infra/lambda`): Cognito JWT on mutating routes; DynamoDB items table (on-demand, PITR on); S3 media + presigns; catalog CRUD + thumbs; `POST /api/items/analyze` (Bedrock multimodal); `POST /api/suggest` (random v1; Bedrock text suggest later via `SUGGEST_ENGINE`).
+- Site bucket unversioned; media bucket for wardrobe photos.
 - **Origin-verify**: keep AWS `origin_verify_secret` in sync with Cloudflare; rotate via `infra/terraform/docs/origin-verify-secret-rotation.md`.
 - Cloudflare app root is **DNS only** for `dressme` / `dressme-stg` (no apex/www). Zone rulesets + rate limits live in platform `shared-edge`.
 - Access logs: `{env}-dressme-access-logs-bucket` (CloudFront v2 + S3 site). Lambda log group finite retention; CF 5xx alarms in `us-east-1`.
+- DynamoDB PITR restore: `infra/terraform/docs/dynamodb-pitr-restore.md`. Bedrock apply/smoke: `infra/terraform/docs/bedrock-catalog-assist.md`.

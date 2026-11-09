@@ -28,7 +28,9 @@ skip-check:
   - CKV_AWS_50   # X-Ray — CloudWatch + Grafana synthetics are enough for this app
   - CKV_AWS_272  # Code signing — overkill for a private puzzle-game Lambda
   - CKV_AWS_115  # Reserved concurrency — optional; set if noisy-neighbor becomes real
-  - CKV_AWS_173  # CMK for env vars — no secrets in env; SSE-S3 / default Lambda encryption OK
+  # HMAC TICKET_SECRET lives in Lambda env (Block Drop pattern); default AWS-managed
+  # env encryption is enough — Secrets Manager / CMK not required for solo v1.
+  - CKV_AWS_173
 
   # --- Logs ---
   - CKV_AWS_338  # 365-day retention — shorter retention is intentional for cost on a private app

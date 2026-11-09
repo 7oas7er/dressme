@@ -5,13 +5,15 @@
   "main": "api.js",
   "scripts": {
     "test": "node --test *.test.js",
-    "ci": "npm ci --omit=dev"
+    "ci": "npm ci --omit=dev --os=linux --cpu=arm64"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "3.1160.0",
     "@aws-sdk/client-dynamodb": "3.1160.0",
     "@aws-sdk/client-s3": "3.1160.0",
     "@aws-sdk/lib-dynamodb": "3.1160.0",
     "@aws-sdk/s3-request-presigner": "3.1160.0",
-    "aws-jwt-verify": "5.2.1"
+    "aws-jwt-verify": "5.2.1",
+    "sharp": "0.35.5"
   }
 }

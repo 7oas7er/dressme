@@ -32,6 +32,8 @@ sm_access_token = "glsm_..."
 # enable_cloudflare_edge = true
 
 # GitHub Actions panels (plugin owned by platform shared-obs; PAT for this repo).
+# Also set Environment terraform secret GRAFANA_GITHUB_TOKEN to the same PAT for CI plans
+# (Actions forbids secret names starting with GITHUB_).
 # github_access_token = "github_pat_..."
 # github_owner        = "7oas7er"
 # github_repository   = "dressme"
@@ -40,5 +42,5 @@ sm_access_token = "glsm_..."
 # Optional overrides:
 # prod_site_url = "https://dressme.7oas7er.com"
 # stg_site_url  = "https://dressme-stg.7oas7er.com"
-# prod_check_frequency_ms = 300000  # 5m
-# stg_check_frequency_ms  = 900000  # 15m
+# prod_check_frequency_ms = 900000   # 15m
+# stg_check_frequency_ms  = 1800000  # 30m

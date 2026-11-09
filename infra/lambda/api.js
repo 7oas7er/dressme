@@ -1,10 +1,12 @@
 "use strict";
 
 var auth = require("./auth");
+var analyze = require("./analyze");
 var attributeOptions = require("./attributeOptions");
 var health = require("./health");
 var http = require("./http");
 var items = require("./items");
+var suggest = require("./suggest");
 
 /**
  * DressMe API router (Function URL behind CloudFront /api/*).
@@ -37,6 +39,49 @@ exports.handler = async function handler(event) {
       var optionsUser = await auth.requireUser(event);
       if (method === "GET" || method === "HEAD") {
         return respond(await attributeOptions.listAttributeOptions(optionsUser));
+      }
+      return http.json(405, { error: "method_not_allowed" });
+    }
+
+    if (
+      path === "/api/photos/backfill-thumbs" ||
+      path === "/photos/backfill-thumbs"
+    ) {
+      var backfillUser = await auth.requireUser(event);
+      if (method === "POST") {
+        return respond(await items.backfillThumbs(backfillUser));
+      }
+      return http.json(405, { error: "method_not_allowed" });
+    }
+
+    if (
+      path === "/api/photos/backfill-cutouts" ||
+      path === "/photos/backfill-cutouts"
+    ) {
+      var cutoutBackfillUser = await auth.requireUser(event);
+      if (method === "POST") {
+        return respond(
+          await items.backfillCutouts(
+            cutoutBackfillUser,
+            http.parseBody(event)
+          )
+        );
+      }
+      return http.json(405, { error: "method_not_allowed" });
+    }
+
+    if (path === "/api/suggest" || path === "/suggest") {
+      var suggestUser = await auth.requireUser(event);
+      if (method === "POST") {
+        return respond(await suggest.suggestLooks(suggestUser, http.parseBody(event)));
+      }
+      return http.json(405, { error: "method_not_allowed" });
+    }
+
+    if (path === "/api/items/analyze" || path === "/items/analyze") {
+      var analyzeUser = await auth.requireUser(event);
+      if (method === "POST") {
+        return respond(await analyze.analyzeItem(analyzeUser, http.parseBody(event)));
       }
       return http.json(405, { error: "method_not_allowed" });
     }
@@ -76,9 +121,23 @@ exports.handler = async function handler(event) {
   } catch (err) {
     var status = (err && err.statusCode) || 500;
     var code = (err && err.message) || "internal_error";
-    if (status >= 500) {
+    // Scrub unexpected 5xx messages; keep intentional Bedrock / suggest codes.
+    var keepCodes = {
+      analyze_unavailable: true,
+      bedrock_analyze_failed: true,
+      analyze_empty_model_response: true,
+      analyze_invalid_model_json: true,
+      suggest_unavailable: true,
+      suggest_invalid_model_json: true,
+      suggest_invalid_item_ids: true,
+      suggest_empty_model_response: true,
+      suggest_engine_unavailable: true,
+    };
+    if (status >= 500 && !keepCodes[code]) {
       console.error("api_error", code, err && err.stack ? err.stack : err);
       code = "internal_error";
+    } else if (status >= 500) {
+      console.error("api_upstream", code);
     }
     return http.json(status, { error: code });
   }

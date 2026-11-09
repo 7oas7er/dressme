@@ -35,5 +35,7 @@ What becomes easier / harder; what agents must not “helpfully” undo.
 | [0005](0005-cloudflare-only-origin.md) | Cloudflare-only origin traffic |
 | [0006](0006-github-env-separation.md) | GitHub Environment separation (`staging` / `production`) |
 | [0007](0007-shared-edge-and-obs-platform.md) | Isolated apps + shared `7oas7er/platform` (edge + obs) |
+| [0008](0008-option-a-serverless-cognito.md) | Option A: serverless + Cognito |
+| [0009](0009-bedrock-analyze-iam.md) | Bedrock Analyze model pin + CRIS IAM |
 
 Overall ownership diagram: [`../architecture.md`](../architecture.md). Canonical platform ADR: [`7oas7er/platform` ADR 0001](https://github.com/7oas7er/platform/blob/main/docs/adr/0001-shared-edge-and-obs.md).

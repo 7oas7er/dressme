@@ -206,7 +206,8 @@ jobs:
       - name: Install Lambda dependencies
         if: matrix.root == 'aws/stg' || matrix.root == 'aws/prod'
         working-directory: infra/lambda
-        run: npm ci --omit=dev
+        # Lambda is arm64; force linux-arm64 sharp binaries into the archive.
+        run: npm ci --omit=dev --os=linux --cpu=arm64
 
       - name: terraform init (-backend=false)
         working-directory: ${{ matrix.path }}
@@ -262,7 +263,8 @@ jobs:
       - name: Install Lambda dependencies
         if: matrix.root == 'stg' || matrix.root == 'prod'
         working-directory: infra/lambda
-        run: npm ci --omit=dev
+        # Lambda is arm64; force linux-arm64 sharp binaries into the archive.
+        run: npm ci --omit=dev --os=linux --cpu=arm64
 
       - name: terraform init
         working-directory: ${{ matrix.path }}
@@ -300,13 +302,10 @@ jobs:
         if: matrix.root == 'prod'
         working-directory: ${{ matrix.path }}
         env:
-          # site_certificate_arn has a prod default in variables.tf; override via var if set.
+          # Required: set PROD_SITE_CERTIFICATE_ARN on the terraform GitHub Environment (no TF default).
           TF_VAR_site_certificate_arn: ${{ vars.PROD_SITE_CERTIFICATE_ARN }}
           TF_VAR_origin_verify_secret: ${{ secrets.PROD_ORIGIN_VERIFY_SECRET }}
         run: |
-          if [ -z "${TF_VAR_site_certificate_arn}" ]; then
-            unset TF_VAR_site_certificate_arn
-          fi
           set +e
           terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode
           code=$?
@@ -408,8 +407,16 @@ jobs:
           TF_VAR_cloud_access_policy_token: ${{ secrets.GRAFANA_CLOUD_ACCESS_POLICY_TOKEN }}
           TF_VAR_cloud_provider_access_token: ${{ secrets.GRAFANA_CLOUD_PROVIDER_ACCESS_TOKEN }}
           TF_VAR_sm_access_token: ${{ secrets.GRAFANA_SM_ACCESS_TOKEN }}
+          # Optional — when set, plan keeps grafana_data_source.github; when unset, count→0
+          # (exit code 2 destroy proposal). Prefer Environment secret GRAFANA_GITHUB_TOKEN
+          # (GitHub forbids Actions secrets whose names start with GITHUB_).
+          GRAFANA_GITHUB_TOKEN: ${{ secrets.GRAFANA_GITHUB_TOKEN }}
         run: |
           set +e
+          # Empty Actions secrets become "" (not unset); only export a real token.
+          if [ -n "${GRAFANA_GITHUB_TOKEN}" ]; then
+            export TF_VAR_github_access_token="${GRAFANA_GITHUB_TOKEN}"
+          fi
           terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode
           code=$?
           if [ "$code" -eq 1 ]; then

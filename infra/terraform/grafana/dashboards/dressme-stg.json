@@ -1,18 +1,21 @@
 {
   "uid": "dressme-stg",
   "title": "DressMe \u2014 Staging",
-  "description": "DressMe stg: fixed-window traffic / errors / latency, synthetics, Cloudflare edge, and GitHub Actions.",
+  "description": "DressMe stg: fixed-window traffic / errors / latency, synthetics, API Lambda / Bedrock / DynamoDB (CloudWatch scrape), Cloudflare edge, and GitHub Actions.",
   "tags": [
     "dressme",
     "stg",
     "synthetics",
     "observability",
     "cloudflare",
-    "github"
+    "github",
+    "lambda",
+    "bedrock",
+    "dynamodb"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "1m",
   "time": {
     "from": "now-6h",
@@ -131,7 +134,7 @@
   "panels": [
     {
       "type": "row",
-      "title": "Traffic \u2014 requests (CF Adaptive \u226430d; year = CloudWatch)",
+      "title": "Traffic \u2014 request rate req/s (CF Adaptive \u226430d; year = CloudWatch)",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -145,7 +148,7 @@
       "id": 2,
       "type": "timeseries",
       "title": "Last hour",
-      "description": "Cloudflare edge requests (dressme-stg.7oas7er.com), fixed range now-1h.",
+      "description": "Cloudflare edge request rate (dressme-stg.7oas7er.com), fixed range now-1h. req/s = Adaptive count / 60 (datetimeMinute bucket).",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -159,7 +162,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "reqps",
           "custom": {
             "drawStyle": "bars",
             "lineWidth": 1,
@@ -182,6 +185,21 @@
           "sort": "none"
         }
       },
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "binary",
+            "binary": {
+              "left": "requests",
+              "operator": "/",
+              "right": "60"
+            },
+            "replaceFields": true,
+            "alias": "req/s"
+          }
+        }
+      ],
       "targets": [
         {
           "refId": "A",
@@ -219,7 +237,7 @@
       "id": 3,
       "type": "timeseries",
       "title": "Last day",
-      "description": "Cloudflare edge requests (dressme-stg.7oas7er.com), fixed range now-1d.",
+      "description": "Cloudflare edge request rate (dressme-stg.7oas7er.com), fixed range now-1d. req/s = Adaptive count / 3600 (datetimeHour bucket).",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -233,7 +251,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "reqps",
           "custom": {
             "drawStyle": "bars",
             "lineWidth": 1,
@@ -256,6 +274,21 @@
           "sort": "none"
         }
       },
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "binary",
+            "binary": {
+              "left": "requests",
+              "operator": "/",
+              "right": "3600"
+            },
+            "replaceFields": true,
+            "alias": "req/s"
+          }
+        }
+      ],
       "targets": [
         {
           "refId": "A",
@@ -293,7 +326,7 @@
       "id": 4,
       "type": "timeseries",
       "title": "Last week",
-      "description": "Cloudflare edge requests (dressme-stg.7oas7er.com), fixed range now-7d.",
+      "description": "Cloudflare edge request rate (dressme-stg.7oas7er.com), fixed range now-7d. req/s = Adaptive count / 3600 (datetimeHour bucket).",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -307,7 +340,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "reqps",
           "custom": {
             "drawStyle": "bars",
             "lineWidth": 1,
@@ -330,6 +363,21 @@
           "sort": "none"
         }
       },
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "binary",
+            "binary": {
+              "left": "requests",
+              "operator": "/",
+              "right": "3600"
+            },
+            "replaceFields": true,
+            "alias": "req/s"
+          }
+        }
+      ],
       "targets": [
         {
           "refId": "A",
@@ -367,7 +415,7 @@
       "id": 5,
       "type": "timeseries",
       "title": "Last month",
-      "description": "Cloudflare edge requests (dressme-stg.7oas7er.com), fixed range now-29d.",
+      "description": "Cloudflare edge request rate (dressme-stg.7oas7er.com), fixed range now-29d. req/s = Adaptive count / 3600 (datetimeHour bucket).",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -381,7 +429,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "reqps",
           "custom": {
             "drawStyle": "bars",
             "lineWidth": 1,
@@ -404,6 +452,21 @@
           "sort": "none"
         }
       },
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "binary",
+            "binary": {
+              "left": "requests",
+              "operator": "/",
+              "right": "3600"
+            },
+            "replaceFields": true,
+            "alias": "req/s"
+          }
+        }
+      ],
       "targets": [
         {
           "refId": "A",
@@ -441,7 +504,7 @@
       "id": 6,
       "type": "timeseries",
       "title": "Last year",
-      "description": "CloudFront requests (stg-dressme-site-distribution) via CloudWatch scrape \u2192 Prometheus. Grafana Cloud Free retains metrics for 14 days only \u2014 a full year needs a native CloudWatch data source or Pro retention (not scrape-to-Prom).",
+      "description": "CloudFront request rate (stg-dressme-site-distribution) via CloudWatch scrape \u2192 Prometheus (PromQL rate \u2192 req/s). Grafana Cloud Free retains metrics for 14 days only \u2014 a full year needs a native CloudWatch data source or Pro retention (not scrape-to-Prom).",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -455,7 +518,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "reqps",
           "custom": {
             "drawStyle": "bars",
             "lineWidth": 1,
@@ -482,13 +545,13 @@
         {
           "refId": "A",
           "expr": "sum(rate(aws_cloudfront_requests_sum{project=\"dressme\", Name=\"stg-dressme-site-distribution\"}[1h]))",
-          "legendFormat": "requests"
+          "legendFormat": "req/s"
         }
       ]
     },
     {
       "type": "row",
-      "title": "Errors \u2014 4xx / 5xx (CF counts \u226430d; year = CloudWatch rates)",
+      "title": "Errors \u2014 4xx / 5xx (% of requests; CF Adaptive \u226430d; year = CloudWatch)",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -502,7 +565,7 @@
       "id": 8,
       "type": "timeseries",
       "title": "Last hour",
-      "description": "Cloudflare edge 4xx and 5xx counts (dressme-stg.7oas7er.com), fixed range now-1h.",
+      "description": "Cloudflare edge 4xx/5xx as % of total requests (dressme-stg.7oas7er.com), fixed range now-1h. Cloudflare ratio.status4xx = count(4xx) / count per datetimeMinute bucket (same for 5xx); one query, no panel transforms.",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -516,7 +579,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "percentunit",
           "custom": {
             "drawStyle": "bars",
             "lineWidth": 1,
@@ -524,54 +587,11 @@
             "spanNulls": false,
             "showPoints": "never",
             "barAlignment": 0
-          }
+          },
+          "min": 0,
+          "max": 1
         },
         "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "A"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "B"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "4xx"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
           {
             "matcher": {
               "id": "byName",
@@ -583,21 +603,6 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "5xx"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
                 }
               }
             ]
@@ -639,10 +644,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n        }\n      ) {\n        count\n        ratio {\n          status4xx\n          status5xx\n        }\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n        }\n      ) {\n        count\n        ratio {\n          status4xx\n          status5xx\n        }\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -653,38 +658,13 @@
               "type": "timestamp"
             },
             {
-              "selector": "count",
-              "text": "4xx",
+              "selector": "ratio.status4xx",
+              "text": "4xx %",
               "type": "number"
-            }
-          ],
-          "filters": [],
-          "data": ""
-        },
-        {
-          "refId": "B",
-          "type": "graphql",
-          "source": "url",
-          "format": "timeseries",
-          "url": "https://api.cloudflare.com/client/v4/graphql",
-          "url_options": {
-            "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}",
-            "body_type": "graphql",
-            "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeMinute_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeMinute }\n      }\n    }\n  }\n}"
-          },
-          "parser": "backend",
-          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
-          "columns": [
-            {
-              "selector": "dimensions.datetimeMinute",
-              "text": "Time",
-              "type": "timestamp"
             },
             {
-              "selector": "count",
-              "text": "5xx",
+              "selector": "ratio.status5xx",
+              "text": "5xx %",
               "type": "number"
             }
           ],
@@ -697,7 +677,7 @@
       "id": 9,
       "type": "timeseries",
       "title": "Last day",
-      "description": "Cloudflare edge 4xx and 5xx counts (dressme-stg.7oas7er.com), fixed range now-1d.",
+      "description": "Cloudflare edge 4xx/5xx as % of total requests (dressme-stg.7oas7er.com), fixed range now-1d. Cloudflare ratio.status4xx = count(4xx) / count per datetimeHour bucket (same for 5xx); one query, no panel transforms.",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -711,7 +691,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "percentunit",
           "custom": {
             "drawStyle": "bars",
             "lineWidth": 1,
@@ -719,54 +699,11 @@
             "spanNulls": false,
             "showPoints": "never",
             "barAlignment": 0
-          }
+          },
+          "min": 0,
+          "max": 1
         },
         "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "A"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "B"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "4xx"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
           {
             "matcher": {
               "id": "byName",
@@ -778,21 +715,6 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "5xx"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
                 }
               }
             ]
@@ -834,10 +756,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n        }\n      ) {\n        count\n        ratio {\n          status4xx\n          status5xx\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n        }\n      ) {\n        count\n        ratio {\n          status4xx\n          status5xx\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -848,38 +770,13 @@
               "type": "timestamp"
             },
             {
-              "selector": "count",
-              "text": "4xx",
+              "selector": "ratio.status4xx",
+              "text": "4xx %",
               "type": "number"
-            }
-          ],
-          "filters": [],
-          "data": ""
-        },
-        {
-          "refId": "B",
-          "type": "graphql",
-          "source": "url",
-          "format": "timeseries",
-          "url": "https://api.cloudflare.com/client/v4/graphql",
-          "url_options": {
-            "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
-            "body_type": "graphql",
-            "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
-          },
-          "parser": "backend",
-          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
-          "columns": [
-            {
-              "selector": "dimensions.datetimeHour",
-              "text": "Time",
-              "type": "timestamp"
             },
             {
-              "selector": "count",
-              "text": "5xx",
+              "selector": "ratio.status5xx",
+              "text": "5xx %",
               "type": "number"
             }
           ],
@@ -892,7 +789,7 @@
       "id": 10,
       "type": "timeseries",
       "title": "Last week",
-      "description": "Cloudflare edge 4xx and 5xx counts (dressme-stg.7oas7er.com), fixed range now-7d.",
+      "description": "Cloudflare edge 4xx/5xx as % of total requests (dressme-stg.7oas7er.com), fixed range now-7d. Cloudflare ratio.status4xx = count(4xx) / count per datetimeHour bucket (same for 5xx); one query, no panel transforms.",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -906,7 +803,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "percentunit",
           "custom": {
             "drawStyle": "bars",
             "lineWidth": 1,
@@ -914,54 +811,11 @@
             "spanNulls": false,
             "showPoints": "never",
             "barAlignment": 0
-          }
+          },
+          "min": 0,
+          "max": 1
         },
         "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "A"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "B"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "4xx"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
           {
             "matcher": {
               "id": "byName",
@@ -973,21 +827,6 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "5xx"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
                 }
               }
             ]
@@ -1029,10 +868,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n        }\n      ) {\n        count\n        ratio {\n          status4xx\n          status5xx\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n        }\n      ) {\n        count\n        ratio {\n          status4xx\n          status5xx\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -1043,38 +882,13 @@
               "type": "timestamp"
             },
             {
-              "selector": "count",
-              "text": "4xx",
+              "selector": "ratio.status4xx",
+              "text": "4xx %",
               "type": "number"
-            }
-          ],
-          "filters": [],
-          "data": ""
-        },
-        {
-          "refId": "B",
-          "type": "graphql",
-          "source": "url",
-          "format": "timeseries",
-          "url": "https://api.cloudflare.com/client/v4/graphql",
-          "url_options": {
-            "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
-            "body_type": "graphql",
-            "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
-          },
-          "parser": "backend",
-          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
-          "columns": [
-            {
-              "selector": "dimensions.datetimeHour",
-              "text": "Time",
-              "type": "timestamp"
             },
             {
-              "selector": "count",
-              "text": "5xx",
+              "selector": "ratio.status5xx",
+              "text": "5xx %",
               "type": "number"
             }
           ],
@@ -1087,7 +901,7 @@
       "id": 11,
       "type": "timeseries",
       "title": "Last month",
-      "description": "Cloudflare edge 4xx and 5xx counts (dressme-stg.7oas7er.com), fixed range now-29d.",
+      "description": "Cloudflare edge 4xx/5xx as % of total requests (dressme-stg.7oas7er.com), fixed range now-29d. Cloudflare ratio.status4xx = count(4xx) / count per datetimeHour bucket (same for 5xx); one query, no panel transforms.",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -1101,7 +915,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "percentunit",
           "custom": {
             "drawStyle": "bars",
             "lineWidth": 1,
@@ -1109,54 +923,11 @@
             "spanNulls": false,
             "showPoints": "never",
             "barAlignment": 0
-          }
+          },
+          "min": 0,
+          "max": 1
         },
         "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "A"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "B"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "4xx"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
           {
             "matcher": {
               "id": "byName",
@@ -1168,21 +939,6 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "5xx"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
                 }
               }
             ]
@@ -1224,10 +980,10 @@
           "url": "https://api.cloudflare.com/client/v4/graphql",
           "url_options": {
             "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
+            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n        }\n      ) {\n        count\n        ratio {\n          status4xx\n          status5xx\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
             "body_type": "graphql",
             "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 400\n          edgeResponseStatus_leq: 499\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
+            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n        }\n      ) {\n        count\n        ratio {\n          status4xx\n          status5xx\n        }\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
           },
           "parser": "backend",
           "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
@@ -1238,38 +994,13 @@
               "type": "timestamp"
             },
             {
-              "selector": "count",
-              "text": "4xx",
+              "selector": "ratio.status4xx",
+              "text": "4xx %",
               "type": "number"
-            }
-          ],
-          "filters": [],
-          "data": ""
-        },
-        {
-          "refId": "B",
-          "type": "graphql",
-          "source": "url",
-          "format": "timeseries",
-          "url": "https://api.cloudflare.com/client/v4/graphql",
-          "url_options": {
-            "method": "POST",
-            "data": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}",
-            "body_type": "graphql",
-            "body_content_type": "application/json",
-            "body_graphql_query": "query {\n  viewer {\n    zones(filter: { zoneTag: \"${cf_zone}\" }) {\n      httpRequestsAdaptiveGroups(\n        limit: 2000\n        orderBy: [datetimeHour_ASC]\n        filter: {\n          datetime_geq: \"${__timeFrom:date:iso}\"\n          datetime_leq: \"${__timeTo:date:iso}\"\n          clientRequestHTTPHost: \"dressme-stg.7oas7er.com\"\n          edgeResponseStatus_geq: 500\n          edgeResponseStatus_leq: 599\n        }\n      ) {\n        count\n        dimensions { datetimeHour }\n      }\n    }\n  }\n}"
-          },
-          "parser": "backend",
-          "root_selector": "data.viewer.zones.0.httpRequestsAdaptiveGroups",
-          "columns": [
-            {
-              "selector": "dimensions.datetimeHour",
-              "text": "Time",
-              "type": "timestamp"
             },
             {
-              "selector": "count",
-              "text": "5xx",
+              "selector": "ratio.status5xx",
+              "text": "5xx %",
               "type": "number"
             }
           ],
@@ -1282,7 +1013,7 @@
       "id": 12,
       "type": "timeseries",
       "title": "Last year",
-      "description": "CloudFront 4xx/5xx error rates (stg-dressme-site-distribution) via CloudWatch scrape \u2192 Prometheus (rates %, not counts). Grafana Cloud Free metrics retention is 14 days \u2014 year history needs native CloudWatch DS or Pro.",
+      "description": "CloudFront 4xx/5xx as % of requests (stg-dressme-site-distribution) via CloudWatch scrape \u2192 Prometheus (already rates 0\u2013100%). Grafana Cloud Free metrics retention is 14 days \u2014 year history needs native CloudWatch DS or Pro.",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -1304,54 +1035,11 @@
             "spanNulls": false,
             "showPoints": "never",
             "barAlignment": 0
-          }
+          },
+          "min": 0,
+          "max": 100
         },
         "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "A"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "B"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "4xx"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
           {
             "matcher": {
               "id": "byName",
@@ -1363,21 +1051,6 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "5xx"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
                 }
               }
             ]
@@ -2194,7 +1867,7 @@
     },
     {
       "type": "row",
-      "title": "Cloudflare \u2014 volume",
+      "title": "API / Lambda \u2014 invocations, errors, throttles, duration",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -2207,13 +1880,612 @@
     {
       "id": 28,
       "type": "timeseries",
+      "title": "Invocations",
+      "description": "Lambda Invocations Sum (stg-dressme-health-function) via CloudWatch scrape \u2192 Prometheus.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 41
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_lambda_invocations_sum{project=\"dressme\", Name=\"stg-dressme-health-function\"})",
+          "legendFormat": "invocations"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "type": "timeseries",
+      "title": "Errors",
+      "description": "Lambda Errors Sum (stg-dressme-health-function).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 41
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_lambda_errors_sum{project=\"dressme\", Name=\"stg-dressme-health-function\"})",
+          "legendFormat": "errors"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "Throttles",
+      "description": "Lambda Throttles Sum (stg-dressme-health-function).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 41
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_lambda_throttles_sum{project=\"dressme\", Name=\"stg-dressme-health-function\"})",
+          "legendFormat": "throttles"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Duration",
+      "description": "Lambda Duration Average + Maximum (stg-dressme-health-function); timeout is 90s.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 45
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(aws_lambda_duration_average{project=\"dressme\", Name=\"stg-dressme-health-function\"})",
+          "legendFormat": "avg"
+        },
+        {
+          "refId": "B",
+          "expr": "max(aws_lambda_duration_maximum{project=\"dressme\", Name=\"stg-dressme-health-function\"})",
+          "legendFormat": "max"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Bedrock \u2014 invocations & tokens (account-level; shared stg/prod)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "id": 32,
+      "collapsed": false
+    },
+    {
+      "id": 33,
+      "type": "timeseries",
+      "title": "Invocations",
+      "description": "AWS/Bedrock Invocations Sum (account + ModelId). Not env-scoped \u2014 stg and prod Analyze share this series.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 50
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_bedrock_invocations_sum{project=\"dressme\"})",
+          "legendFormat": "invocations"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "type": "timeseries",
+      "title": "Input tokens",
+      "description": "AWS/Bedrock InputTokenCount Sum (multimodal Analyze counts image tokens as input).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 50
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_bedrock_input_token_count_sum{project=\"dressme\"})",
+          "legendFormat": "input tokens"
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "type": "timeseries",
+      "title": "Output tokens",
+      "description": "AWS/Bedrock OutputTokenCount Sum.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 50
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_bedrock_output_token_count_sum{project=\"dressme\"})",
+          "legendFormat": "output tokens"
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "type": "timeseries",
+      "title": "Errors / throttles",
+      "description": "Bedrock InvocationClientErrors, InvocationServerErrors, InvocationThrottles.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 54
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_bedrock_invocation_client_errors_sum{project=\"dressme\"})",
+          "legendFormat": "client errors"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(aws_bedrock_invocation_server_errors_sum{project=\"dressme\"})",
+          "legendFormat": "server errors"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(aws_bedrock_invocation_throttles_sum{project=\"dressme\"})",
+          "legendFormat": "throttles"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "DynamoDB \u2014 errors, throttles, consumed capacity",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 58
+      },
+      "id": 37,
+      "collapsed": false
+    },
+    {
+      "id": 38,
+      "type": "timeseries",
+      "title": "User / system errors",
+      "description": "DynamoDB UserErrors + SystemErrors Sum (stg-dressme-items-table).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 59
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_dynamodb_user_errors_sum{project=\"dressme\", Name=\"stg-dressme-items-table\"})",
+          "legendFormat": "user errors"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(aws_dynamodb_system_errors_sum{project=\"dressme\", Name=\"stg-dressme-items-table\"})",
+          "legendFormat": "system errors"
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "type": "timeseries",
+      "title": "Throttles",
+      "description": "DynamoDB ThrottledRequests + Read/WriteThrottleEvents Sum (stg-dressme-items-table).",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 59
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_dynamodb_throttled_requests_sum{project=\"dressme\", Name=\"stg-dressme-items-table\"})",
+          "legendFormat": "throttled requests"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(aws_dynamodb_read_throttle_events_sum{project=\"dressme\", Name=\"stg-dressme-items-table\"})",
+          "legendFormat": "read throttle events"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(aws_dynamodb_write_throttle_events_sum{project=\"dressme\", Name=\"stg-dressme-items-table\"})",
+          "legendFormat": "write throttle events"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "type": "timeseries",
+      "title": "Consumed capacity",
+      "description": "DynamoDB ConsumedRead/WriteCapacityUnits Sum (stg-dressme-items-table); on-demand table still emits these units.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 59
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "spanNulls": false,
+            "showPoints": "never",
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(aws_dynamodb_consumed_read_capacity_units_sum{project=\"dressme\", Name=\"stg-dressme-items-table\"})",
+          "legendFormat": "read capacity"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(aws_dynamodb_consumed_write_capacity_units_sum{project=\"dressme\", Name=\"stg-dressme-items-table\"})",
+          "legendFormat": "write capacity"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Cloudflare \u2014 volume",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 63
+      },
+      "id": 41,
+      "collapsed": false
+    },
+    {
+      "id": 42,
+      "type": "timeseries",
       "title": "Bandwidth",
       "description": "sum.edgeResponseBytes for dressme-stg.7oas7er.com (eyeball traffic).",
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 0,
-        "y": 41
+        "y": 64
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2278,7 +2550,7 @@
       ]
     },
     {
-      "id": 29,
+      "id": 43,
       "type": "timeseries",
       "title": "Visits",
       "description": "sum.visits for dressme-stg.7oas7er.com (Cloudflare visit = page view with external/direct referrer).",
@@ -2286,7 +2558,7 @@
         "h": 4,
         "w": 8,
         "x": 8,
-        "y": 41
+        "y": 64
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2351,7 +2623,7 @@
       ]
     },
     {
-      "id": 30,
+      "id": 44,
       "type": "table",
       "title": "Status mix",
       "description": "edgeResponseStatus totals for dressme-stg.7oas7er.com in the dashboard range.",
@@ -2359,7 +2631,7 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 41
+        "y": 64
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2412,13 +2684,13 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 68
       },
-      "id": 31,
+      "id": 45,
       "collapsed": false
     },
     {
-      "id": 32,
+      "id": 46,
       "type": "table",
       "title": "Cache status",
       "description": "cacheStatus breakdown for dressme-stg.7oas7er.com (HIT/MISS/EXPIRED/\u2026).",
@@ -2426,7 +2698,7 @@
         "h": 4,
         "w": 8,
         "x": 0,
-        "y": 46
+        "y": 69
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2478,7 +2750,7 @@
       ]
     },
     {
-      "id": 33,
+      "id": 47,
       "type": "table",
       "title": "Verified bots",
       "description": "verifiedBotCategory for dressme-stg.7oas7er.com (empty = unverified / human-ish).",
@@ -2486,7 +2758,7 @@
         "h": 4,
         "w": 8,
         "x": 8,
-        "y": 46
+        "y": 69
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2533,7 +2805,7 @@
       ]
     },
     {
-      "id": 34,
+      "id": 48,
       "type": "table",
       "title": "Countries",
       "description": "Top clientCountryName for dressme-stg.7oas7er.com.",
@@ -2541,7 +2813,7 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 46
+        "y": 69
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2594,13 +2866,13 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 73
       },
-      "id": 35,
+      "id": 49,
       "collapsed": false
     },
     {
-      "id": 36,
+      "id": 50,
       "type": "table",
       "title": "Top paths",
       "description": "Top clientRequestPath + method for dressme-stg.7oas7er.com.",
@@ -2608,7 +2880,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 51
+        "y": 74
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2665,7 +2937,7 @@
       ]
     },
     {
-      "id": 37,
+      "id": 51,
       "type": "table",
       "title": "Firewall events",
       "description": "firewallEventsAdaptive for dressme-stg.7oas7er.com (may be empty when no WAF/firewall matches). Free plan: event rows only; aggregated firewall groups are unavailable.",
@@ -2673,7 +2945,7 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 51
+        "y": 74
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -2756,13 +3028,13 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 82
       },
-      "id": 38,
+      "id": 52,
       "collapsed": false
     },
     {
-      "id": 39,
+      "id": 53,
       "type": "table",
       "title": "Deploy workflow runs",
       "description": "Workflow_Runs for deploy-dressme.yml.",
@@ -2770,7 +3042,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 60
+        "y": 83
       },
       "datasource": {
         "type": "grafana-github-datasource",
@@ -2792,7 +3064,7 @@
       ]
     },
     {
-      "id": 40,
+      "id": 54,
       "type": "table",
       "title": "Terraform plan workflow runs",
       "description": "Workflow_Runs for terraform-plan.yml.",
@@ -2800,7 +3072,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 60
+        "y": 83
       },
       "datasource": {
         "type": "grafana-github-datasource",
@@ -2822,7 +3094,7 @@
       ]
     },
     {
-      "id": 41,
+      "id": 55,
       "type": "table",
       "title": "Deploy workflow usage",
       "description": "Workflow_Usage for deploy-dressme.yml.",
@@ -2830,7 +3102,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 68
+        "y": 91
       },
       "datasource": {
         "type": "grafana-github-datasource",
@@ -2852,7 +3124,7 @@
       ]
     },
     {
-      "id": 42,
+      "id": 56,
       "type": "table",
       "title": "Terraform plan workflow usage",
       "description": "Workflow_Usage for terraform-plan.yml.",
@@ -2860,7 +3132,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 68
+        "y": 91
       },
       "datasource": {
         "type": "grafana-github-datasource",
