@@ -85,6 +85,7 @@ function installDomStub() {
       this.textContent = "";
       this.attributes = {};
       this._listeners = {};
+      this.style = { cssText: "" };
     }
     setAttribute(key, value) {
       this.attributes[key] = String(value);
@@ -265,50 +266,58 @@ test("unmapped items are strip-only; duplicate slots keep first for hero", () =>
   assert.equal(visual.strip.find((l) => l.itemId === "acc").slotId, null);
 });
 
-test("renderLookCard DOM has elongated SVG mannequin + right strip + washes", () => {
+test("renderLookCard DOM is photos-only with Wada plate and tappable pieces", () => {
   installDomStub();
   const look = {
     lookId: "1",
+    title: "Soft Navy Stack",
     rationale: "Navy blazer over a white oxford keeps the lunch formal without black-tie overreach.",
     items: [
-      item({ itemId: "jk", outfitRole: "outerwear", type: "blazer", color: "navy" }),
+      item({
+        itemId: "jk",
+        outfitRole: "outerwear",
+        type: "blazer",
+        color: "navy",
+        wadaColorIds: ["wada:v1:42"],
+      }),
       item({ itemId: "si", outfitRole: "shirt", type: "oxford", color: "white", pattern: "stripe" }),
-      item({ itemId: "tr", outfitRole: "trousers", type: "pants", color: "grey" }),
+      item({
+        itemId: "tr",
+        outfitRole: "trousers",
+        type: "pants",
+        color: "grey",
+        wadaColorIds: ["wada:v1:7"],
+      }),
       item({ itemId: "sh", outfitRole: "footwear", type: "shoes", color: "brown" }),
       item({ itemId: "be", outfitRole: "belt", type: "belt", color: "black" }),
     ],
   };
-  const card = renderLookCard(look, 0);
+  let opened = null;
+  const card = renderLookCard(look, 0, {
+    onItemOpen: (piece) => {
+      opened = piece;
+    },
+  });
   assert.equal(card.className, "look-card");
+  assert.match(card.querySelector("h2").textContent || "", /Soft Navy Stack/);
   assert.ok(card.querySelector(".look-body"));
-  assert.ok(card.querySelector(".look-hero"));
-  assert.ok(card.querySelector(".look-strip"));
+  assert.equal(card.querySelector(".look-mannequin"), null);
+  assert.equal(card.querySelector(".look-hero"), null);
+  assert.ok(card.querySelector(".look-wada-plate"));
+  assert.ok(card.querySelectorAll(".look-wada-swatch").length >= 1);
+  assert.ok(card.querySelector(".look-pieces"));
+  assert.equal(card.querySelectorAll(".look-piece").length, 5);
+  assert.ok(card.querySelectorAll(".look-piece-btn").length >= 1);
   const rationale = card.querySelector(".look-rationale");
   assert.ok(rationale);
   assert.match(rationale.textContent || "", /Navy blazer/);
-  // Rationale is a sibling below look-body, not inside the hero.
-  assert.equal(card.querySelector(".look-hero .look-rationale"), null);
-  const mannequin = card.querySelector(".look-mannequin");
-  assert.ok(mannequin);
-  assert.equal(mannequin.attributes.viewBox, "0 0 100 240");
-  assert.equal(card.querySelectorAll(".mannequin-panel").length >= 4, true);
-  assert.equal(card.querySelectorAll(".look-strip-thumb").length, 5);
-  const body = card.querySelector(".look-body");
-  assert.match(body.children[0].className, /look-hero/);
-  assert.equal(body.children[1].className, "look-strip");
-  const jacket = card.querySelectorAll(".mannequin-panel").find(
-    (n) => (n.attributes["data-slot"] || "") === "jacket"
-  );
-  assert.ok(jacket);
-  // Phase 1: solid panels use soft wash gradients (attr color as stops).
-  assert.equal(jacket.attributes.fill, "url(#mn-wash-0-jacket)");
-  assert.ok(card.querySelector("#mn-wash-0-jacket"));
-  assert.ok(card.querySelector("#mn-grain-0"));
-  const trousers = card.querySelectorAll(".mannequin-panel").find(
-    (n) => (n.attributes["data-slot"] || "") === "trousers"
-  );
-  assert.ok(trousers);
-  assert.match(trousers.attributes.d || "", /208|212|216/);
+  assert.equal(card.querySelector(".look-pieces .look-rationale"), null);
+
+  const btn = card.querySelector(".look-piece-btn");
+  assert.ok(btn && btn._listeners && btn._listeners.click);
+  btn._listeners.click();
+  assert.ok(opened);
+  assert.ok(opened.itemId);
 
   const noRationale = renderLookCard({ lookId: "2", items: look.items }, 1);
   assert.equal(noRationale.querySelector(".look-rationale"), null);

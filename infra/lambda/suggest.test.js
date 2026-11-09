@@ -147,18 +147,21 @@ function mockBedrockLooks(overrides) {
   var looks = [
     {
       lookId: "1",
+      title: "Boardroom Navy",
       itemIds: ["shoes-1", "pants-1", "shirt-1", "blazer-1"],
       rationale: "Navy blazer and white oxford suit a boardroom lunch.",
     },
     {
       lookId: "2",
+      title: "Soft Khaki Lunch",
       itemIds: ["shoes-1", "pants-1", "shirt-1"],
       rationale: "Drop the jacket for a softer smart-casual read.",
     },
     {
       lookId: "3",
-      itemIds: ["pants-1", "shirt-1", "blazer-1"],
-      rationale: "Same palette, jacket without loafers listed as optional.",
+      title: "Blazer Without Tie",
+      itemIds: ["shoes-1", "pants-1", "shirt-1", "blazer-1"],
+      rationale: "Same palette with loafers keeping the look grounded.",
     },
   ];
   if (overrides) {
@@ -331,11 +334,83 @@ test("serializeCatalogForPrompt includes primary Wada name and id", function () 
   assert.ok(!/combination/i.test(dumped));
 });
 
-test("systemPrompt mentions Wada true-color reference", function () {
+test("systemPrompt mentions Wada true-color reference and mandatory core", function () {
   var prompt = suggest.systemPrompt();
   assert.match(prompt, /wada/i);
   assert.match(prompt, /true-color/i);
   assert.match(prompt, /Never invent item IDs/);
+  assert.match(prompt, /mandatory core/i);
+  assert.match(prompt, /Accessories are optional/i);
+  assert.match(prompt, /title/);
+});
+
+test("assertLooksComplete accepts core-only and rejects competing bases", function () {
+  var catalog = [
+    { itemId: "s1", outfitRole: "footwear", type: "loafers" },
+    { itemId: "p1", outfitRole: "trousers", type: "chinos" },
+    { itemId: "b1", outfitRole: "shirt", type: "oxford" },
+    { itemId: "b2", outfitRole: "base", type: "polo" },
+    { itemId: "h1", outfitRole: "accessory", type: "hat" },
+  ];
+  var byId = new Map(catalog.map(function (row) {
+    return [row.itemId, row];
+  }));
+  var ok = suggest.assertLooksComplete(
+    [{ lookId: "1", itemIds: ["b1", "p1", "s1"] }],
+    byId,
+    catalog
+  );
+  assert.equal(ok.incomplete.length, 0);
+  var withHat = suggest.assertLooksComplete(
+    [{ lookId: "1", itemIds: ["b1", "p1", "s1"] }],
+    byId,
+    catalog
+  );
+  assert.equal(withHat.incomplete.length, 0);
+  var noHatStillOk = suggest.assertLooksComplete(
+    [{ lookId: "1", itemIds: ["b1", "p1", "s1", "h1"] }],
+    byId,
+    catalog
+  );
+  assert.equal(noHatStillOk.incomplete.length, 0);
+  var competing = suggest.assertLooksComplete(
+    [{ lookId: "2", itemIds: ["b1", "b2", "p1", "s1"] }],
+    byId,
+    catalog
+  );
+  assert.equal(competing.incomplete.length, 1);
+  assert.ok(competing.incomplete[0].reasons.includes("competing_bases"));
+  var missingBottom = suggest.assertLooksComplete(
+    [{ lookId: "3", itemIds: ["b1", "s1"] }],
+    byId,
+    catalog
+  );
+  assert.ok(missingBottom.incomplete[0].reasons.includes("missing_trousers"));
+  var missingShoes = suggest.assertLooksComplete(
+    [{ lookId: "4", itemIds: ["b1", "p1"] }],
+    byId,
+    catalog
+  );
+  assert.ok(missingShoes.incomplete[0].reasons.includes("missing_footwear"));
+  var noShoesInCloset = [
+    { itemId: "p1", outfitRole: "trousers", type: "chinos" },
+    { itemId: "b1", outfitRole: "shirt", type: "oxford" },
+  ];
+  var byIdNoShoes = new Map(noShoesInCloset.map(function (row) {
+    return [row.itemId, row];
+  }));
+  var okWithoutShoes = suggest.assertLooksComplete(
+    [{ lookId: "1", itemIds: ["b1", "p1"] }],
+    byIdNoShoes,
+    noShoesInCloset
+  );
+  assert.equal(okWithoutShoes.incomplete.length, 0);
+});
+
+test("clampTitle strips quotes and clamps length", function () {
+  assert.equal(suggest.clampTitle('  "Soft Navy Stack"  '), "Soft Navy Stack");
+  assert.equal(suggest.clampTitle("x".repeat(80)).length, 48);
+  assert.equal(suggest.clampTitle(""), "");
 });
 
 test("validateLookPayload drops unknown IDs and tracks empty looks", function () {
@@ -464,6 +539,7 @@ test("Bedrock engine returns three looks with rationale and logs tokens", async 
   assert.equal(body.context, "board meeting tomorrow morning, cool and dry");
   assert.equal(body.looks.length, 3);
   assert.match(body.looks[0].rationale, /Navy blazer/);
+  assert.equal(body.looks[0].title, "Boardroom Navy");
   assert.ok(body.looks[0].items.length >= 1);
   assert.ok(body.looks[0].items[0].photos[0].thumbUrl || body.looks[0].items[0].photos[0].url);
   assert.equal(calls.length, 1);
@@ -604,4 +680,66 @@ test("Bedrock empty catalog skips model and returns empty looks", async function
   assert.equal(body.looks.length, 3);
   assert.equal(body.looks[0].items.length, 0);
   assert.equal(body.modelId, undefined);
+});
+
+test("Bedrock incomplete looks repair then hard-fail", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedClassicCatalog(memory);
+
+  var call = 0;
+  suggest.resetDepsForTests({
+    converse: async function () {
+      call += 1;
+      // Always missing trousers → completeness repair + still incomplete → 502.
+      return {
+        output: {
+          message: {
+            content: [
+              {
+                text: JSON.stringify({
+                  looks: [
+                    {
+                      lookId: "1",
+                      title: "Two Shirts",
+                      itemIds: ["shirt-1", "blazer-1", "shoes-1"],
+                      rationale: "no pants",
+                    },
+                    {
+                      lookId: "2",
+                      title: "Still No Pants",
+                      itemIds: ["shirt-1", "shoes-1"],
+                      rationale: "no pants",
+                    },
+                    {
+                      lookId: "3",
+                      title: "Jacket Only",
+                      itemIds: ["blazer-1", "shoes-1"],
+                      rationale: "no pants",
+                    },
+                  ],
+                }),
+              },
+            ],
+          },
+        },
+        usage: { inputTokens: 11, outputTokens: 11 },
+      };
+    },
+  });
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({ context: "weekend", engine: "bedrock" }),
+    });
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 502);
+  assert.equal(JSON.parse(res.body).error, "suggest_incomplete_looks");
+  assert.equal(call, 2);
 });

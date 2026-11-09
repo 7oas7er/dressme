@@ -354,6 +354,8 @@ export function renderCatalogApp(root, { onLogout }) {
       engine: "",
       suggestionId: "",
     },
+    /** Detail opened from a look card — show “Back to looks” (DM-110). */
+    detailFromSuggest: false,
   };
 
   /**
@@ -377,6 +379,9 @@ export function renderCatalogApp(root, { onLogout }) {
       view: state.view,
       itemId,
       creating: Boolean(creating),
+      fromSuggest: Boolean(
+        state.view === "detail" && state.detailFromSuggest
+      ),
     };
   }
 
@@ -398,6 +403,7 @@ export function renderCatalogApp(root, { onLogout }) {
       if (view === "suggest") {
         state.view = "suggest";
         state.editing = null;
+        state.detailFromSuggest = false;
         state.status = "";
         paint();
       } else if (view === "form" && snap.creating) {
@@ -413,7 +419,10 @@ export function renderCatalogApp(root, { onLogout }) {
           state.items.find((entry) => entry.itemId === snap.itemId) || {
             itemId: snap.itemId,
           };
-        await openDetail(item, { skipHistory: true });
+        await openDetail(item, {
+          skipHistory: true,
+          fromSuggest: Boolean(snap.fromSuggest),
+        });
       } else {
         state.view = "list";
         state.editing = null;
@@ -674,8 +683,10 @@ export function renderCatalogApp(root, { onLogout }) {
 
   async function openDetail(item, options = {}) {
     const skipHistory = options && options.skipHistory;
+    const fromSuggest = Boolean(options && options.fromSuggest);
     state.view = "detail";
     state.editing = item;
+    state.detailFromSuggest = fromSuggest;
     state.error = "";
     state.busy = true;
     paint();
@@ -694,11 +705,24 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
+  /**
+   * Return to the in-memory suggest session without re-running Bedrock.
+   * Prefer History Back when suggest sits under this detail entry.
+   */
+  function backToLooks() {
+    if (state.detailFromSuggest) {
+      window.history.back();
+      return;
+    }
+    openSuggest({ skipHistory: true });
+  }
+
   function backToList(options = {}) {
     const skipHistory = options && options.skipHistory;
     const wasList = state.view === "list" && !state.editing;
     state.view = "list";
     state.editing = null;
+    state.detailFromSuggest = false;
     state.assist = emptyAssist();
     state.formDraft = emptyFormDraft();
     resetWadaPickerUi();
@@ -904,6 +928,7 @@ export function renderCatalogApp(root, { onLogout }) {
     const skipHistory = options && options.skipHistory;
     state.view = "suggest";
     state.editing = null;
+    state.detailFromSuggest = false;
     state.error = "";
     state.status = "";
     paint();
@@ -931,7 +956,10 @@ export function renderCatalogApp(root, { onLogout }) {
         "Three looks — pick one mentally. Nothing is recorded in the app.";
     } catch (err) {
       const code = err && err.message ? String(err.message) : "";
-      if (
+      if (code === "suggest_incomplete_looks") {
+        state.error =
+          "Couldn’t build three complete outfits from this closet. Add a base, bottom, and shoes (when you have them), then try again.";
+      } else if (
         code === "suggest_unavailable" ||
         code === "suggest_invalid_model_json" ||
         code === "suggest_invalid_item_ids" ||
@@ -2069,6 +2097,16 @@ export function renderCatalogApp(root, { onLogout }) {
       item.pattern,
     ].filter((part) => String(part || "").trim());
     const panel = el("section", { className: "panel stack" }, [
+      state.detailFromSuggest
+        ? el("div", { className: "row detail-back-looks" }, [
+            el("button", {
+              type: "button",
+              className: "secondary",
+              text: "Back to looks",
+              onClick: backToLooks,
+            }),
+          ])
+        : null,
       el("h1", { text: item.type }),
       el("div", { className: "lede-row" }, [
         el("p", {
@@ -2180,7 +2218,11 @@ export function renderCatalogApp(root, { onLogout }) {
         );
       }
       state.suggest.looks.forEach((look, index) => {
-        results.append(renderLookCard(look, index));
+        results.append(
+          renderLookCard(look, index, {
+            onItemOpen: (piece) => openDetail(piece, { fromSuggest: true }),
+          })
+        );
       });
       panel.append(results);
     } else if (!state.items.length) {

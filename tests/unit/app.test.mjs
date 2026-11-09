@@ -308,11 +308,15 @@ test("mobile add UX: camera-first, sticky Save, Add next (UC-01 phone)", () => {
   assert.doesNotMatch(useCases, /Mic control|Web Speech API|microphone=\(self\)/);
 });
 
-test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
+test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const suggest = fs.readFileSync(path.join(root, "web/src/suggest.js"), "utf8");
   const lookLayout = fs.readFileSync(path.join(root, "web/src/lookLayout.js"), "utf8");
   const lookCard = fs.readFileSync(path.join(root, "web/src/lookCard.js"), "utf8");
+  const lookWadaPlate = fs.readFileSync(
+    path.join(root, "web/src/lookWadaPlate.js"),
+    "utf8"
+  );
   const mannequinColor = fs.readFileSync(
     path.join(root, "web/src/mannequinColor.js"),
     "utf8"
@@ -324,18 +328,22 @@ test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   assert.match(catalog, /openSuggest|view === "suggest"/);
   assert.match(catalog, /runSuggest/);
   assert.match(catalog, /renderLookCard/);
+  assert.match(catalog, /fromSuggest|Back to looks|backToLooks/);
+  assert.match(catalog, /suggest_incomplete_looks/);
   assert.match(catalog, /Nothing is recorded|does not record worn/);
   assert.match(catalog, /name: "context"/);
   assert.doesNotMatch(catalog, /name: "occasion"/);
   assert.doesNotMatch(catalog, /name: "weather"/);
   assert.match(catalog, /AI suggestions from your catalog/);
-  assert.match(suggest, /lookHeadline|lookSummary/);
+  assert.match(suggest, /lookHeadline|lookSummary|clampLookTitle/);
   assert.match(lookLayout, /itemToSlot|buildLookVisual|layerImageUrl/);
   assert.match(lookLayout, /primaryWadaHex|fillFromWada/);
-  assert.match(lookCard, /look-hero|look-strip|look-mannequin/);
+  assert.match(lookCard, /look-pieces|look-wada-plate|look-piece-btn/);
   assert.match(lookCard, /look-rationale/);
-  assert.match(lookCard, /mn-wash|sampleThumb|100 240/);
-  assert.match(lookCard, /fillFromWada/);
+  assert.match(lookCard, /lookWadaPlateEntries/);
+  // Mannequin helpers retained for Later hero but un-wired from the card.
+  assert.match(lookCard, /look-mannequin|renderMannequinSvg|100 240/);
+  assert.match(lookWadaPlate, /lookWadaPlateEntries|primaryWadaId/);
   assert.match(mannequinColor, /resolveFillColor|resolvePatternHint/);
   assert.ok(
     fs.existsSync(path.join(root, "web/src/thumbSample.js")),
@@ -347,13 +355,12 @@ test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   // Dual-write occasion until stg Lambda zip is applied (missing_occasion).
   assert.match(apiSrc, /occasion:\s*context/);
   assert.match(catalog, /missing_occasion/);
-  assert.match(styles, /\.look-hero/);
-  assert.match(styles, /\.look-mannequin/);
-  assert.match(styles, /\.look-strip/);
+  assert.match(styles, /\.look-pieces/);
+  assert.match(styles, /\.look-wada-plate/);
   assert.match(styles, /\.look-rationale/);
   assert.match(styles, /\.looks-grid/);
   assert.match(useCases, /UC-04 — Request outfit suggestions/);
-  assert.match(useCases, /UC-05 — View a look as an SVG mannequin/);
+  assert.match(useCases, /UC-05 — View a look as photos \+ Wada plate/);
   assert.match(useCases, /UC-06 — Pick among three looks/);
   assert.match(useCases, /UC-09 — Short rationale per look/);
 });
