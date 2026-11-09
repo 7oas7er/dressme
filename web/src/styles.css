@@ -385,6 +385,14 @@ label {
   gap: 0.75rem;
 }
 
+.wada-field-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
 .wada-hint,
 .wada-empty {
   margin: 0;
@@ -428,6 +436,7 @@ label {
 .wada-chip-primary,
 .wada-chip-remove,
 .wada-clear,
+.wada-from-photo,
 .wada-expand,
 .wada-collapse {
   font-size: 0.8rem;
