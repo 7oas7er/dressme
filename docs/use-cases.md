@@ -3,7 +3,7 @@
 Derived from the frozen Product Canvas (Project store).
 
 **Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference).  
-Last updated: 2026-11-09 (Europe/Berlin; Wada — picker, catalog + detail swatch, prefer Wada hex in Option D)
+Last updated: 2026-11-09 (Europe/Berlin; Wada — picker, catalog + detail swatch, Option D hex, suggest prompt names)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -48,7 +48,7 @@ As Frank, on the add/edit item form, the Brand/model control sits on the same ba
 As Frank, above the catalog grid (below search) I can expand a foldable filter pane (folded by default; open/closed remembered for the browser tab) and filter items by attribute categories that matter while browsing (at least type, color, fabric, formality, pattern, season/climate, outfit role, and brand/model), using the values present in my wardrobe; filters combine (AND), and I can clear them to see everything again.
 
 ### UC-04 — Request outfit suggestions
-As Frank, before getting dressed, I enter a free-text **context** (event, weather, or anything else that matters), then receive exactly three outfit suggestions drawn only from my catalog via Bedrock text suggest (attrs + `aiContext`; no photos), informed by classic menswear knowledge. `SUGGEST_ENGINE=random` remains available as a Terraform rollback.
+As Frank, before getting dressed, I enter a free-text **context** (event, weather, or anything else that matters), then receive exactly three outfit suggestions drawn only from my catalog via Bedrock text suggest (attrs + `aiContext` + primary Wada English name/ID when set; no photos), informed by classic menswear knowledge. Free-text color stays in the prompt; Wada is the true-color reference when present. `SUGGEST_ENGINE=random` remains available as a Terraform rollback (random assembly ignores Wada).
 
 ### UC-05 — View a look as an SVG mannequin (Option D)
 As Frank, for each of the three suggestions I see one outfit card: a left-hand elongated male SVG croquis with soft value washes and role-shaped panels (lapel / trouser break / shoe profile hints), filled preferentially from each item’s **Wada reference hex** when set (else free-text color or an optional client-side thumb sample — cheap pattern hint when attributes allow; thumb sample does not override a set Wada primary), painted shoes→trousers→shirt→jacket with belt in the trousers band, plus a right-hand authenticity strip of original photographic thumbs, so I can judge color harmony and jacket/shirt/trousers as an outfit at a glance and still verify each piece.
@@ -66,7 +66,7 @@ As Frank, under each Option D look card I see a short Bedrock rationale (1–3 s
 Includes former “Should” candidates not pulled into the v1 contract.
 
 ### UC-28 — Wada combination-aware suggest
-As Frank, when I request outfit suggestions, DressMe may use published Sanzo Wada *combinations* from *A Dictionary of Color Combinations* as a soft harmony prior when scoring or ranking looks — without forcing every outfit onto a book combination. **Not v1:** v1 keeps Wada as named/measured reference colors for capture, catalog swatch, and mannequin fills only.
+As Frank, when I request outfit suggestions, DressMe may use published Sanzo Wada *combinations* from *A Dictionary of Color Combinations* as a soft harmony prior when scoring or ranking looks — without forcing every outfit onto a book combination. **Not v1:** v1 already feeds primary Wada names into Bedrock suggest text (UC-04) and uses Wada for capture, catalog/detail swatch, and mannequin fills — combination IDs / scoring stay Later.
 
 ### UC-24 — Catalog cutouts (not required)
 Previously: transparent cutout derivatives on upload for catalog + hero. **Not required** for Option D — generation stopped; existing `*.cutout.webp` / Dynamo keys left in place. May revisit later for AI categorization, not as a hero/catalog product must.

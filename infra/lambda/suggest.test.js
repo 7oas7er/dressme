@@ -271,10 +271,71 @@ test("serializeCatalogForPrompt omits photos/URLs and clamps aiContext", functio
   assert.equal(rows[0].photos, undefined);
   assert.equal(rows[0].url, undefined);
   assert.equal(rows[0].pk, undefined);
+  assert.equal(rows[0].wada, undefined);
+  assert.equal(rows[0].wadaId, undefined);
   var dumped = JSON.stringify(rows);
   assert.ok(!/https?:\/\//i.test(dumped));
   assert.ok(!/photos/i.test(dumped));
   assert.ok(!/base64/i.test(dumped));
+});
+
+test("serializeCatalogForPrompt includes primary Wada name and id", function () {
+  var rows = suggest.serializeCatalogForPrompt([
+    {
+      itemId: "navy-suit",
+      type: "suit jacket",
+      color: "navy",
+      fabric: "wool",
+      brandModel: "",
+      formality: "business",
+      pattern: "solid",
+      season: "all-season",
+      outfitRole: "outer",
+      wadaColorIds: ["wada:v1:42", "wada:v1:7"],
+    },
+    {
+      itemId: "no-wada",
+      type: "shirt",
+      color: "white",
+      fabric: "cotton",
+      brandModel: "",
+      formality: "business",
+      pattern: "solid",
+      season: "all-season",
+      outfitRole: "shirt",
+      wadaColorIds: [],
+    },
+    {
+      itemId: "stale-wada",
+      type: "trousers",
+      color: "grey",
+      fabric: "wool",
+      brandModel: "",
+      formality: "business",
+      pattern: "solid",
+      season: "all-season",
+      outfitRole: "trousers",
+      wadaColorIds: ["wada:v1:999"],
+    },
+  ]);
+  assert.equal(rows[0].color, "navy");
+  assert.equal(rows[0].wada, "Seashell Pink");
+  assert.equal(rows[0].wadaId, "wada:v1:42");
+  assert.equal(rows[0].wadaColorIds, undefined);
+  assert.equal(rows[1].wada, undefined);
+  assert.equal(rows[1].wadaId, undefined);
+  assert.equal(rows[2].wada, undefined);
+  assert.equal(rows[2].wadaId, undefined);
+  var dumped = JSON.stringify(rows);
+  assert.ok(!/wadaColorIds/i.test(dumped));
+  assert.ok(!/combination/i.test(dumped));
+});
+
+test("systemPrompt mentions Wada true-color reference", function () {
+  var prompt = suggest.systemPrompt();
+  assert.match(prompt, /wada/i);
+  assert.match(prompt, /true-color/i);
+  assert.match(prompt, /Never invent item IDs/);
 });
 
 test("validateLookPayload drops unknown IDs and tracks empty looks", function () {
