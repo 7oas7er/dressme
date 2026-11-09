@@ -1,0 +1,1598 @@
+{
+  "version": 1,
+  "source": "mattdesl/dictionary-of-colour-combinations",
+  "npmVersion": "1.0.2",
+  "license": "MIT",
+  "colors": [
+    {
+      "id": "wada:v1:0",
+      "name": "Hermosa Pink",
+      "hex": "#f9c1ce",
+      "hsl": {
+        "h": 346,
+        "s": 0.824,
+        "l": 0.867
+      }
+    },
+    {
+      "id": "wada:v1:1",
+      "name": "Corinthian Pink",
+      "hex": "#f8b6ba",
+      "hsl": {
+        "h": 356,
+        "s": 0.825,
+        "l": 0.843
+      }
+    },
+    {
+      "id": "wada:v1:2",
+      "name": "Cameo Pink",
+      "hex": "#e0b3b6",
+      "hsl": {
+        "h": 356,
+        "s": 0.421,
+        "l": 0.79
+      }
+    },
+    {
+      "id": "wada:v1:3",
+      "name": "Fawn",
+      "hex": "#d1b0a7",
+      "hsl": {
+        "h": 13,
+        "s": 0.313,
+        "l": 0.737
+      }
+    },
+    {
+      "id": "wada:v1:4",
+      "name": "Light Brown Drab",
+      "hex": "#b59392",
+      "hsl": {
+        "h": 2,
+        "s": 0.191,
+        "l": 0.641
+      }
+    },
+    {
+      "id": "wada:v1:5",
+      "name": "Coral Red",
+      "hex": "#f58e84",
+      "hsl": {
+        "h": 5,
+        "s": 0.85,
+        "l": 0.739
+      }
+    },
+    {
+      "id": "wada:v1:6",
+      "name": "Fresh Color",
+      "hex": "#f6917e",
+      "hsl": {
+        "h": 9,
+        "s": 0.87,
+        "l": 0.729
+      }
+    },
+    {
+      "id": "wada:v1:7",
+      "name": "Grenadine Pink",
+      "hex": "#f48067",
+      "hsl": {
+        "h": 11,
+        "s": 0.865,
+        "l": 0.68
+      }
+    },
+    {
+      "id": "wada:v1:8",
+      "name": "Eosine Pink",
+      "hex": "#f37f94",
+      "hsl": {
+        "h": 349,
+        "s": 0.829,
+        "l": 0.725
+      }
+    },
+    {
+      "id": "wada:v1:9",
+      "name": "Spinel Red",
+      "hex": "#f27291",
+      "hsl": {
+        "h": 345,
+        "s": 0.831,
+        "l": 0.698
+      }
+    },
+    {
+      "id": "wada:v1:10",
+      "name": "Old Rose",
+      "hex": "#d46d7a",
+      "hsl": {
+        "h": 352,
+        "s": 0.545,
+        "l": 0.629
+      }
+    },
+    {
+      "id": "wada:v1:11",
+      "name": "Eugenia Red | A",
+      "hex": "#e2625e",
+      "hsl": {
+        "h": 2,
+        "s": 0.695,
+        "l": 0.627
+      }
+    },
+    {
+      "id": "wada:v1:12",
+      "name": "Eugenia Red | B",
+      "hex": "#da525d",
+      "hsl": {
+        "h": 355,
+        "s": 0.648,
+        "l": 0.588
+      }
+    },
+    {
+      "id": "wada:v1:13",
+      "name": "Raw Sienna",
+      "hex": "#bb7125",
+      "hsl": {
+        "h": 30,
+        "s": 0.67,
+        "l": 0.439
+      }
+    },
+    {
+      "id": "wada:v1:14",
+      "name": "Vinaceous Tawny",
+      "hex": "#c56127",
+      "hsl": {
+        "h": 22,
+        "s": 0.669,
+        "l": 0.463
+      }
+    },
+    {
+      "id": "wada:v1:15",
+      "name": "Jasper Red",
+      "hex": "#eb5324",
+      "hsl": {
+        "h": 14,
+        "s": 0.833,
+        "l": 0.531
+      }
+    },
+    {
+      "id": "wada:v1:16",
+      "name": "Spectrum Red",
+      "hex": "#e31f26",
+      "hsl": {
+        "h": 358,
+        "s": 0.778,
+        "l": 0.506
+      }
+    },
+    {
+      "id": "wada:v1:17",
+      "name": "Red Orange",
+      "hex": "#dd4027",
+      "hsl": {
+        "h": 8,
+        "s": 0.728,
+        "l": 0.51
+      }
+    },
+    {
+      "id": "wada:v1:18",
+      "name": "Etruscan Red",
+      "hex": "#c55347",
+      "hsl": {
+        "h": 6,
+        "s": 0.521,
+        "l": 0.525
+      }
+    },
+    {
+      "id": "wada:v1:19",
+      "name": "Burnt Sienna",
+      "hex": "#ae5224",
+      "hsl": {
+        "h": 20,
+        "s": 0.657,
+        "l": 0.412
+      }
+    },
+    {
+      "id": "wada:v1:20",
+      "name": "Ochre Red",
+      "hex": "#ab544d",
+      "hsl": {
+        "h": 4,
+        "s": 0.379,
+        "l": 0.486
+      }
+    },
+    {
+      "id": "wada:v1:21",
+      "name": "Scarlet",
+      "hex": "#cb2f43",
+      "hsl": {
+        "h": 352,
+        "s": 0.624,
+        "l": 0.49
+      }
+    },
+    {
+      "id": "wada:v1:22",
+      "name": "Carmine",
+      "hex": "#cc1236",
+      "hsl": {
+        "h": 348,
+        "s": 0.838,
+        "l": 0.435
+      }
+    },
+    {
+      "id": "wada:v1:23",
+      "name": "Indian Lake",
+      "hex": "#c53c69",
+      "hsl": {
+        "h": 340,
+        "s": 0.542,
+        "l": 0.504
+      }
+    },
+    {
+      "id": "wada:v1:24",
+      "name": "Rosolanc Purple",
+      "hex": "#b73f74",
+      "hsl": {
+        "h": 334,
+        "s": 0.488,
+        "l": 0.482
+      }
+    },
+    {
+      "id": "wada:v1:25",
+      "name": "Pomegranite Purple",
+      "hex": "#b71f57",
+      "hsl": {
+        "h": 338,
+        "s": 0.71,
+        "l": 0.42
+      }
+    },
+    {
+      "id": "wada:v1:26",
+      "name": "Hydrangea Red",
+      "hex": "#a94151",
+      "hsl": {
+        "h": 351,
+        "s": 0.444,
+        "l": 0.459
+      }
+    },
+    {
+      "id": "wada:v1:27",
+      "name": "Brick Red",
+      "hex": "#a84222",
+      "hsl": {
+        "h": 14,
+        "s": 0.663,
+        "l": 0.396
+      }
+    },
+    {
+      "id": "wada:v1:28",
+      "name": "Carmine Red",
+      "hex": "#a62c37",
+      "hsl": {
+        "h": 355,
+        "s": 0.581,
+        "l": 0.412
+      }
+    },
+    {
+      "id": "wada:v1:29",
+      "name": "Pompeian Red",
+      "hex": "#ab2439",
+      "hsl": {
+        "h": 351,
+        "s": 0.652,
+        "l": 0.406
+      }
+    },
+    {
+      "id": "wada:v1:30",
+      "name": "Red",
+      "hex": "#a72144",
+      "hsl": {
+        "h": 344,
+        "s": 0.67,
+        "l": 0.392
+      }
+    },
+    {
+      "id": "wada:v1:31",
+      "name": "Brown",
+      "hex": "#7c4226",
+      "hsl": {
+        "h": 20,
+        "s": 0.531,
+        "l": 0.318
+      }
+    },
+    {
+      "id": "wada:v1:32",
+      "name": "Hay's Russet",
+      "hex": "#793327",
+      "hsl": {
+        "h": 9,
+        "s": 0.513,
+        "l": 0.314
+      }
+    },
+    {
+      "id": "wada:v1:33",
+      "name": "Vandyke Red",
+      "hex": "#82241f",
+      "hsl": {
+        "h": 3,
+        "s": 0.615,
+        "l": 0.316
+      }
+    },
+    {
+      "id": "wada:v1:34",
+      "name": "Pansy Purple",
+      "hex": "#7d133a",
+      "hsl": {
+        "h": 338,
+        "s": 0.736,
+        "l": 0.282
+      }
+    },
+    {
+      "id": "wada:v1:35",
+      "name": "Pale Burnt Lake",
+      "hex": "#802626",
+      "hsl": {
+        "h": 0,
+        "s": 0.542,
+        "l": 0.325
+      }
+    },
+    {
+      "id": "wada:v1:36",
+      "name": "Violet Red",
+      "hex": "#642d5e",
+      "hsl": {
+        "h": 307,
+        "s": 0.379,
+        "l": 0.284
+      }
+    },
+    {
+      "id": "wada:v1:37",
+      "name": "Vistoris Lake",
+      "hex": "#6d4145",
+      "hsl": {
+        "h": 355,
+        "s": 0.253,
+        "l": 0.341
+      }
+    },
+    {
+      "id": "wada:v1:38",
+      "name": "Sulpher Yellow",
+      "hex": "#f5ecc2",
+      "hsl": {
+        "h": 49,
+        "s": 0.718,
+        "l": 0.861
+      }
+    },
+    {
+      "id": "wada:v1:39",
+      "name": "Pale Lemon Yellow",
+      "hex": "#ffefae",
+      "hsl": {
+        "h": 48,
+        "s": 1,
+        "l": 0.841
+      }
+    },
+    {
+      "id": "wada:v1:40",
+      "name": "Naples Yellow",
+      "hex": "#fbe6a0",
+      "hsl": {
+        "h": 46,
+        "s": 0.919,
+        "l": 0.806
+      }
+    },
+    {
+      "id": "wada:v1:41",
+      "name": "Ivory Buff",
+      "hex": "#ebd3a2",
+      "hsl": {
+        "h": 40,
+        "s": 0.646,
+        "l": 0.778
+      }
+    },
+    {
+      "id": "wada:v1:42",
+      "name": "Seashell Pink",
+      "hex": "#fdd4bd",
+      "hsl": {
+        "h": 22,
+        "s": 0.941,
+        "l": 0.867
+      }
+    },
+    {
+      "id": "wada:v1:43",
+      "name": "Light Pinkish Cinnamon",
+      "hex": "#fcc79b",
+      "hsl": {
+        "h": 27,
+        "s": 0.942,
+        "l": 0.798
+      }
+    },
+    {
+      "id": "wada:v1:44",
+      "name": "Pinkish Cinnamon",
+      "hex": "#eeb480",
+      "hsl": {
+        "h": 28,
+        "s": 0.764,
+        "l": 0.718
+      }
+    },
+    {
+      "id": "wada:v1:45",
+      "name": "Cinnamon Buff",
+      "hex": "#fdc57e",
+      "hsl": {
+        "h": 34,
+        "s": 0.969,
+        "l": 0.743
+      }
+    },
+    {
+      "id": "wada:v1:46",
+      "name": "Cream Yellow",
+      "hex": "#fdbf68",
+      "hsl": {
+        "h": 35,
+        "s": 0.974,
+        "l": 0.7
+      }
+    },
+    {
+      "id": "wada:v1:47",
+      "name": "Golden Yellow",
+      "hex": "#f3a257",
+      "hsl": {
+        "h": 29,
+        "s": 0.867,
+        "l": 0.647
+      }
+    },
+    {
+      "id": "wada:v1:48",
+      "name": "Vinaceous Cinnamon",
+      "hex": "#eea78c",
+      "hsl": {
+        "h": 17,
+        "s": 0.742,
+        "l": 0.741
+      }
+    },
+    {
+      "id": "wada:v1:49",
+      "name": "Ochraceous Salmon",
+      "hex": "#d8a37b",
+      "hsl": {
+        "h": 26,
+        "s": 0.544,
+        "l": 0.665
+      }
+    },
+    {
+      "id": "wada:v1:50",
+      "name": "Isabella Color",
+      "hex": "#c5a56e",
+      "hsl": {
+        "h": 38,
+        "s": 0.429,
+        "l": 0.602
+      }
+    },
+    {
+      "id": "wada:v1:51",
+      "name": "Maple",
+      "hex": "#c59f6b",
+      "hsl": {
+        "h": 35,
+        "s": 0.437,
+        "l": 0.596
+      }
+    },
+    {
+      "id": "wada:v1:52",
+      "name": "Olive Buff",
+      "hex": "#c1c494",
+      "hsl": {
+        "h": 64,
+        "s": 0.289,
+        "l": 0.675
+      }
+    },
+    {
+      "id": "wada:v1:53",
+      "name": "Ecru",
+      "hex": "#c2ae93",
+      "hsl": {
+        "h": 34,
+        "s": 0.278,
+        "l": 0.669
+      }
+    },
+    {
+      "id": "wada:v1:54",
+      "name": "Yellow",
+      "hex": "#fff200",
+      "hsl": {
+        "h": 57,
+        "s": 1,
+        "l": 0.5
+      }
+    },
+    {
+      "id": "wada:v1:55",
+      "name": "Lemon Yellow",
+      "hex": "#f8ed43",
+      "hsl": {
+        "h": 56,
+        "s": 0.928,
+        "l": 0.618
+      }
+    },
+    {
+      "id": "wada:v1:56",
+      "name": "Apricot Yellow",
+      "hex": "#ffdd00",
+      "hsl": {
+        "h": 52,
+        "s": 1,
+        "l": 0.5
+      }
+    },
+    {
+      "id": "wada:v1:57",
+      "name": "Pyrite Yellow",
+      "hex": "#cab356",
+      "hsl": {
+        "h": 48,
+        "s": 0.523,
+        "l": 0.565
+      }
+    },
+    {
+      "id": "wada:v1:58",
+      "name": "Olive Ocher",
+      "hex": "#d6b43e",
+      "hsl": {
+        "h": 47,
+        "s": 0.65,
+        "l": 0.541
+      }
+    },
+    {
+      "id": "wada:v1:59",
+      "name": "Yellow Ocher",
+      "hex": "#e2b540",
+      "hsl": {
+        "h": 43,
+        "s": 0.736,
+        "l": 0.569
+      }
+    },
+    {
+      "id": "wada:v1:60",
+      "name": "Orange Yellow",
+      "hex": "#fcb315",
+      "hsl": {
+        "h": 41,
+        "s": 0.975,
+        "l": 0.535
+      }
+    },
+    {
+      "id": "wada:v1:61",
+      "name": "Yellow Orange",
+      "hex": "#f99d1b",
+      "hsl": {
+        "h": 35,
+        "s": 0.949,
+        "l": 0.541
+      }
+    },
+    {
+      "id": "wada:v1:62",
+      "name": "Apricot Orange",
+      "hex": "#f68c50",
+      "hsl": {
+        "h": 22,
+        "s": 0.902,
+        "l": 0.639
+      }
+    },
+    {
+      "id": "wada:v1:63",
+      "name": "Orange",
+      "hex": "#f37420",
+      "hsl": {
+        "h": 24,
+        "s": 0.898,
+        "l": 0.539
+      }
+    },
+    {
+      "id": "wada:v1:64",
+      "name": "Peach Red",
+      "hex": "#f15a30",
+      "hsl": {
+        "h": 13,
+        "s": 0.873,
+        "l": 0.567
+      }
+    },
+    {
+      "id": "wada:v1:65",
+      "name": "English Red",
+      "hex": "#d96629",
+      "hsl": {
+        "h": 21,
+        "s": 0.698,
+        "l": 0.506
+      }
+    },
+    {
+      "id": "wada:v1:66",
+      "name": "Cinnamon Rufous",
+      "hex": "#c27544",
+      "hsl": {
+        "h": 23,
+        "s": 0.508,
+        "l": 0.514
+      }
+    },
+    {
+      "id": "wada:v1:67",
+      "name": "Orange Rufous",
+      "hex": "#c16b27",
+      "hsl": {
+        "h": 26,
+        "s": 0.664,
+        "l": 0.455
+      }
+    },
+    {
+      "id": "wada:v1:68",
+      "name": "Sulphine Yellow",
+      "hex": "#c19f2c",
+      "hsl": {
+        "h": 46,
+        "s": 0.629,
+        "l": 0.465
+      }
+    },
+    {
+      "id": "wada:v1:69",
+      "name": "Khaki",
+      "hex": "#bc892b",
+      "hsl": {
+        "h": 39,
+        "s": 0.628,
+        "l": 0.453
+      }
+    },
+    {
+      "id": "wada:v1:70",
+      "name": "Citron Yellow",
+      "hex": "#b2b73e",
+      "hsl": {
+        "h": 62,
+        "s": 0.494,
+        "l": 0.48
+      }
+    },
+    {
+      "id": "wada:v1:71",
+      "name": "Citrine",
+      "hex": "#b09f36",
+      "hsl": {
+        "h": 52,
+        "s": 0.53,
+        "l": 0.451
+      }
+    },
+    {
+      "id": "wada:v1:72",
+      "name": "Buffy Citrine",
+      "hex": "#96874d",
+      "hsl": {
+        "h": 48,
+        "s": 0.322,
+        "l": 0.445
+      }
+    },
+    {
+      "id": "wada:v1:73",
+      "name": "Dark Citrine",
+      "hex": "#8b835b",
+      "hsl": {
+        "h": 50,
+        "s": 0.209,
+        "l": 0.451
+      }
+    },
+    {
+      "id": "wada:v1:74",
+      "name": "Light Grayish Olive",
+      "hex": "#848061",
+      "hsl": {
+        "h": 53,
+        "s": 0.153,
+        "l": 0.449
+      }
+    },
+    {
+      "id": "wada:v1:75",
+      "name": "Krongbergs Green",
+      "hex": "#84875e",
+      "hsl": {
+        "h": 64,
+        "s": 0.179,
+        "l": 0.449
+      }
+    },
+    {
+      "id": "wada:v1:76",
+      "name": "Olive",
+      "hex": "#837e31",
+      "hsl": {
+        "h": 56,
+        "s": 0.456,
+        "l": 0.353
+      }
+    },
+    {
+      "id": "wada:v1:77",
+      "name": "Orange Citrine",
+      "hex": "#986f2d",
+      "hsl": {
+        "h": 37,
+        "s": 0.543,
+        "l": 0.386
+      }
+    },
+    {
+      "id": "wada:v1:78",
+      "name": "Sudan Brown",
+      "hex": "#a36752",
+      "hsl": {
+        "h": 16,
+        "s": 0.331,
+        "l": 0.48
+      }
+    },
+    {
+      "id": "wada:v1:79",
+      "name": "Olive Green",
+      "hex": "#6b7140",
+      "hsl": {
+        "h": 67,
+        "s": 0.277,
+        "l": 0.347
+      }
+    },
+    {
+      "id": "wada:v1:80",
+      "name": "Light Brownish Olive",
+      "hex": "#806e4b",
+      "hsl": {
+        "h": 40,
+        "s": 0.261,
+        "l": 0.398
+      }
+    },
+    {
+      "id": "wada:v1:81",
+      "name": "Deep Grayish Olive",
+      "hex": "#635a3a",
+      "hsl": {
+        "h": 47,
+        "s": 0.261,
+        "l": 0.308
+      }
+    },
+    {
+      "id": "wada:v1:82",
+      "name": "Pale Raw Umber",
+      "hex": "#71502f",
+      "hsl": {
+        "h": 30,
+        "s": 0.413,
+        "l": 0.314
+      }
+    },
+    {
+      "id": "wada:v1:83",
+      "name": "Sepia",
+      "hex": "#644b1e",
+      "hsl": {
+        "h": 39,
+        "s": 0.538,
+        "l": 0.255
+      }
+    },
+    {
+      "id": "wada:v1:84",
+      "name": "Madder Brown",
+      "hex": "#762c19",
+      "hsl": {
+        "h": 12,
+        "s": 0.65,
+        "l": 0.28
+      }
+    },
+    {
+      "id": "wada:v1:85",
+      "name": "Mars Brown Tobacco",
+      "hex": "#653514",
+      "hsl": {
+        "h": 24,
+        "s": 0.669,
+        "l": 0.237
+      }
+    },
+    {
+      "id": "wada:v1:86",
+      "name": "Vandyke Brown",
+      "hex": "#4b3317",
+      "hsl": {
+        "h": 32,
+        "s": 0.531,
+        "l": 0.192
+      }
+    },
+    {
+      "id": "wada:v1:87",
+      "name": "Turquoise Green",
+      "hex": "#b5decc",
+      "hsl": {
+        "h": 154,
+        "s": 0.383,
+        "l": 0.79
+      }
+    },
+    {
+      "id": "wada:v1:88",
+      "name": "Glaucous Green",
+      "hex": "#b4cdc2",
+      "hsl": {
+        "h": 154,
+        "s": 0.2,
+        "l": 0.755
+      }
+    },
+    {
+      "id": "wada:v1:89",
+      "name": "Dark Greenish Glaucous",
+      "hex": "#b7c2a9",
+      "hsl": {
+        "h": 86,
+        "s": 0.17,
+        "l": 0.712
+      }
+    },
+    {
+      "id": "wada:v1:90",
+      "name": "Yellow Green",
+      "hex": "#afd472",
+      "hsl": {
+        "h": 83,
+        "s": 0.533,
+        "l": 0.639
+      }
+    },
+    {
+      "id": "wada:v1:91",
+      "name": "Light Green Yellow",
+      "hex": "#c7d14f",
+      "hsl": {
+        "h": 65,
+        "s": 0.586,
+        "l": 0.565
+      }
+    },
+    {
+      "id": "wada:v1:92",
+      "name": "Night Green",
+      "hex": "#87c540",
+      "hsl": {
+        "h": 88,
+        "s": 0.534,
+        "l": 0.512
+      }
+    },
+    {
+      "id": "wada:v1:93",
+      "name": "Olive Yellow",
+      "hex": "#a6a159",
+      "hsl": {
+        "h": 56,
+        "s": 0.302,
+        "l": 0.5
+      }
+    },
+    {
+      "id": "wada:v1:94",
+      "name": "Artemesia Green",
+      "hex": "#709390",
+      "hsl": {
+        "h": 175,
+        "s": 0.139,
+        "l": 0.508
+      }
+    },
+    {
+      "id": "wada:v1:95",
+      "name": "Andover Green",
+      "hex": "#6d7e77",
+      "hsl": {
+        "h": 155,
+        "s": 0.072,
+        "l": 0.461
+      }
+    },
+    {
+      "id": "wada:v1:96",
+      "name": "Rainette Green",
+      "hex": "#8fa071",
+      "hsl": {
+        "h": 82,
+        "s": 0.198,
+        "l": 0.535
+      }
+    },
+    {
+      "id": "wada:v1:97",
+      "name": "Chromium Green",
+      "hex": "#719470",
+      "hsl": {
+        "h": 118,
+        "s": 0.144,
+        "l": 0.51
+      }
+    },
+    {
+      "id": "wada:v1:98",
+      "name": "Pistachio Green",
+      "hex": "#648f7b",
+      "hsl": {
+        "h": 152,
+        "s": 0.177,
+        "l": 0.476
+      }
+    },
+    {
+      "id": "wada:v1:99",
+      "name": "Sea Green",
+      "hex": "#00b49b",
+      "hsl": {
+        "h": 172,
+        "s": 1,
+        "l": 0.353
+      }
+    },
+    {
+      "id": "wada:v1:100",
+      "name": "Benzol Green",
+      "hex": "#00978d",
+      "hsl": {
+        "h": 176,
+        "s": 1,
+        "l": 0.296
+      }
+    },
+    {
+      "id": "wada:v1:101",
+      "name": "Light Porcelain Green",
+      "hex": "#00908a",
+      "hsl": {
+        "h": 178,
+        "s": 1,
+        "l": 0.282
+      }
+    },
+    {
+      "id": "wada:v1:102",
+      "name": "Green",
+      "hex": "#489b6e",
+      "hsl": {
+        "h": 147,
+        "s": 0.366,
+        "l": 0.445
+      }
+    },
+    {
+      "id": "wada:v1:103",
+      "name": "Dull Viridian Green",
+      "hex": "#009465",
+      "hsl": {
+        "h": 161,
+        "s": 1,
+        "l": 0.29
+      }
+    },
+    {
+      "id": "wada:v1:104",
+      "name": "Oil Green",
+      "hex": "#819238",
+      "hsl": {
+        "h": 71,
+        "s": 0.446,
+        "l": 0.396
+      }
+    },
+    {
+      "id": "wada:v1:105",
+      "name": "Diamine Green",
+      "hex": "#1a7444",
+      "hsl": {
+        "h": 148,
+        "s": 0.634,
+        "l": 0.278
+      }
+    },
+    {
+      "id": "wada:v1:106",
+      "name": "Cossack Green",
+      "hex": "#437742",
+      "hsl": {
+        "h": 119,
+        "s": 0.286,
+        "l": 0.363
+      }
+    },
+    {
+      "id": "wada:v1:107",
+      "name": "Lincoln Green",
+      "hex": "#555832",
+      "hsl": {
+        "h": 65,
+        "s": 0.275,
+        "l": 0.271
+      }
+    },
+    {
+      "id": "wada:v1:108",
+      "name": "Blackish Olive",
+      "hex": "#42533e",
+      "hsl": {
+        "h": 109,
+        "s": 0.145,
+        "l": 0.284
+      }
+    },
+    {
+      "id": "wada:v1:109",
+      "name": "Deep Slate Olive",
+      "hex": "#253122",
+      "hsl": {
+        "h": 108,
+        "s": 0.181,
+        "l": 0.163
+      }
+    },
+    {
+      "id": "wada:v1:110",
+      "name": "Nile Blue",
+      "hex": "#bce4e5",
+      "hsl": {
+        "h": 181,
+        "s": 0.441,
+        "l": 0.818
+      }
+    },
+    {
+      "id": "wada:v1:111",
+      "name": "Pale King's Blue",
+      "hex": "#a7d4e4",
+      "hsl": {
+        "h": 196,
+        "s": 0.53,
+        "l": 0.775
+      }
+    },
+    {
+      "id": "wada:v1:112",
+      "name": "Light Glaucous Blue",
+      "hex": "#a5c8d1",
+      "hsl": {
+        "h": 192,
+        "s": 0.324,
+        "l": 0.733
+      }
+    },
+    {
+      "id": "wada:v1:113",
+      "name": "Salvia Blue",
+      "hex": "#97acc8",
+      "hsl": {
+        "h": 214,
+        "s": 0.308,
+        "l": 0.688
+      }
+    },
+    {
+      "id": "wada:v1:114",
+      "name": "Cobalt Green",
+      "hex": "#96d1aa",
+      "hsl": {
+        "h": 140,
+        "s": 0.391,
+        "l": 0.704
+      }
+    },
+    {
+      "id": "wada:v1:115",
+      "name": "Calamine BLue",
+      "hex": "#78cdd0",
+      "hsl": {
+        "h": 182,
+        "s": 0.484,
+        "l": 0.643
+      }
+    },
+    {
+      "id": "wada:v1:116",
+      "name": "Venice Green",
+      "hex": "#62c6bf",
+      "hsl": {
+        "h": 176,
+        "s": 0.467,
+        "l": 0.58
+      }
+    },
+    {
+      "id": "wada:v1:117",
+      "name": "Cerulian Blue",
+      "hex": "#0093a5",
+      "hsl": {
+        "h": 187,
+        "s": 1,
+        "l": 0.324
+      }
+    },
+    {
+      "id": "wada:v1:118",
+      "name": "Peacock Blue",
+      "hex": "#00939b",
+      "hsl": {
+        "h": 183,
+        "s": 1,
+        "l": 0.304
+      }
+    },
+    {
+      "id": "wada:v1:119",
+      "name": "Green Blue",
+      "hex": "#099197",
+      "hsl": {
+        "h": 183,
+        "s": 0.888,
+        "l": 0.314
+      }
+    },
+    {
+      "id": "wada:v1:120",
+      "name": "Olympic Blue",
+      "hex": "#5a82b3",
+      "hsl": {
+        "h": 213,
+        "s": 0.369,
+        "l": 0.527
+      }
+    },
+    {
+      "id": "wada:v1:121",
+      "name": "Blue",
+      "hex": "#006eb8",
+      "hsl": {
+        "h": 204,
+        "s": 1,
+        "l": 0.361
+      }
+    },
+    {
+      "id": "wada:v1:122",
+      "name": "Antwarp Blue",
+      "hex": "#007190",
+      "hsl": {
+        "h": 193,
+        "s": 1,
+        "l": 0.282
+      }
+    },
+    {
+      "id": "wada:v1:123",
+      "name": "Helvetia Blue",
+      "hex": "#005b8d",
+      "hsl": {
+        "h": 201,
+        "s": 1,
+        "l": 0.276
+      }
+    },
+    {
+      "id": "wada:v1:124",
+      "name": "Dark Medici Blue",
+      "hex": "#547076",
+      "hsl": {
+        "h": 191,
+        "s": 0.168,
+        "l": 0.396
+      }
+    },
+    {
+      "id": "wada:v1:125",
+      "name": "Dusky Green",
+      "hex": "#004f46",
+      "hsl": {
+        "h": 173,
+        "s": 1,
+        "l": 0.155
+      }
+    },
+    {
+      "id": "wada:v1:126",
+      "name": "Deep Lyons Blue",
+      "hex": "#1c4286",
+      "hsl": {
+        "h": 218,
+        "s": 0.654,
+        "l": 0.318
+      }
+    },
+    {
+      "id": "wada:v1:127",
+      "name": "Violet Blue",
+      "hex": "#40456a",
+      "hsl": {
+        "h": 233,
+        "s": 0.247,
+        "l": 0.333
+      }
+    },
+    {
+      "id": "wada:v1:128",
+      "name": "Vandar Poel's Blue",
+      "hex": "#064f6e",
+      "hsl": {
+        "h": 198,
+        "s": 0.897,
+        "l": 0.227
+      }
+    },
+    {
+      "id": "wada:v1:129",
+      "name": "Dark Tyrian Blue",
+      "hex": "#12354e",
+      "hsl": {
+        "h": 205,
+        "s": 0.625,
+        "l": 0.188
+      }
+    },
+    {
+      "id": "wada:v1:130",
+      "name": "Dull Violet Black",
+      "hex": "#1e0e3f",
+      "hsl": {
+        "h": 260,
+        "s": 0.636,
+        "l": 0.151
+      }
+    },
+    {
+      "id": "wada:v1:131",
+      "name": "Deep Indigo",
+      "hex": "#051230",
+      "hsl": {
+        "h": 222,
+        "s": 0.811,
+        "l": 0.104
+      }
+    },
+    {
+      "id": "wada:v1:132",
+      "name": "Deep Slate Green",
+      "hex": "#112f2c",
+      "hsl": {
+        "h": 174,
+        "s": 0.469,
+        "l": 0.125
+      }
+    },
+    {
+      "id": "wada:v1:133",
+      "name": "Grayish Lavender - A",
+      "hex": "#b5b1d8",
+      "hsl": {
+        "h": 246,
+        "s": 0.333,
+        "l": 0.771
+      }
+    },
+    {
+      "id": "wada:v1:134",
+      "name": "Grayish Lavender - B",
+      "hex": "#c0a9b3",
+      "hsl": {
+        "h": 334,
+        "s": 0.154,
+        "l": 0.708
+      }
+    },
+    {
+      "id": "wada:v1:135",
+      "name": "Laelia Pink",
+      "hex": "#ca92a8",
+      "hsl": {
+        "h": 336,
+        "s": 0.346,
+        "l": 0.682
+      }
+    },
+    {
+      "id": "wada:v1:136",
+      "name": "Lilac",
+      "hex": "#b984af",
+      "hsl": {
+        "h": 311,
+        "s": 0.275,
+        "l": 0.622
+      }
+    },
+    {
+      "id": "wada:v1:137",
+      "name": "Eupatorium Purple",
+      "hex": "#bf5892",
+      "hsl": {
+        "h": 326,
+        "s": 0.446,
+        "l": 0.547
+      }
+    },
+    {
+      "id": "wada:v1:138",
+      "name": "Light Mauve",
+      "hex": "#9a72aa",
+      "hsl": {
+        "h": 283,
+        "s": 0.248,
+        "l": 0.557
+      }
+    },
+    {
+      "id": "wada:v1:139",
+      "name": "Aconite Violet",
+      "hex": "#a36aa5",
+      "hsl": {
+        "h": 298,
+        "s": 0.247,
+        "l": 0.531
+      }
+    },
+    {
+      "id": "wada:v1:140",
+      "name": "Dull Blue Violet",
+      "hex": "#80719e",
+      "hsl": {
+        "h": 260,
+        "s": 0.188,
+        "l": 0.531
+      }
+    },
+    {
+      "id": "wada:v1:141",
+      "name": "Dark Soft Violet",
+      "hex": "#66629c",
+      "hsl": {
+        "h": 244,
+        "s": 0.228,
+        "l": 0.498
+      }
+    },
+    {
+      "id": "wada:v1:142",
+      "name": "Blue Violet",
+      "hex": "#6450a1",
+      "hsl": {
+        "h": 255,
+        "s": 0.336,
+        "l": 0.473
+      }
+    },
+    {
+      "id": "wada:v1:143",
+      "name": "Purple Drab",
+      "hex": "#84565b",
+      "hsl": {
+        "h": 353,
+        "s": 0.211,
+        "l": 0.427
+      }
+    },
+    {
+      "id": "wada:v1:144",
+      "name": "Deep Violet / Plumbeous",
+      "hex": "#70727c",
+      "hsl": {
+        "h": 230,
+        "s": 0.051,
+        "l": 0.463
+      }
+    },
+    {
+      "id": "wada:v1:145",
+      "name": "Veronia Purple",
+      "hex": "#8c4c62",
+      "hsl": {
+        "h": 339,
+        "s": 0.296,
+        "l": 0.424
+      }
+    },
+    {
+      "id": "wada:v1:146",
+      "name": "Dark Slate Purple",
+      "hex": "#704357",
+      "hsl": {
+        "h": 333,
+        "s": 0.251,
+        "l": 0.351
+      }
+    },
+    {
+      "id": "wada:v1:147",
+      "name": "Taupe Brown",
+      "hex": "#7a4456",
+      "hsl": {
+        "h": 340,
+        "s": 0.284,
+        "l": 0.373
+      }
+    },
+    {
+      "id": "wada:v1:148",
+      "name": "Violet Carmine",
+      "hex": "#713b4c",
+      "hsl": {
+        "h": 341,
+        "s": 0.314,
+        "l": 0.337
+      }
+    },
+    {
+      "id": "wada:v1:149",
+      "name": "Violet",
+      "hex": "#4f4086",
+      "hsl": {
+        "h": 253,
+        "s": 0.354,
+        "l": 0.388
+      }
+    },
+    {
+      "id": "wada:v1:150",
+      "name": "Red Violet",
+      "hex": "#59256a",
+      "hsl": {
+        "h": 285,
+        "s": 0.483,
+        "l": 0.28
+      }
+    },
+    {
+      "id": "wada:v1:151",
+      "name": "Cotinga Purple",
+      "hex": "#501345",
+      "hsl": {
+        "h": 311,
+        "s": 0.616,
+        "l": 0.194
+      }
+    },
+    {
+      "id": "wada:v1:152",
+      "name": "Dusky Madder Violet",
+      "hex": "#4e1d4c",
+      "hsl": {
+        "h": 302,
+        "s": 0.458,
+        "l": 0.21
+      }
+    },
+    {
+      "id": "wada:v1:153",
+      "name": "White",
+      "hex": "#ffffff",
+      "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+      }
+    },
+    {
+      "id": "wada:v1:154",
+      "name": "Neutral Gray",
+      "hex": "#b6bfc1",
+      "hsl": {
+        "h": 191,
+        "s": 0.081,
+        "l": 0.735
+      }
+    },
+    {
+      "id": "wada:v1:155",
+      "name": "Mineral Gray",
+      "hex": "#a2b0ad",
+      "hsl": {
+        "h": 167,
+        "s": 0.081,
+        "l": 0.663
+      }
+    },
+    {
+      "id": "wada:v1:156",
+      "name": "Warm Gray",
+      "hex": "#a1a39a",
+      "hsl": {
+        "h": 73,
+        "s": 0.047,
+        "l": 0.622
+      }
+    },
+    {
+      "id": "wada:v1:157",
+      "name": "Slate Color",
+      "hex": "#34454c",
+      "hsl": {
+        "h": 198,
+        "s": 0.188,
+        "l": 0.251
+      }
+    },
+    {
+      "id": "wada:v1:158",
+      "name": "Black",
+      "hex": "#111314",
+      "hsl": {
+        "h": 200,
+        "s": 0.081,
+        "l": 0.073
+      }
+    }
+  ]
+}

@@ -3,6 +3,13 @@ import { matchAttrOption, normalizeAttrValue } from "./attrNormalize.js";
 import { layerImageUrl } from "./lookLayout.js";
 import { renderLookCard } from "./lookCard.js";
 import { rotateImageFromUrl } from "./rotateImage.js";
+import {
+  MAX_WADA_COLORS,
+  getWadaColor,
+  normalizeWadaColorIdsClient,
+  primaryWadaId,
+  searchWadaColors,
+} from "./wadaPalette.js";
 
 /** Fields that use suggested values + free text (UC-19), including brand/model. */
 const SUGGESTION_KEYS = new Set([
@@ -301,6 +308,9 @@ export function renderCatalogApp(root, { onLogout }) {
     formDraft: emptyFormDraft(),
     /** Local files for create/add-photos; survive paint(); object URLs for the strip. */
     pendingPhotos: [],
+    /** Wada picker search + expanded results (Add/Edit; UC-26). */
+    wadaSearch: "",
+    wadaPickerOpen: false,
     suggest: {
       context: "",
       looks: null,
@@ -493,6 +503,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.editing = null;
     state.assist = emptyAssist();
     clearAttrHygiene();
+    resetWadaPickerUi();
     if (!keepPrefill) {
       state.formDraft = emptyFormDraft();
     }
@@ -513,6 +524,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.editing = item;
     state.assist = emptyAssist();
     clearAttrHygiene();
+    resetWadaPickerUi();
     state.formDraft = emptyFormDraft();
     state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
     state.error = "";
@@ -558,6 +570,7 @@ export function renderCatalogApp(root, { onLogout }) {
     state.editing = null;
     state.assist = emptyAssist();
     state.formDraft = emptyFormDraft();
+    resetWadaPickerUi();
     state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
     state.error = "";
     updateStatusFromItems();
@@ -570,6 +583,29 @@ export function renderCatalogApp(root, { onLogout }) {
     }
     if (state.editing) return state.editing[key] || "";
     return "";
+  }
+
+  function wadaIdsValue() {
+    if (
+      state.formDraft &&
+      Object.prototype.hasOwnProperty.call(state.formDraft, "wadaColorIds")
+    ) {
+      return normalizeWadaColorIdsClient(state.formDraft.wadaColorIds);
+    }
+    if (state.editing) {
+      return normalizeWadaColorIdsClient(state.editing.wadaColorIds);
+    }
+    return [];
+  }
+
+  function setWadaIds(ids) {
+    if (!state.formDraft) state.formDraft = {};
+    state.formDraft.wadaColorIds = normalizeWadaColorIdsClient(ids);
+  }
+
+  function resetWadaPickerUi() {
+    state.wadaSearch = "";
+    state.wadaPickerOpen = false;
   }
 
   function readFormAttributes(form) {
@@ -591,6 +627,8 @@ export function renderCatalogApp(root, { onLogout }) {
     }
     const proposed = String((proposal && proposal.aiContext) || "").trim();
     draft.aiContext = (proposed || fieldValue("aiContext")).slice(0, 2000);
+    // Slice A: Appraise does not propose Wada; keep any draft picks.
+    draft.wadaColorIds = wadaIdsValue();
     return draft;
   }
 
@@ -602,7 +640,10 @@ export function renderCatalogApp(root, { onLogout }) {
 
     const attributes = readFormAttributes(form);
     // Survive paint() while analyzing.
-    state.formDraft = Object.assign({}, attributes, { aiContext });
+    state.formDraft = Object.assign({}, attributes, {
+      aiContext,
+      wadaColorIds: wadaIdsValue(),
+    });
 
     // Send current AI context as hints/answers when present (same durable field).
     const payload = {
@@ -740,6 +781,7 @@ export function renderCatalogApp(root, { onLogout }) {
     if (form.elements.aiContext) {
       payload.aiContext = String(form.elements.aiContext.value || "").trim();
     }
+    payload.wadaColorIds = wadaIdsValue();
     // Keep draft if paint() runs mid-save (busy flag re-render).
     state.formDraft = Object.assign({}, payload);
     const files = pendingPhotoFiles();
@@ -765,6 +807,7 @@ export function renderCatalogApp(root, { onLogout }) {
         state.editing = null;
         state.assist = emptyAssist();
         clearAttrHygiene();
+        resetWadaPickerUi();
         state.formDraft = emptyFormDraft();
         state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
         state.status = "Saved.";
@@ -782,6 +825,7 @@ export function renderCatalogApp(root, { onLogout }) {
         state.editing = null;
         state.assist = emptyAssist();
         clearAttrHygiene();
+        resetWadaPickerUi();
         state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
         state.formDraft = emptyFormDraft();
         state.view = "form";
@@ -1174,10 +1218,27 @@ export function renderCatalogApp(root, { onLogout }) {
               : el("div", { className: "thumb", text: "No photo" }),
             el("div", { className: "meta" }, [
               el("p", { className: "title", text: item.type }),
-              el("p", {
-                className: "sub",
-                text: `${item.color} · ${item.outfitRole}`,
-              }),
+              (() => {
+                const primaryId = primaryWadaId(item.wadaColorIds);
+                const wada = primaryId ? getWadaColor(primaryId) : null;
+                const subRow = el("div", { className: "sub-row" }, [
+                  el("p", {
+                    className: "sub",
+                    text: `${item.color} · ${item.outfitRole}`,
+                  }),
+                ]);
+                if (wada) {
+                  subRow.append(
+                    el("span", {
+                      className: "wada-swatch",
+                      style: `background:${wada.hex}`,
+                      title: wada.name,
+                      "aria-label": `Wada ${wada.name}`,
+                    })
+                  );
+                }
+                return subRow;
+              })(),
             ]),
           ]
         );
@@ -1208,6 +1269,202 @@ export function renderCatalogApp(root, { onLogout }) {
     } else {
       state.formDraft = { aiContext: next };
     }
+  }
+
+  function renderWadaField() {
+    const selected = wadaIdsValue();
+    const atMax = selected.length >= MAX_WADA_COLORS;
+    const results = state.wadaPickerOpen
+      ? searchWadaColors(state.wadaSearch, { excludeIds: selected }).slice(0, 40)
+      : [];
+
+    const chips = el("div", {
+      className: "wada-chips",
+      role: "list",
+      "aria-label": "Selected Wada colours",
+    });
+    if (!selected.length) {
+      chips.append(
+        el("p", {
+          className: "muted wada-empty",
+          text: "None — catalog swatch and mannequin use free-text Color.",
+        })
+      );
+    } else {
+      selected.forEach((id, index) => {
+        const color = getWadaColor(id);
+        if (!color) return;
+        const chip = el(
+          "div",
+          {
+            className: "wada-chip",
+            role: "listitem",
+          },
+          [
+            el("span", {
+              className: "wada-chip-swatch",
+              style: `background:${color.hex}`,
+              "aria-hidden": "true",
+            }),
+            el("span", {
+              className: "wada-chip-name",
+              text: index === 0 ? `${color.name} (primary)` : color.name,
+            }),
+            index > 0
+              ? el("button", {
+                  type: "button",
+                  className: "secondary wada-chip-primary",
+                  text: "Primary",
+                  disabled: state.busy ? "disabled" : null,
+                  "aria-label": `Make ${color.name} primary`,
+                  onClick: () => {
+                    const next = [id, ...selected.filter((x) => x !== id)];
+                    setWadaIds(next);
+                    paint();
+                  },
+                })
+              : null,
+            el("button", {
+              type: "button",
+              className: "secondary wada-chip-remove",
+              text: "Remove",
+              disabled: state.busy ? "disabled" : null,
+              "aria-label": `Remove ${color.name}`,
+              onClick: () => {
+                setWadaIds(selected.filter((x) => x !== id));
+                paint();
+              },
+            }),
+          ]
+        );
+        chips.append(chip);
+      });
+    }
+
+    const search = el("input", {
+      type: "search",
+      className: "wada-search",
+      name: "wadaSearch",
+      placeholder: "Search Wada colour…",
+      value: state.wadaSearch,
+      autocomplete: "off",
+      disabled: state.busy || atMax ? "disabled" : null,
+      onFocus: () => {
+        if (!state.wadaPickerOpen) {
+          state.wadaPickerOpen = true;
+          paint();
+          const again = document.querySelector("input.wada-search");
+          if (again) again.focus();
+        }
+      },
+      onInput: (event) => {
+        const start = event.target.selectionStart;
+        const end = event.target.selectionEnd;
+        state.wadaSearch = String(event.target.value || "");
+        state.wadaPickerOpen = true;
+        paint();
+        const again = document.querySelector("input.wada-search");
+        if (again) {
+          again.focus();
+          try {
+            again.setSelectionRange(start, end);
+          } catch {
+            /* some browsers reject selection on type=search */
+          }
+        }
+      },
+    });
+
+    const resultList = el("div", {
+      className: "wada-results",
+      role: "listbox",
+      "aria-label": "Wada colour matches",
+    });
+    if (state.wadaPickerOpen) {
+      if (!results.length) {
+        resultList.append(
+          el("p", {
+            className: "muted",
+            text: atMax
+              ? `At most ${MAX_WADA_COLORS} Wada colours.`
+              : "No matches.",
+          })
+        );
+      } else {
+        for (const color of results) {
+          resultList.append(
+            el(
+              "button",
+              {
+                type: "button",
+                className: "wada-result",
+                role: "option",
+                disabled: state.busy || atMax ? "disabled" : null,
+                onClick: () => {
+                  if (atMax) return;
+                  setWadaIds([...selected, color.id]);
+                  state.wadaSearch = "";
+                  paint();
+                },
+              },
+              [
+                el("span", {
+                  className: "wada-result-swatch",
+                  style: `background:${color.hex}`,
+                  "aria-hidden": "true",
+                }),
+                el("span", { className: "wada-result-name", text: color.name }),
+              ]
+            )
+          );
+        }
+      }
+    }
+
+    return el("div", { className: "wada-field stack" }, [
+      el("div", { className: "wada-field-head" }, [
+        el("span", { className: "field-title", text: "Wada reference" }),
+        el("button", {
+          type: "button",
+          className: "secondary wada-clear",
+          text: "Clear",
+          disabled: state.busy || !selected.length ? "disabled" : null,
+          "aria-label": "Clear Wada colours",
+          onClick: () => {
+            setWadaIds([]);
+            resetWadaPickerUi();
+            paint();
+          },
+        }),
+      ]),
+      el("p", {
+        className: "muted wada-hint",
+        text: "True color for catalog + mannequin. Free-text Color stays your everyday label.",
+      }),
+      chips,
+      search,
+      state.wadaPickerOpen ? resultList : null,
+      state.wadaPickerOpen
+        ? el("button", {
+            type: "button",
+            className: "secondary wada-collapse",
+            text: "Hide palette",
+            onClick: () => {
+              state.wadaPickerOpen = false;
+              paint();
+            },
+          })
+        : el("button", {
+            type: "button",
+            className: "secondary wada-expand",
+            text: atMax ? "Palette full" : "Browse palette",
+            disabled: state.busy || atMax ? "disabled" : null,
+            onClick: () => {
+              state.wadaPickerOpen = true;
+              paint();
+            },
+          }),
+    ]);
   }
 
   function renderAiContextField() {
@@ -1587,6 +1844,7 @@ export function renderCatalogApp(root, { onLogout }) {
       grid.append(el("label", {}, children));
     }
     form.append(grid);
+    form.append(renderWadaField());
     form.append(renderFormStickyActions(editing));
     panel.append(form);
     return panel;

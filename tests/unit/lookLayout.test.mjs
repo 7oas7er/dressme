@@ -205,6 +205,42 @@ test("buildLookVisual orders hero by z-index and strip top-down; fills from colo
   assert.equal(visual.belt.fillColor, "#1a1a1a");
 });
 
+test("Option D prefers primary Wada hex over free-text color map", () => {
+  const look = {
+    items: [
+      item({
+        itemId: "jk",
+        outfitRole: "outerwear",
+        type: "blazer",
+        color: "navy",
+        wadaColorIds: ["wada:v1:0"],
+      }),
+    ],
+  };
+  const visual = buildLookVisual(look, 0);
+  const jacket = visual.layers.find((l) => l.slotId === "jacket");
+  assert.equal(jacket.fillColor, "#f9c1ce");
+  assert.equal(jacket.fillFromWada, true);
+});
+
+test("without Wada, fillFromWada is false and color map still applies", () => {
+  const look = {
+    items: [
+      item({
+        itemId: "jk",
+        outfitRole: "outerwear",
+        type: "blazer",
+        color: "navy",
+        wadaColorIds: [],
+      }),
+    ],
+  };
+  const visual = buildLookVisual(look, 0);
+  const jacket = visual.layers.find((l) => l.slotId === "jacket");
+  assert.equal(jacket.fillColor, "#1e3a5f");
+  assert.equal(jacket.fillFromWada, false);
+});
+
 test("unmapped items are strip-only; duplicate slots keep first for hero", () => {
   const look = {
     items: [

@@ -7,6 +7,7 @@
  */
 
 import { resolveFillColor, resolvePatternHint } from "./mannequinColor.js";
+import { primaryWadaHex } from "./wadaPalette.js";
 
 /** Bottom → top paint / low → high z-index. */
 export const HERO_SLOT_ORDER = ["shoes", "trousers", "shirt", "jacket"];
@@ -192,13 +193,17 @@ function makeLayer(item, slotId, { hero }) {
   const inset = slotId && SLOT_INSET[slotId] ? { ...SLOT_INSET[slotId] } : null;
   const colorRaw = String((item && item.color) || "").trim();
   const patternRaw = String((item && item.pattern) || "").trim();
+  // UC-05 / Wada Slice A: primary Wada hex wins; thumb sample may refine only when unset.
+  const wadaHex = primaryWadaHex((item && item.wadaColorIds) || []);
+  const fillFromWada = Boolean(wadaHex);
   return {
     itemId: String((item && (item.itemId || item.id)) || ""),
     slotId,
     zIndex: slotId && SLOT_Z[slotId] != null ? SLOT_Z[slotId] : 0,
     imageUrl: layerImageUrl(item, { purpose: "hero" }),
     thumbUrl: layerImageUrl(item, { purpose: "strip" }),
-    fillColor: resolveFillColor(colorRaw),
+    fillColor: fillFromWada ? wadaHex : resolveFillColor(colorRaw),
+    fillFromWada,
     patternHint: resolvePatternHint(patternRaw),
     colorLabel: colorRaw,
     label: itemLabel(item),
