@@ -415,12 +415,113 @@ test("systemPrompt mentions Wada colour reference and mandatory core", function 
   assert.doesNotMatch(prompt, /free-text color/i);
   assert.match(prompt, /Never invent item IDs/);
   assert.match(prompt, /mandatory core/i);
-  assert.match(prompt, /Accessories are optional/i);
+  assert.match(prompt, /Accessories beyond waist finish remain optional/i);
   assert.match(prompt, /title/);
   assert.match(prompt, /exactly 3 distinct looks/);
+  assert.match(prompt, /DressMe style pack v1/);
+  assert.match(prompt, /Soft Sanzo Wada combination prior/);
+  assert.match(prompt, /missing_waist_finish|waist finish|suspenders/i);
+  assert.match(prompt, /cold|warm layer|garden/i);
   var five = suggest.systemPrompt(5);
   assert.match(five, /exactly 5 distinct looks/);
   assert.match(five, /"lookId":"5"/);
+});
+
+test("contextNeedsColdLayer detects cold/outdoor garden cues", function () {
+  assert.equal(suggest.contextNeedsColdLayer("client lunch, cool and dry"), true);
+  assert.equal(
+    suggest.contextNeedsColdLayer("evening garden party outdoors — 4 looks"),
+    true
+  );
+  assert.equal(suggest.contextNeedsColdLayer("hot indoor office"), false);
+  assert.equal(suggest.contextNeedsColdLayer(""), false);
+});
+
+test("waist finish heuristics: side-adjusters exempt; suspenders capable", function () {
+  var looped = {
+    itemId: "pants",
+    outfitRole: "trousers",
+    type: "wool trousers",
+    aiContext: "belt loops; navy.",
+  };
+  var sideAdj = {
+    itemId: "pants2",
+    outfitRole: "trousers",
+    type: "trousers",
+    aiContext: "side-adjusters; no belt needed.",
+  };
+  var suspPants = {
+    itemId: "pants3",
+    outfitRole: "trousers",
+    type: "dress trousers",
+    aiContext: "suspender buttons; braces friendly.",
+  };
+  assert.equal(suggest.trousersNeedWaistFinish(looped), true);
+  assert.equal(suggest.trousersNeedWaistFinish(sideAdj), false);
+  assert.equal(suggest.trousersSuspenderCapable(suspPants), true);
+  assert.equal(suggest.trousersSuspenderCapable(looped), false);
+  assert.equal(
+    suggest.isBeltItem({ outfitRole: "belt", type: "leather belt" }),
+    true
+  );
+  assert.equal(
+    suggest.isSuspendersItem({
+      outfitRole: "suspenders",
+      type: "braces",
+      aiContext: "navy suspenders",
+    }),
+    true
+  );
+});
+
+test("repairLookLocally attaches cold layer and waist finish when closet can fill", function () {
+  var catalog = [
+    { itemId: "shoes-1", outfitRole: "footwear", type: "loafers", formality: "business" },
+    { itemId: "pants-1", outfitRole: "trousers", type: "chinos", aiContext: "belt loops" },
+    { itemId: "shirt-1", outfitRole: "shirt", type: "oxford" },
+    { itemId: "blazer-1", outfitRole: "outerwear", type: "blazer" },
+    { itemId: "belt-1", outfitRole: "belt", type: "leather belt", formality: "business" },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var repaired = suggest.repairLookLocally(
+    { lookId: "1", itemIds: ["shirt-1", "pants-1", "shoes-1"] },
+    byId,
+    catalog,
+    "cold evening garden party",
+    new Set()
+  );
+  assert.ok(repaired.repairs.includes("attach_layer_for_cold"));
+  assert.ok(repaired.repairs.includes("attach_waist_finish"));
+  assert.ok(repaired.look.itemIds.includes("blazer-1"));
+  assert.ok(repaired.look.itemIds.includes("belt-1"));
+  var ok = suggest.assertLooksComplete(
+    [repaired.look],
+    byId,
+    catalog,
+    "cold evening garden party"
+  );
+  assert.equal(ok.incomplete.length, 0);
+});
+
+test("modelId prefers SUGGEST_MODEL_ID over BEDROCK_MODEL_ID", function () {
+  var prevSuggest = process.env.SUGGEST_MODEL_ID;
+  var prevBedrock = process.env.BEDROCK_MODEL_ID;
+  try {
+    process.env.BEDROCK_MODEL_ID = "haiku-test";
+    delete process.env.SUGGEST_MODEL_ID;
+    assert.equal(suggest.modelId(), "haiku-test");
+    process.env.SUGGEST_MODEL_ID = "sonnet-test";
+    assert.equal(suggest.modelId(), "sonnet-test");
+  } finally {
+    if (prevSuggest == null) delete process.env.SUGGEST_MODEL_ID;
+    else process.env.SUGGEST_MODEL_ID = prevSuggest;
+    if (prevBedrock == null) delete process.env.BEDROCK_MODEL_ID;
+    else process.env.BEDROCK_MODEL_ID = prevBedrock;
+  }
 });
 
 test("assertLooksComplete accepts core-only and rejects competing bases", function () {
@@ -623,7 +724,7 @@ test("Bedrock engine returns three looks with rationale and logs tokens", async 
       rawPath: "/api/suggest",
       requestContext: { http: { method: "POST", path: "/api/suggest" } },
       body: JSON.stringify({
-        context: "board meeting tomorrow morning, cool and dry",
+        context: "board meeting tomorrow morning",
         engine: "bedrock",
       }),
     });
@@ -636,13 +737,15 @@ test("Bedrock engine returns three looks with rationale and logs tokens", async 
   var body = JSON.parse(res.body);
   assert.equal(body.engine, "bedrock");
   assert.equal(body.modelId, "test-suggest-model");
-  assert.equal(body.context, "board meeting tomorrow morning, cool and dry");
+  assert.equal(body.context, "board meeting tomorrow morning");
   assert.equal(body.looks.length, 3);
   assert.match(body.looks[0].rationale, /Navy blazer/);
   assert.equal(body.looks[0].title, "Boardroom Navy");
   assert.ok(body.looks[0].items.length >= 1);
   assert.ok(body.looks[0].items[0].photos[0].thumbUrl || body.looks[0].items[0].photos[0].url);
   assert.equal(calls.length, 1);
+  assert.equal(body.requestedLookCount, 3);
+  assert.equal(body.lookCountShortfall, undefined);
 
   var successLine = logs.find(function (line) {
     return line.indexOf("suggest_success") >= 0;
@@ -895,7 +998,7 @@ test("Bedrock salvages competing bases without repair", async function () {
   assert.ok(!look1Ids.includes("knit-1"));
 });
 
-test("Bedrock incomplete looks repair then hard-fail", async function () {
+test("Bedrock incomplete looks get local core repair instead of hard-fail", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);
   seedClassicCatalog(memory);
@@ -904,7 +1007,7 @@ test("Bedrock incomplete looks repair then hard-fail", async function () {
   suggest.resetDepsForTests({
     converse: async function () {
       call += 1;
-      // Always missing trousers → completeness repair + still incomplete → 502.
+      // Missing trousers → Bedrock repair may still miss; local attach fills pants.
       return {
         output: {
           message: {
@@ -952,7 +1055,123 @@ test("Bedrock incomplete looks repair then hard-fail", async function () {
     suggest.resetDepsForTests({});
   }
 
-  assert.equal(res.statusCode, 502);
-  assert.equal(JSON.parse(res.body).error, "suggest_incomplete_looks");
-  assert.equal(call, 2);
+  assert.equal(res.statusCode, 200);
+  var body = JSON.parse(res.body);
+  assert.ok(body.looks.length >= 1);
+  assert.equal(body.requestedLookCount, 3);
+  assert.equal(body.returnedLookCount, body.looks.length);
+  for (var i = 0; i < body.looks.length; i++) {
+    var ids = body.looks[i].items.map(function (row) {
+      return row.itemId;
+    });
+    assert.ok(ids.includes("pants-1"), "local repair attaches trousers");
+  }
+  assert.ok(call >= 1 && call <= 2);
+});
+
+test("Bedrock shortfall flags when closet cannot reach requested N", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  // Tiny closet: only enough pieces for one complete look.
+  seedItem(memory, {
+    itemId: "shoes-1",
+    type: "loafers",
+    fabric: "leather",
+    brandModel: "Alden",
+    formality: "business",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "footwear",
+  });
+  seedItem(memory, {
+    itemId: "pants-1",
+    type: "chinos",
+    fabric: "cotton",
+    brandModel: "Incotex",
+    formality: "smart casual",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "trousers",
+  });
+  seedItem(memory, {
+    itemId: "shirt-1",
+    type: "oxford",
+    fabric: "cotton",
+    brandModel: "Gitman",
+    formality: "business",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "shirt",
+  });
+
+  var call = 0;
+  suggest.resetDepsForTests({
+    converse: async function () {
+      call += 1;
+      // First call: one complete look + blanks (hallucinated IDs strip empty).
+      // Second call (id/completeness repair or fill): still only one complete.
+      return {
+        output: {
+          message: {
+            content: [
+              {
+                text: JSON.stringify({
+                  looks: [
+                    {
+                      lookId: "1",
+                      title: "Only One",
+                      itemIds: ["shirt-1", "pants-1", "shoes-1"],
+                      rationale: "core",
+                    },
+                    {
+                      lookId: "2",
+                      title: "Ghost",
+                      itemIds: ["nope-a"],
+                      rationale: "bad",
+                    },
+                    {
+                      lookId: "3",
+                      title: "Ghost2",
+                      itemIds: ["nope-b"],
+                      rationale: "bad",
+                    },
+                    {
+                      lookId: "4",
+                      title: "Ghost3",
+                      itemIds: ["nope-c"],
+                      rationale: "bad",
+                    },
+                  ],
+                }),
+              },
+            ],
+          },
+        },
+        usage: { inputTokens: 9, outputTokens: 9 },
+      };
+    },
+  });
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({
+        context: "garden party — 4 looks please",
+        engine: "bedrock",
+      }),
+    });
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 200);
+  var body = JSON.parse(res.body);
+  assert.equal(body.requestedLookCount, 4);
+  assert.ok(body.returnedLookCount >= 1);
+  assert.ok(body.returnedLookCount < 4);
+  assert.equal(body.lookCountShortfall, true);
+  assert.equal(body.looks.length, body.returnedLookCount);
+  assert.ok(call >= 1);
 });

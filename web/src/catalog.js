@@ -375,6 +375,9 @@ export function renderCatalogApp(root, { onLogout }) {
       looks: null,
       engine: "",
       suggestionId: "",
+      requestedLookCount: 0,
+      returnedLookCount: 0,
+      lookCountShortfall: false,
     },
     /** Detail opened from a look card — show “Back to looks” (DM-110). */
     detailFromSuggest: false,
@@ -975,6 +978,10 @@ export function renderCatalogApp(root, { onLogout }) {
       state.suggest.looks = data.looks || [];
       state.suggest.engine = data.engine || "random";
       state.suggest.suggestionId = data.suggestionId || "";
+      state.suggest.requestedLookCount = Number(data.requestedLookCount) || 0;
+      state.suggest.returnedLookCount =
+        Number(data.returnedLookCount) || (data.looks || []).length;
+      state.suggest.lookCountShortfall = Boolean(data.lookCountShortfall);
       const n = state.suggest.looks.length;
       state.status =
         (n === 1 ? "1 look" : `${n} looks`) +
@@ -999,6 +1006,9 @@ export function renderCatalogApp(root, { onLogout }) {
         state.error = code || "Could not suggest outfits.";
       }
       state.suggest.looks = null;
+      state.suggest.lookCountShortfall = false;
+      state.suggest.requestedLookCount = 0;
+      state.suggest.returnedLookCount = 0;
     } finally {
       state.busy = false;
       paint();
@@ -2244,6 +2254,21 @@ export function renderCatalogApp(root, { onLogout }) {
                 : state.suggest.engine === "random"
                   ? "Random assembly from your catalog."
                   : `Engine: ${state.suggest.engine}`,
+          })
+        );
+      }
+      if (
+        state.suggest.lookCountShortfall &&
+        state.suggest.requestedLookCount > 0
+      ) {
+        const requested = state.suggest.requestedLookCount;
+        const returned =
+          state.suggest.returnedLookCount || state.suggest.looks.length;
+        results.append(
+          el("p", {
+            className: "muted suggest-shortfall",
+            role: "status",
+            text: `Could assemble ${returned} of ${requested} complete looks from your closet.`,
           })
         );
       }
