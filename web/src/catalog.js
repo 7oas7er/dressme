@@ -983,7 +983,7 @@ export function renderCatalogApp(root, { onLogout }) {
       const code = err && err.message ? String(err.message) : "";
       if (code === "suggest_incomplete_looks") {
         state.error =
-          "Couldn’t build complete outfits from this closet. Add a base, bottom, and shoes (when you have them), then try again.";
+          "Couldn’t assemble complete looks (one base + bottom, and shoes when you have them — not two shirts). Try again, or add missing pieces.";
       } else if (
         code === "suggest_unavailable" ||
         code === "suggest_invalid_model_json" ||
