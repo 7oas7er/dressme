@@ -1364,14 +1364,7 @@ export function renderCatalogApp(root, { onLogout }) {
       role: "list",
       "aria-label": "Selected Wada colours",
     });
-    if (!selected.length) {
-      chips.append(
-        el("p", {
-          className: "muted wada-empty",
-          text: "None — catalog swatch and mannequin use free-text Color.",
-        })
-      );
-    } else {
+    if (selected.length) {
       selected.forEach((id, index) => {
         const color = getWadaColor(id);
         if (!color) return;
@@ -1542,10 +1535,6 @@ export function renderCatalogApp(root, { onLogout }) {
           }),
         ]),
       ]),
-      el("p", {
-        className: "muted wada-hint",
-        text: "True color for catalog + mannequin. Free-text Color stays your everyday label. Appraise / From photo propose a nearest match into empty chips — edit before Save.",
-      }),
       chips,
       search,
       state.wadaPickerOpen ? resultList : null,

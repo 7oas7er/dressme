@@ -393,13 +393,6 @@ label {
   gap: 0.35rem;
 }
 
-.wada-hint,
-.wada-empty {
-  margin: 0;
-  font-size: 0.82rem;
-  font-weight: 400;
-}
-
 .wada-chips {
   display: grid;
   gap: 0.45rem;
