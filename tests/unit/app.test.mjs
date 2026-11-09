@@ -302,9 +302,11 @@ test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   assert.match(catalog, /AI suggestions from your catalog/);
   assert.match(suggest, /lookHeadline|lookSummary/);
   assert.match(lookLayout, /itemToSlot|buildLookVisual|layerImageUrl/);
+  assert.match(lookLayout, /primaryWadaHex|fillFromWada/);
   assert.match(lookCard, /look-hero|look-strip|look-mannequin/);
   assert.match(lookCard, /look-rationale/);
   assert.match(lookCard, /mn-wash|sampleThumb|100 240/);
+  assert.match(lookCard, /fillFromWada/);
   assert.match(mannequinColor, /resolveFillColor|resolvePatternHint/);
   assert.ok(
     fs.existsSync(path.join(root, "web/src/thumbSample.js")),
@@ -325,4 +327,25 @@ test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   assert.match(useCases, /UC-05 — View a look as an SVG mannequin/);
   assert.match(useCases, /UC-06 — Pick among three looks/);
   assert.match(useCases, /UC-09 — Short rationale per look/);
+});
+
+test("Wada Slice A: picker, catalog swatch, API ids, attribution (UC-26/27)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const itemsSrc = fs.readFileSync(path.join(root, "infra/lambda/items.js"), "utf8");
+  const imprint = fs.readFileSync(path.join(root, "web/imprint.html"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.ok(fs.existsSync(path.join(root, "web/src/data/wada-colors.v1.json")));
+  assert.ok(fs.existsSync(path.join(root, "web/src/wadaPalette.js")));
+  assert.ok(fs.existsSync(path.join(root, "infra/lambda/wadaPalette.js")));
+  assert.ok(fs.existsSync(path.join(root, "THIRD_PARTY.md")));
+  assert.match(catalog, /Wada reference/);
+  assert.match(catalog, /renderWadaField|wadaColorIds|wada-swatch/);
+  assert.match(catalog, /Browse palette|Clear/);
+  assert.match(styles, /\.wada-swatch|\.wada-field|\.sub-row/);
+  assert.match(itemsSrc, /applyWadaColorIds|wadaColorIds/);
+  assert.match(itemsSrc, /wadaPalette/);
+  assert.match(imprint, /dictionary-of-colour-combinations|THIRD_PARTY/);
+  assert.match(useCases, /UC-26/);
+  assert.match(useCases, /UC-27/);
 });

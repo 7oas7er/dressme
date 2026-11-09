@@ -116,6 +116,7 @@ test("catalog CRUD happy path", async function () {
   var createdBody = JSON.parse(created.body);
   assert.ok(createdBody.item.itemId);
   assert.equal(createdBody.item.type, "jacket");
+  assert.deepEqual(createdBody.item.wadaColorIds, []);
   assert.equal(createdBody.uploads.length, 1);
   assert.match(createdBody.uploads[0].uploadUrl, /^https:\/\/upload\.example\//);
 
@@ -708,4 +709,82 @@ test("photos/complete still succeeds without cutouts", async function () {
   assert.equal(confirmedBody.item.photos[0].status, "ready");
   assert.ok(confirmedBody.item.photos[0].thumbUrl);
   assert.equal(confirmedBody.item.photos[0].cutoutUrl, undefined);
+});
+
+test("wadaColorIds create/update validate and always return array", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+
+  var created = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(
+      Object.assign(attrs(), {
+        wadaColorIds: ["wada:v1:42", "wada:v1:7", "wada:v1:42"],
+      })
+    ),
+  });
+  assert.equal(created.statusCode, 201);
+  var createdBody = JSON.parse(created.body);
+  assert.deepEqual(createdBody.item.wadaColorIds, ["wada:v1:42", "wada:v1:7"]);
+
+  var itemId = createdBody.item.itemId;
+  var cleared = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({ wadaColorIds: [] }),
+  });
+  assert.equal(cleared.statusCode, 200);
+  assert.deepEqual(JSON.parse(cleared.body).item.wadaColorIds, []);
+
+  var restored = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({ wadaColorIds: ["wada:v1:0"] }),
+  });
+  assert.equal(restored.statusCode, 200);
+  assert.deepEqual(JSON.parse(restored.body).item.wadaColorIds, ["wada:v1:0"]);
+
+  // Omitted on update leaves existing Wada refs.
+  var colorOnly = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({ color: "charcoal" }),
+  });
+  assert.equal(colorOnly.statusCode, 200);
+  var colorBody = JSON.parse(colorOnly.body).item;
+  assert.equal(colorBody.color, "charcoal");
+  assert.deepEqual(colorBody.wadaColorIds, ["wada:v1:0"]);
+});
+
+test("wadaColorIds reject unknown ids and over-long lists", async function () {
+  items.resetDepsForTests(makeMemoryDeps());
+
+  var bad = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(
+      Object.assign(attrs(), { wadaColorIds: ["wada:v1:999"] })
+    ),
+  });
+  assert.equal(bad.statusCode, 400);
+  assert.equal(JSON.parse(bad.body).error, "invalid_wada_color");
+
+  var tooMany = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(
+      Object.assign(attrs(), {
+        wadaColorIds: [
+          "wada:v1:0",
+          "wada:v1:1",
+          "wada:v1:2",
+          "wada:v1:3",
+          "wada:v1:4",
+        ],
+      })
+    ),
+  });
+  assert.equal(tooMany.statusCode, 400);
+  assert.equal(JSON.parse(tooMany.body).error, "too_many_wada_colors");
 });

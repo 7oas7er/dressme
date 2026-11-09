@@ -444,10 +444,13 @@ function renderMannequinSvg(visual, lookIndex) {
 
 function applyThumbSamples(defs, lookIndex, panelRefs) {
   for (const [slotId, ref] of panelRefs) {
+    // Skip photo-sample override when primary Wada hex already set the fill.
+    if (ref.layer && ref.layer.fillFromWada) continue;
     const url = ref.layer && ref.layer.thumbUrl;
     if (!url) continue;
     sampleThumb(url).then((sample) => {
       if (!sample || !sample.dominantHex) return;
+      if (ref.layer && ref.layer.fillFromWada) return;
       const color = sample.dominantHex;
       ref.layer.fillColor = color;
       ensureWashGradient(defs, lookIndex, slotId, color);
