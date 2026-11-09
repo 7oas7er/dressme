@@ -342,6 +342,8 @@ test("Wada Slice A: picker, catalog swatch, API ids, attribution (UC-26/27)", ()
   assert.match(catalog, /Wada reference/);
   assert.match(catalog, /renderWadaField|wadaColorIds|wada-swatch/);
   assert.match(catalog, /Browse palette|Clear/);
+  // Swatch fills must use CSSOM (cssText), not style="" — CSP blocks unsafe-inline.
+  assert.match(catalog, /style\.cssText/);
   assert.match(styles, /\.wada-swatch|\.wada-field|\.sub-row/);
   assert.match(itemsSrc, /applyWadaColorIds|wadaColorIds/);
   assert.match(itemsSrc, /wadaPalette/);
