@@ -24,7 +24,7 @@ As Frank, when I add or edit an item, I assign **1–N Sanzo Wada reference colo
 As Frank, I browse/search my items (with photos) so I can see what I own — including opening the app while shopping for a quick visual check (no gap analysis, no near-duplicate detection). Each catalog card shows **type** as the title and a sub line of **`Brand · color`** (primary Wada English name when `wadaColorIds[0]` is set, else free-text color; color alone when brand is empty — no outfit role on the card). Beside that sub line (to the right), a small filled circle shows the primary Wada color when set (UC-27). Opening an item shows its **entry date** (when it was added to the catalog) in the detail footer beside Edit / Delete.
 
 ### UC-27 — Catalog / detail true-color swatch
-As Frank, on each catalog card and on item detail (beside the color line, to the right), I see a **small filled circle** of the item’s primary Wada reference color when one is set, so true color is visible even when the phone photo is wrong.
+As Frank, on each catalog card and on item detail (beside the attribute line, to the right), I see a **filled circle** of the item’s primary Wada reference color when one is set, so true color is visible even when the phone photo is wrong. Catalog cards keep a small circle; detail uses a larger (2×) circle. Detail shows all attributes as one `·`-separated line above the AI context paragraph (no “AI context” label on the read-only pane).
 
 ### UC-03 — Edit or remove a wardrobe item
 As Frank, I update attributes/photos (including free-text color and Wada reference palette via UC-26) or delete an item so the catalog stays accurate.
