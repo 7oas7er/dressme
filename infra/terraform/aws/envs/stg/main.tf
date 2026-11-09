@@ -12,4 +12,7 @@ module "site" {
   # UC-04 cutover: pin Bedrock so later stg applies do not reset SUGGEST_ENGINE
   # to the module default ("random"). Rollback = "random" + apply.
   suggest_engine = "bedrock"
+  # Suggest quality A/B: Sonnet on stg Suggest only; Analyze stays on module
+  # default Haiku (bedrock_model_id). Rollback = "" or Haiku id + apply.
+  suggest_model_id = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0"
 }

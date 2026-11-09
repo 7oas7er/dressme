@@ -30,6 +30,18 @@ locals {
     ? var.bedrock_model_id
     : "arn:aws:bedrock:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.bedrock_model_id}"
   )
+  # Suggest may pin a different model (e.g. Sonnet trial) via suggest_model_id.
+  suggest_model_id_effective = trimspace(var.suggest_model_id) != "" ? var.suggest_model_id : var.bedrock_model_id
+  suggest_foundation_model_id = (
+    startswith(local.suggest_model_id_effective, "eu.") ? trimprefix(local.suggest_model_id_effective, "eu.") :
+    startswith(local.suggest_model_id_effective, "us.") ? trimprefix(local.suggest_model_id_effective, "us.") :
+    local.suggest_model_id_effective
+  )
+  suggest_inference_profile_arn = (
+    startswith(local.suggest_model_id_effective, "arn:")
+    ? local.suggest_model_id_effective
+    : "arn:aws:bedrock:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:inference-profile/${local.suggest_model_id_effective}"
+  )
   # EU geographic profiles may route InvokeModel to any of these FM regions
   # (plus home). Missing one yields AccessDenied → SPA 502 / analyze_unavailable.
   bedrock_cris_foundation_model_regions = toset(concat(
@@ -41,6 +53,18 @@ locals {
       "eu-west-3",
       "eu-south-1",
       "eu-south-2",
+    ],
+  ))
+  bedrock_invoke_resources = distinct(concat(
+    [local.bedrock_inference_profile_arn],
+    [
+      for region in local.bedrock_cris_foundation_model_regions :
+      "arn:aws:bedrock:${region}::foundation-model/${local.bedrock_foundation_model_id}"
+    ],
+    [local.suggest_inference_profile_arn],
+    [
+      for region in local.bedrock_cris_foundation_model_regions :
+      "arn:aws:bedrock:${region}::foundation-model/${local.suggest_foundation_model_id}"
     ],
   ))
   high_scores_role_name                 = "${local.name_prefix}-health-role"

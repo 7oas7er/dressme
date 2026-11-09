@@ -30,18 +30,22 @@ terraform apply
 What this updates:
 
 - Lambda env `SUGGEST_ENGINE=bedrock` (default for all clients)
+- Lambda env `SUGGEST_MODEL_ID` when stg pins Sonnet (Analyze stays on `BEDROCK_MODEL_ID` / Haiku)
+- IAM invoke ARNs for Analyze + Suggest model families (CRIS FM destinations)
 - New suggest code in the zip when `infra/lambda` changed (Lambda source only lands via this apply — not via site deploy)
 
-**Rollback:** set `suggest_engine = "random"`, `terraform apply`. Do **not** rely on silent random-on-error — Bedrock failures return 502/503 `suggest_unavailable`.
+**Rollback engine:** set `suggest_engine = "random"`, `terraform apply`. Do **not** rely on silent random-on-error — Bedrock failures return 502/503 `suggest_unavailable`.
+
+**Rollback Suggest model (stg Sonnet trial):** set `suggest_model_id = ""` (falls back to Haiku) or an explicit Haiku profile id, then `terraform apply`. Prod stays on Haiku unless Frank pins Sonnet there later.
 
 ## Smoke (stg)
 
 1. Open https://dressme-stg.7oas7er.com/ and sign in (catalog should already have attrs + `aiContext` from Analyze).
 2. **Suggest outfits** → single **Context** field (e.g. `client lunch, cool and dry`) → **Dress me**.
-3. Expect N photos-only look cards (enlarged piece thumbs + optional Wada plate + AI title; N from context, default 3, clamp 1–8); rationale **below** the look body. Incomplete mandatory-core outfits hard-fail with `suggest_incomplete_looks` (502) after one repair attempt.
-4. Engine line: “AI suggestions from your catalog”.
-5. CloudWatch: one `suggest_success` JSON line with `suggestionId`, `modelId`, token counts — **no** prompt/context/catalog dump.
-6. After changing `infra/lambda/suggest.js`, apply AWS Terraform locally so the Lambda zip picks up the new code (no IAM/env change expected for this redesign).
+3. Expect N photos-only look cards (enlarged piece thumbs + optional Wada plate + AI title; N from context, default 3, clamp 1–8); rationale **below** the look body. Incomplete looks are repaired locally (core / cold layer / waist finish) and backfilled when unused pieces remain; if still short, SPA shows a one-line shortfall note (`lookCountShortfall`). Only when **zero** complete looks can be assembled do we 502 `suggest_incomplete_looks`.
+4. Engine line: “AI suggestions from your catalog”. Cold outdoor / garden contexts should layer when the closet has outerwear; looped trousers should get a belt (or suspenders when `aiContext` supports them).
+5. CloudWatch: one `suggest_success` JSON line with `suggestionId`, `modelId`, token counts, look-count / repair counters — **no** prompt/context/catalog dump.
+6. After changing `infra/lambda/suggest.js` or Suggest model pin, apply AWS Terraform locally so the Lambda zip + env/IAM pick up the change (site deploy alone does not).
 
 ## Prod
 

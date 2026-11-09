@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "source": "mattdesl/dictionary-of-colour-combinations@1.0.2",
+  "license": "MIT",
+  "note": "Compact soft prior for Suggest only — never force a book combo.",
+  "combinations": [
+    { "id": 121, "names": ["Brown", "Ochraceous Salmon", "Lincoln Green"] },
+    { "id": 130, "names": ["Raw Sienna", "Carmine Red", "Violet"] },
+    { "id": 139, "names": ["Salvia Blue", "Deep Indigo", "Neutral Gray"] },
+    { "id": 148, "names": ["Olive Ocher", "Orange Yellow", "Cerulian Blue"] },
+    { "id": 157, "names": ["Pansy Purple", "Olive Ocher", "Olympic Blue"] },
+    { "id": 166, "names": ["Grenadine Pink", "Naples Yellow", "Deep Slate Green"] },
+    { "id": 175, "names": ["Pinkish Cinnamon", "Olive Buff", "Blue Violet"] },
+    { "id": 184, "names": ["Spinel Red", "Ivory Buff", "Light Grayish Olive"] },
+    { "id": 193, "names": ["Grenadine Pink", "Naples Yellow", "Light Porcelain Green"] },
+    { "id": 202, "names": ["Turquoise Green", "Cobalt Green", "Slate Color"] },
+    { "id": 211, "names": ["Apricot Orange", "Olive Yellow", "Deep Indigo"] },
+    { "id": 220, "names": ["Pomegranite Purple", "Ochraceous Salmon", "Aconite Violet"] },
+    { "id": 229, "names": ["Golden Yellow", "Deep Slate Olive", "Neutral Gray"] },
+    { "id": 238, "names": ["Ochraceous Salmon", "Cotinga Purple", "Warm Gray"] },
+    { "id": 247, "names": ["Raw Sienna", "Apricot Yellow", "Benzol Green", "Deep Lyons Blue"] },
+    { "id": 256, "names": ["Vinaceous Cinnamon", "Orange", "Dull Viridian Green", "Black"] },
+    { "id": 265, "names": ["Old Rose", "Apricot Yellow", "Olive Yellow", "Dull Violet Black"] },
+    { "id": 274, "names": ["Peach Red", "Dark Citrine", "Olympic Blue", "Light Mauve"] },
+    { "id": 283, "names": ["Ochre Red", "Pale Burnt Lake", "Chromium Green", "Venice Green"] },
+    { "id": 292, "names": ["Pale Lemon Yellow", "Pinkish Cinnamon", "Isabella Color", "Ecru"] },
+    { "id": 301, "names": ["Spectrum Red", "Ivory Buff", "Rainette Green", "Aconite Violet"] },
+    { "id": 310, "names": ["Sulpher Yellow", "Pinkish Cinnamon", "Olive", "Deep Slate Olive"] },
+    { "id": 319, "names": ["Raw Sienna", "Apricot Yellow", "Yellow Orange", "Cossack Green"] },
+    { "id": 328, "names": ["Brick Red", "Apricot Orange", "Vandyke Brown", "Light Porcelain Green"] }
+  ]
+}
