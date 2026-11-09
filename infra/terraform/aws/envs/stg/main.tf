@@ -14,5 +14,7 @@ module "site" {
   suggest_engine = "bedrock"
   # Suggest quality A/B: Sonnet on stg Suggest only; Analyze stays on module
   # default Haiku (bedrock_model_id). Rollback = "" or Haiku id + apply.
-  suggest_model_id = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0"
+  # Sonnet 4.5 (20250929) is LEGACY on Bedrock and returns ResourceNotFound /
+  # "not been actively using the model" → suggest_unavailable; use active 4.6.
+  suggest_model_id = "eu.anthropic.claude-sonnet-4-6"
 }

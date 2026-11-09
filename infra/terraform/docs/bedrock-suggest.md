@@ -30,7 +30,7 @@ terraform apply
 What this updates:
 
 - Lambda env `SUGGEST_ENGINE=bedrock` (default for all clients)
-- Lambda env `SUGGEST_MODEL_ID` when stg pins Sonnet (Analyze stays on `BEDROCK_MODEL_ID` / Haiku)
+- Lambda env `SUGGEST_MODEL_ID` when stg pins Sonnet (Analyze stays on `BEDROCK_MODEL_ID` / Haiku). Stg trial pin: `eu.anthropic.claude-sonnet-4-6` (active). Do **not** re-pin `eu.anthropic.claude-sonnet-4-5-20250929-v1:0` — that FM is LEGACY and Bedrock denies accounts without recent use (`ResourceNotFoundException` → SPA `suggest_unavailable`).
 - IAM invoke ARNs for Analyze + Suggest model families (CRIS FM destinations)
 - New suggest code in the zip when `infra/lambda` changed (Lambda source only lands via this apply — not via site deploy)
 
