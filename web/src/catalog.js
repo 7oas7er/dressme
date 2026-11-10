@@ -378,6 +378,9 @@ export function renderCatalogApp(root, { onLogout }) {
       requestedLookCount: 0,
       returnedLookCount: 0,
       lookCountShortfall: false,
+      /** True while POST /api/suggest is in flight (waiting UI). */
+      generating: false,
+      tipIndex: 0,
     },
     /** Detail opened from a look card — show “Back to looks” (DM-110). */
     detailFromSuggest: false,
@@ -961,6 +964,38 @@ export function renderCatalogApp(root, { onLogout }) {
     if (!skipHistory) pushNav();
   }
 
+  const SUGGEST_WAIT_TIPS = [
+    "Matching layers to the weather in your context…",
+    "Keeping one shoe, one base, one bottom per look…",
+    "Leaning on Wada colour names when pieces have them…",
+    "Aiming for the look count you asked for…",
+  ];
+
+  let suggestTipTimer = null;
+
+  function stopSuggestTipRotation() {
+    if (suggestTipTimer) {
+      clearInterval(suggestTipTimer);
+      suggestTipTimer = null;
+    }
+  }
+
+  function startSuggestTipRotation() {
+    stopSuggestTipRotation();
+    suggestTipTimer = setInterval(() => {
+      if (!state.suggest.generating) {
+        stopSuggestTipRotation();
+        return;
+      }
+      state.suggest.tipIndex =
+        (state.suggest.tipIndex + 1) % SUGGEST_WAIT_TIPS.length;
+      const tipEl = root.querySelector("[data-suggest-tip]");
+      if (tipEl) {
+        tipEl.textContent = SUGGEST_WAIT_TIPS[state.suggest.tipIndex];
+      }
+    }, 4500);
+  }
+
   async function runSuggest(form) {
     const context = String(form.elements.context.value || "").trim();
     if (!context) {
@@ -970,9 +1005,12 @@ export function renderCatalogApp(root, { onLogout }) {
     }
     state.suggest.context = context;
     state.busy = true;
+    state.suggest.generating = true;
+    state.suggest.tipIndex = 0;
     state.error = "";
-    state.status = "Assembling looks…";
+    state.status = "Assembling looks from your wardrobe…";
     paint();
+    startSuggestTipRotation();
     try {
       const data = await api.suggestOutfits({ context });
       state.suggest.looks = data.looks || [];
@@ -1011,6 +1049,8 @@ export function renderCatalogApp(root, { onLogout }) {
       state.suggest.requestedLookCount = 0;
       state.suggest.returnedLookCount = 0;
     } finally {
+      stopSuggestTipRotation();
+      state.suggest.generating = false;
       state.busy = false;
       paint();
     }
@@ -2229,18 +2269,47 @@ export function renderCatalogApp(root, { onLogout }) {
       el("div", { className: "row" }, [
         el("button", {
           type: "submit",
-          text: state.busy
-            ? "Working…"
+          text: state.suggest.generating
+            ? "Generating looks…"
             : state.suggest.looks
               ? "Suggest again"
               : "Dress me",
-          disabled: state.busy ? "disabled" : null,
+          disabled: state.busy || state.suggest.generating ? "disabled" : null,
         }),
       ])
     );
     panel.append(form);
 
-    if (state.suggest.looks) {
+    if (state.suggest.generating) {
+      const wait = el("div", {
+        className: "suggest-progress",
+        role: "status",
+        "aria-live": "polite",
+        "aria-busy": "true",
+      });
+      wait.append(
+        el("p", {
+          className: "suggest-progress-status",
+          text: "Assembling looks from your wardrobe…",
+        })
+      );
+      wait.append(
+        el("div", {
+          className: "suggest-progress-track",
+          "aria-hidden": "true",
+        }, [
+          el("div", { className: "suggest-progress-bar" }),
+        ])
+      );
+      wait.append(
+        el("p", {
+          className: "muted suggest-progress-tip",
+          "data-suggest-tip": "1",
+          text: SUGGEST_WAIT_TIPS[state.suggest.tipIndex] || SUGGEST_WAIT_TIPS[0],
+        })
+      );
+      panel.append(wait);
+    } else if (state.suggest.looks) {
       const results = el("div", {
         className: "looks-grid",
         "aria-live": "polite",

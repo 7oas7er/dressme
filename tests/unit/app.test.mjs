@@ -336,8 +336,11 @@ test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   assert.doesNotMatch(catalog, /name: "occasion"/);
   assert.doesNotMatch(catalog, /name: "weather"/);
   assert.match(catalog, /AI suggestions from your catalog/);
+  assert.match(catalog, /Generating looks/);
+  assert.match(catalog, /suggest-progress|Assembling looks from your wardrobe/);
   assert.match(catalog, /lookCountShortfall|Could assemble/);
   assert.match(catalog, /suggest-shortfall/);
+  assert.match(styles, /suggest-progress-bar|suggest-progress-slide/);
   assert.match(suggest, /lookHeadline|lookSummary|clampLookTitle/);
   assert.match(lookLayout, /itemToSlot|buildLookVisual|layerImageUrl/);
   assert.match(lookLayout, /primaryWadaHex|fillFromWada/);

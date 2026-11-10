@@ -228,6 +228,152 @@ test("salvageCompetingBases keeps the first base only", function () {
   assert.equal(ok.incomplete.length, 0);
 });
 
+test("enforceSlotUniqueness drops dual footwear and extra outers", function () {
+  var catalog = [
+    { itemId: "shirt1", outfitRole: "shirt", type: "oxford", formality: "business" },
+    { itemId: "pants1", outfitRole: "trousers", type: "chinos", formality: "business" },
+    {
+      itemId: "loafer1",
+      outfitRole: "footwear",
+      type: "loafers",
+      formality: "business",
+    },
+    {
+      itemId: "boot1",
+      outfitRole: "footwear",
+      type: "boots",
+      formality: "casual",
+    },
+    {
+      itemId: "jacket1",
+      outfitRole: "outerwear",
+      type: "leather jacket",
+      formality: "smart casual",
+    },
+    {
+      itemId: "cardigan1",
+      outfitRole: "outerwear",
+      type: "cardigan",
+      formality: "casual",
+    },
+    { itemId: "belt1", outfitRole: "belt", type: "leather belt" },
+    { itemId: "belt2", outfitRole: "belt", type: "fabric belt" },
+    { itemId: "hat1", outfitRole: "accessory", type: "hat" },
+    { itemId: "scarf1", outfitRole: "accessory", type: "scarf" },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var salvaged = suggest.enforceSlotUniqueness(
+    [
+      {
+        lookId: "2",
+        itemIds: [
+          "shirt1",
+          "pants1",
+          "loafer1",
+          "boot1",
+          "jacket1",
+          "cardigan1",
+          "belt1",
+          "belt2",
+          "hat1",
+          "scarf1",
+        ],
+      },
+    ],
+    byId
+  );
+  assert.deepEqual(salvaged[0].itemIds, [
+    "shirt1",
+    "pants1",
+    "loafer1",
+    "jacket1",
+    "belt1",
+    "hat1",
+    "scarf1",
+  ]);
+  var check = suggest.lookCompleteness(salvaged[0].itemIds, byId, {
+    requireFootwear: true,
+  });
+  assert.equal(check.ok, true);
+  assert.ok(!check.reasons.includes("duplicate_footwear"));
+});
+
+test("syncLookCopy rewrites title/rationale after ID change or foreign copy", function () {
+  var catalog = [
+    { itemId: "shirt1", outfitRole: "shirt", type: "oxford", brandModel: "TM Lewin" },
+    { itemId: "pants1", outfitRole: "trousers", type: "chinos" },
+    { itemId: "shoe1", outfitRole: "footwear", type: "loafers" },
+    {
+      itemId: "jacket1",
+      outfitRole: "outerwear",
+      type: "leather jacket",
+      brandModel: "Schott",
+    },
+    {
+      itemId: "cardigan1",
+      outfitRole: "outerwear",
+      type: "cardigan",
+      brandModel: "John Smedley",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var afterDrop = suggest.syncLookCopy(
+    {
+      lookId: "1",
+      title: "Soft Cardigan Evening",
+      rationale: "A cardigan softens the leather jacket stack for the garden.",
+      itemIds: ["shirt1", "pants1", "shoe1", "jacket1"],
+    },
+    ["shirt1", "pants1", "shoe1", "jacket1", "cardigan1"],
+    byId,
+    catalog
+  );
+  assert.ok(!/cardigan/i.test(afterDrop.title));
+  assert.ok(!/cardigan/i.test(afterDrop.rationale));
+  assert.match(afterDrop.title, /Schott|leather jacket/i);
+  assert.match(afterDrop.rationale, /leather jacket|Schott/i);
+  assert.ok(!/cardigan/i.test(afterDrop.rationale));
+
+  var foreignOnly = suggest.syncLookCopy(
+    {
+      lookId: "1",
+      title: "Cardigan Cool",
+      rationale: "The cardigan keeps the chill off.",
+      itemIds: ["shirt1", "pants1", "shoe1", "jacket1"],
+    },
+    ["shirt1", "pants1", "shoe1", "jacket1"],
+    byId,
+    catalog
+  );
+  assert.ok(!/cardigan/i.test(foreignOnly.title));
+  assert.ok(!/cardigan/i.test(foreignOnly.rationale));
+
+  var unchanged = suggest.syncLookCopy(
+    {
+      lookId: "1",
+      title: "Schott Leather Night",
+      rationale: "Schott leather jacket over oxford and chinos.",
+      itemIds: ["shirt1", "pants1", "shoe1", "jacket1"],
+    },
+    ["shirt1", "pants1", "shoe1", "jacket1"],
+    byId,
+    catalog
+  );
+  assert.equal(unchanged.title, "Schott Leather Night");
+  assert.equal(
+    unchanged.rationale,
+    "Schott leather jacket over oxford and chinos."
+  );
+});
+
 test("extractLookCount defaults, parses digits/words, and clamps 1–8", function () {
   assert.equal(suggest.extractLookCount(""), 3);
   assert.equal(suggest.extractLookCount("client lunch, cool and dry"), 3);
@@ -415,6 +561,9 @@ test("systemPrompt mentions Wada colour reference and mandatory core", function 
   assert.doesNotMatch(prompt, /free-text color/i);
   assert.match(prompt, /Never invent item IDs/);
   assert.match(prompt, /mandatory core/i);
+  assert.match(prompt, /Slot uniqueness/i);
+  assert.match(prompt, /Never two shoes/i);
+  assert.match(prompt, /Title and rationale must name only pieces/i);
   assert.match(prompt, /Accessories beyond waist finish remain optional/i);
   assert.match(prompt, /title/);
   assert.match(prompt, /exactly 3 distinct looks/);
