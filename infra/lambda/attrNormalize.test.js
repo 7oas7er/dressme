@@ -33,8 +33,20 @@ test("brandModel keeps ampersand; other delimiters still unify", function () {
     "Rooks, Rocks"
   );
   assert.equal(
+    attrNormalize.normalizeAttrValue("Rooks and Rocks", "brandModel"),
+    "Rooks & Rocks"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Naked and Famous", "brandModel"),
+    "Naked & Famous"
+  );
+  assert.equal(
     attrNormalize.normalizeAttrValue("white&blue", "color"),
     "white, blue"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("black and white", "color"),
+    "black and white"
   );
 });
 

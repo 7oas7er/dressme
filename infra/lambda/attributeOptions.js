@@ -185,6 +185,24 @@ function emptyCustomMap() {
   return out;
 }
 
+function customDedupeKey(field, value) {
+  if (field === "brandModel") {
+    return attrNormalize.foldForMatch(value, field);
+  }
+  return normalizeValue(value, field).toLowerCase();
+}
+
+function preferCustomValue(field, current, next) {
+  if (!current) return next;
+  if (field === "brandModel") {
+    var curAmp = String(current).indexOf("&") !== -1;
+    var nextAmp = String(next).indexOf("&") !== -1;
+    if (nextAmp && !curAmp) return next;
+    if (curAmp && !nextAmp) return current;
+  }
+  return current;
+}
+
 function normalizeCustomMap(raw) {
   var src = raw && typeof raw === "object" ? raw : {};
   var out = emptyCustomMap();
@@ -196,9 +214,14 @@ function normalizeCustomMap(raw) {
     for (var j = 0; j < list.length; j++) {
       var value = normalizeValue(list[j], key);
       if (!value) continue;
-      var fold = value.toLowerCase();
-      if (seen[fold]) continue;
-      seen[fold] = true;
+      var fold = customDedupeKey(key, value);
+      if (!fold) continue;
+      if (Object.prototype.hasOwnProperty.call(seen, fold)) {
+        var idx = seen[fold];
+        cleaned[idx] = preferCustomValue(key, cleaned[idx], value);
+        continue;
+      }
+      seen[fold] = cleaned.length;
       cleaned.push(value);
       if (cleaned.length >= MAX_CUSTOM_PER_FIELD) break;
     }
@@ -227,13 +250,13 @@ function mergeOptions(customMap) {
     var merged = [];
     for (var s = 0; s < seeds.length; s++) {
       var seed = seeds[s];
-      seen[seed.toLowerCase()] = true;
+      seen[customDedupeKey(key, seed)] = true;
       merged.push(seed);
     }
     var customs = custom[key] || [];
     for (var c = 0; c < customs.length; c++) {
       var value = customs[c];
-      var fold = value.toLowerCase();
+      var fold = customDedupeKey(key, value);
       if (seen[fold]) continue;
       seen[fold] = true;
       merged.push(value);
@@ -289,16 +312,25 @@ async function rememberCustomValues(user, attrs) {
   var changed = false;
   for (var field of Object.keys(additions)) {
     var next = additions[field];
-    var fold = next.toLowerCase();
+    var fold = customDedupeKey(field, next);
     var list = custom[field] || [];
-    var found = false;
+    var foundIdx = -1;
     for (var j = 0; j < list.length; j++) {
-      if (list[j].toLowerCase() === fold) {
-        found = true;
+      if (customDedupeKey(field, list[j]) === fold) {
+        foundIdx = j;
         break;
       }
     }
-    if (found) continue;
+    if (foundIdx >= 0) {
+      var preferred = preferCustomValue(field, list[foundIdx], next);
+      if (preferred !== list[foundIdx]) {
+        list = list.slice();
+        list[foundIdx] = preferred;
+        custom[field] = list;
+        changed = true;
+      }
+      continue;
+    }
     list = [next].concat(list).slice(0, MAX_CUSTOM_PER_FIELD);
     custom[field] = list;
     changed = true;

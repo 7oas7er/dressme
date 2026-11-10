@@ -163,3 +163,26 @@ test("seed match is case-insensitive and does not duplicate customs", async func
   assert.ok(listed.body.options.fabric.includes("wool"));
   assert.ok(listed.body.options.fabric.includes("my custom weave"));
 });
+
+test("brandModel custom dedupes and/ampersand folds and prefers &", async function () {
+  items.resetDepsForTests(makeMemoryDeps());
+  var user = { sub: "local-dev-user" };
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Rooks and Rocks",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Rooks & Rocks",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Mey and Edlich",
+  });
+  var listed = await attributeOptions.listAttributeOptions(user);
+  var brands = listed.body.custom.brandModel;
+  assert.equal(brands.filter(function (v) {
+    return /rooks/i.test(v);
+  }).length, 1);
+  assert.ok(brands.includes("Rooks & Rocks"));
+  assert.ok(!brands.includes("Rooks and Rocks"));
+  assert.ok(brands.includes("Mey & Edlich"));
+  assert.ok(!brands.includes("Mey and Edlich"));
+});
