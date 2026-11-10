@@ -10,7 +10,7 @@ CloudWatch scrape is enabled by default (`enable_cloudwatch_scrape = true`). Org
 |----------|---------|
 | `shared-dressme-grafana-cloudwatch-role` | IAM role Grafana Labs assumes to read CloudWatch |
 | `grafana_cloud_provider_aws_account` | Links the AWS account to the Grafana stack |
-| `grafana_cloud_provider_aws_cloudwatch_scrape_job` | Scrapes Lambda + Bedrock + DynamoDB + CloudFront metrics |
+| `grafana_cloud_provider_aws_cloudwatch_scrape_job` | Two jobs: `dressme-cloudwatch` (Lambda/Bedrock/DynamoDB @ eu-north-1) + `dressme-cloudwatch-cloudfront` (CloudFront @ us-east-1) |
 | Synthetic HTTP checks | Prod/stg site + `/api/health` (prod: ≤2 EU probes @ 15m; stg: 1 probe @ 30m) |
 | Infinity data source | Cloudflare GraphQL edge traffic + firewall / rate-limit events (optional until token set) |
 | GitHub data source | Actions workflow runs / usage for deploy + terraform-plan (optional until token set) |
@@ -82,7 +82,7 @@ Regenerate JSON after layout edits:
 python3 infra/terraform/grafana/scripts/generate-env-dashboards.py
 ```
 
-CloudWatch scrape includes Lambda (Invocations/Errors/Throttles/Duration), Bedrock (Invocations/tokens/errors), DynamoDB (capacity/errors/throttles), and CloudFront (`OriginLatency` Average). After changing `cloudwatch.tf`, `terraform apply` this root so Grafana re-exports metrics before new panels fill in.
+CloudWatch scrape (900s): Lambda (Invocations/Errors/Throttles/Duration Average), Bedrock (Invocations + Input/OutputTokenCount), DynamoDB (consumed capacity + ThrottledRequests), CloudFront (Requests, 5xxErrorRate, OriginLatency). After changing `cloudwatch.tf`, `terraform apply` this root so Grafana re-exports metrics before new panels fill in.
 
 ## Apply
 
@@ -100,6 +100,6 @@ AWS profile: `7oas7er`. Tokens may also be supplied via `GRAFANA_*` env vars whe
 
 - Set `enable_cloudwatch_scrape = false` in `terraform.tfvars` to remove the Cloud Provider AWS account + scrape job without deleting the IAM role.
 - Set `enable_cloudflare_edge = false` to skip Cloudflare zoneTag dashboard wiring; `enable_github_ci = false` skips DS `github-dressme`.
-- CloudWatch scrape covers `eu-north-1` and `us-east-1` (CloudFront metrics live in `us-east-1`; Lambda / Bedrock / DynamoDB in `eu-north-1`).
+- CloudWatch account regions stay `eu-north-1` + `us-east-1`; jobs override subsets — Lambda / Bedrock / DynamoDB → `eu-north-1` only; CloudFront → `us-east-1` only.
 - Tagged AWS resources (`Name` tags on Lambda, DynamoDB, CloudFront) improve metric discovery and env filtering. Bedrock is account + ModelId (no env `Name` tag).
 - Metrics-only for now — no CloudWatch Logs shipping into Grafana.
