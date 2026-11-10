@@ -11,33 +11,24 @@ var DELIMITER_RE = /[/|;,&]+/g;
 /** brandModel: keep `&`; still unify `/` `|` `;` `,`. */
 var BRAND_DELIMITER_RE = /[/|;,]+/g;
 
+/**
+ * Approved brandModel remaps (foldForMatch key → canonical spelling).
+ * Keep small; expand only with Frank-approved drifts.
+ */
+var BRAND_ALIASES = {
+  "joe marino": "Joe Merino",
+  "mr mavis": "Mr. Marvis",
+  "ruffs,rocks": "Rooks & Rocks",
+  "roots,rocks": "Rooks & Rocks",
+  "suit supply": "Suitsupply",
+  etana: "Eterna",
+  "polo ralph lauren": "Ralph Lauren",
+};
+
 /** Rules 1–2: Unicode trim, collapse internal whitespace, clamp ≤120. */
 function lightNormalize(value) {
   if (value == null) return "";
   var text = String(value).replace(/\s+/g, " ").trim();
-  if (!text) return "";
-  return text.slice(0, MAX_ATTR_LEN);
-}
-
-/**
- * Rules 1–4: light normalize + delimiter unify + strip trailing . ,
- * Colors stay one string; `/` `|` `;` `&` → `, `.
- * Exception: field === "brandModel" keeps `&`, and rewrites ` and ` → ` & `
- * so Appraise "Rooks and Rocks" lands as "Rooks & Rocks" without needing META.
- */
-function normalizeAttrValue(value, field) {
-  var text = lightNormalize(value);
-  if (!text) return "";
-  var delim = field === "brandModel" ? BRAND_DELIMITER_RE : DELIMITER_RE;
-  text = text.replace(delim, ", ");
-  text = text.replace(/\s+/g, " ").trim();
-  text = text.replace(/\s*,\s*/g, ", ");
-  if (field === "brandModel") {
-    text = text.replace(/\s+and\s+/gi, " & ");
-    text = text.replace(/\s+/g, " ").trim();
-  }
-  text = text.replace(/[.,]+$/g, "").trim();
-  text = text.replace(/(?:,\s*)+$/g, "").trim();
   if (!text) return "";
   return text.slice(0, MAX_ATTR_LEN);
 }
@@ -55,6 +46,42 @@ function foldForMatch(value, field) {
     text = text.replace(/\s+and\s+/g, ",");
     text = text.replace(/\s*&\s*/g, ",");
     text = text.replace(/\s*,\s*/g, ",");
+  }
+  return text;
+}
+
+function applyBrandAlias(text) {
+  if (!text) return "";
+  var fold = foldForMatch(text, "brandModel");
+  if (Object.prototype.hasOwnProperty.call(BRAND_ALIASES, fold)) {
+    return BRAND_ALIASES[fold];
+  }
+  return text;
+}
+
+/**
+ * Rules 1–4: light normalize + delimiter unify + strip trailing . ,
+ * Colors stay one string; `/` `|` `;` `&` → `, `.
+ * Exception: field === "brandModel" keeps `&`, rewrites ` and ` → ` & `,
+ * then applies the approved alias map.
+ */
+function normalizeAttrValue(value, field) {
+  var text = lightNormalize(value);
+  if (!text) return "";
+  var delim = field === "brandModel" ? BRAND_DELIMITER_RE : DELIMITER_RE;
+  text = text.replace(delim, ", ");
+  text = text.replace(/\s+/g, " ").trim();
+  text = text.replace(/\s*,\s*/g, ", ");
+  if (field === "brandModel") {
+    text = text.replace(/\s+and\s+/gi, " & ");
+    text = text.replace(/\s+/g, " ").trim();
+  }
+  text = text.replace(/[.,]+$/g, "").trim();
+  text = text.replace(/(?:,\s*)+$/g, "").trim();
+  if (!text) return "";
+  text = text.slice(0, MAX_ATTR_LEN);
+  if (field === "brandModel") {
+    text = applyBrandAlias(text);
   }
   return text;
 }
@@ -129,6 +156,28 @@ function pickBest(candidates, customs, field) {
   return candidates[0];
 }
 
+function collectFoldEquals(normFold, opts, field) {
+  var foldEquals = [];
+  for (var i = 0; i < opts.length; i++) {
+    var opt = String(opts[i] || "").trim();
+    if (!opt) continue;
+    if (foldForMatch(opt, field) === normFold) foldEquals.push(opt);
+  }
+  return foldEquals;
+}
+
+function collectLevenshtein1(normFold, opts, field) {
+  var typos = [];
+  for (var j = 0; j < opts.length; j++) {
+    var candidate = String(opts[j] || "").trim();
+    if (!candidate) continue;
+    if (levenshtein(normFold, foldForMatch(candidate, field)) === 1) {
+      typos.push(candidate);
+    }
+  }
+  return typos;
+}
+
 /**
  * Classify raw input against option list for SPA chips / silent rewrite.
  * @returns {{ normalized: string, action: 'exact'|'silent'|'chip'|'none', suggestion: string|null }}
@@ -142,12 +191,7 @@ function matchAttrOption(raw, options, customList, field) {
   var customs = customFoldSet(customList, field);
   var normFold = foldForMatch(normalized, field);
 
-  var foldEquals = [];
-  for (var i = 0; i < opts.length; i++) {
-    var opt = String(opts[i] || "").trim();
-    if (!opt) continue;
-    if (foldForMatch(opt, field) === normFold) foldEquals.push(opt);
-  }
+  var foldEquals = collectFoldEquals(normFold, opts, field);
   if (foldEquals.length) {
     var best = pickBest(foldEquals, customs, field);
     if (normalized === best) {
@@ -161,16 +205,13 @@ function matchAttrOption(raw, options, customList, field) {
     return { normalized: normalized, action: "chip", suggestion: best };
   }
 
-  var typos = [];
-  for (var j = 0; j < opts.length; j++) {
-    var candidate = String(opts[j] || "").trim();
-    if (!candidate) continue;
-    if (levenshtein(normFold, foldForMatch(candidate, field)) === 1) {
-      typos.push(candidate);
-    }
-  }
+  var typos = collectLevenshtein1(normFold, opts, field);
   if (typos.length) {
     var tip = pickBest(typos, customs, field);
+    // brandModel: auto-prefer close META/seed spelling (write path + blur).
+    if (field === "brandModel") {
+      return { normalized: tip, action: "silent", suggestion: tip };
+    }
     return { normalized: normalized, action: "chip", suggestion: tip };
   }
   return { normalized: normalized, action: "none", suggestion: null };
@@ -178,7 +219,7 @@ function matchAttrOption(raw, options, customList, field) {
 
 /**
  * Lambda source of truth: rules 1–4 + silent fold rewrite to option spelling.
- * Never auto-applies Levenshtein / typo matches.
+ * brandModel also auto-applies Levenshtein-1 matches (prefer &). Other fields do not.
  */
 function canonicalizeAttrValue(raw, options, customList, field) {
   var normalized = normalizeAttrValue(raw, field);
@@ -186,19 +227,21 @@ function canonicalizeAttrValue(raw, options, customList, field) {
   var opts = Array.isArray(options) ? options : [];
   var customs = customFoldSet(customList, field);
   var normFold = foldForMatch(normalized, field);
-  var foldEquals = [];
-  for (var i = 0; i < opts.length; i++) {
-    var opt = String(opts[i] || "").trim();
-    if (!opt) continue;
-    if (foldForMatch(opt, field) === normFold) foldEquals.push(opt);
-  }
+  var foldEquals = collectFoldEquals(normFold, opts, field);
   if (foldEquals.length) {
     return pickBest(foldEquals, customs, field);
+  }
+  if (field === "brandModel") {
+    var typos = collectLevenshtein1(normFold, opts, field);
+    if (typos.length) {
+      return pickBest(typos, customs, field);
+    }
   }
   return normalized;
 }
 
 exports.MAX_ATTR_LEN = MAX_ATTR_LEN;
+exports.BRAND_ALIASES = BRAND_ALIASES;
 exports.lightNormalize = lightNormalize;
 exports.normalizeAttrValue = normalizeAttrValue;
 exports.foldForMatch = foldForMatch;

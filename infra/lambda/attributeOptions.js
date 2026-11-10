@@ -203,6 +203,40 @@ function preferCustomValue(field, current, next) {
   return current;
 }
 
+/**
+ * brandModel only: find an existing custom that is fold-equal or Levenshtein-1
+ * to `value`, preferring & forms. Prevents typo aliases from burning META slots.
+ */
+function findBrandNearCustom(value, list) {
+  var fold = customDedupeKey("brandModel", value);
+  if (!fold) return -1;
+  var foldIdx = -1;
+  var near = [];
+  for (var j = 0; j < list.length; j++) {
+    var otherFold = customDedupeKey("brandModel", list[j]);
+    if (!otherFold) continue;
+    if (otherFold === fold) {
+      foldIdx = j;
+      break;
+    }
+    if (attrNormalize.levenshtein(fold, otherFold) === 1) {
+      near.push(j);
+    }
+  }
+  if (foldIdx >= 0) return foldIdx;
+  if (!near.length) return -1;
+  near.sort(function (a, b) {
+    var aVal = list[a];
+    var bVal = list[b];
+    var aAmp = String(aVal).indexOf("&") !== -1;
+    var bAmp = String(bVal).indexOf("&") !== -1;
+    if (aAmp !== bAmp) return aAmp ? -1 : 1;
+    if (aVal.length !== bVal.length) return aVal.length - bVal.length;
+    return aVal.localeCompare(bVal);
+  });
+  return near[0];
+}
+
 function normalizeCustomMap(raw) {
   var src = raw && typeof raw === "object" ? raw : {};
   var out = emptyCustomMap();
@@ -321,8 +355,17 @@ async function rememberCustomValues(user, attrs) {
         break;
       }
     }
+    var nearMatch = false;
+    if (foundIdx < 0 && field === "brandModel") {
+      foundIdx = findBrandNearCustom(next, list);
+      nearMatch = foundIdx >= 0;
+    }
     if (foundIdx >= 0) {
-      var preferred = preferCustomValue(field, list[foundIdx], next);
+      // Fold-equal: prefer & form. Levenshtein-1: keep existing META spelling
+      // so a typo emission does not overwrite the canonical slot.
+      var preferred = nearMatch
+        ? list[foundIdx]
+        : preferCustomValue(field, list[foundIdx], next);
       if (preferred !== list[foundIdx]) {
         list = list.slice();
         list[foundIdx] = preferred;

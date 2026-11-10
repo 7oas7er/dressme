@@ -114,7 +114,8 @@ function skForItem(itemId) {
 
 /**
  * Phase 1 hygiene: rules 1–4 + silent fold rewrite to seed/custom spelling.
- * Typo (Levenshtein) matches are never auto-applied — SPA chips only.
+ * brandModel also auto-applies Levenshtein-1 / approved aliases; other fields
+ * keep typo matches as SPA chips only.
  */
 async function normalizeAttributes(user, input, partial) {
   var src = input || {};

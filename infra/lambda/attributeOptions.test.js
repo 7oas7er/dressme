@@ -186,3 +186,35 @@ test("brandModel custom dedupes and/ampersand folds and prefers &", async functi
   assert.ok(brands.includes("Mey & Edlich"));
   assert.ok(!brands.includes("Mey and Edlich"));
 });
+
+test("brandModel remember folds aliases and Levenshtein-1 into one META slot", async function () {
+  items.resetDepsForTests(makeMemoryDeps());
+  var user = { sub: "local-dev-user" };
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Joe Merino",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Joe Marino",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Joe Merono",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Ruffs and Rocks",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Suit Supply",
+  });
+  var listed = await attributeOptions.listAttributeOptions(user);
+  var brands = listed.body.custom.brandModel;
+  assert.equal(brands.filter(function (v) {
+    return /joe mer/i.test(v);
+  }).length, 1);
+  assert.ok(brands.includes("Joe Merino"));
+  assert.ok(!brands.includes("Joe Marino"));
+  assert.ok(!brands.includes("Joe Merono"));
+  assert.ok(brands.includes("Rooks & Rocks"));
+  assert.ok(!brands.includes("Ruffs and Rocks"));
+  assert.ok(brands.includes("Suitsupply"));
+  assert.ok(!brands.includes("Suit Supply"));
+});
