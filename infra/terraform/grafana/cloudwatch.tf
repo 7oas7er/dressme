@@ -27,7 +27,7 @@ resource "grafana_cloud_provider_aws_cloudwatch_scrape_job" "dressme" {
 
   service {
     name                    = "AWS/Lambda"
-    scrape_interval_seconds = 300
+    scrape_interval_seconds = 900
 
     metric {
       name       = "Invocations"
@@ -56,7 +56,7 @@ resource "grafana_cloud_provider_aws_cloudwatch_scrape_job" "dressme" {
   # Still scraped so token/invocation panels are not dark (gap P0).
   service {
     name                    = "AWS/Bedrock"
-    scrape_interval_seconds = 300
+    scrape_interval_seconds = 900
 
     metric {
       name       = "Invocations"
@@ -91,7 +91,7 @@ resource "grafana_cloud_provider_aws_cloudwatch_scrape_job" "dressme" {
 
   service {
     name                    = "AWS/DynamoDB"
-    scrape_interval_seconds = 300
+    scrape_interval_seconds = 900
 
     metric {
       name       = "ConsumedReadCapacityUnits"
@@ -133,7 +133,7 @@ resource "grafana_cloud_provider_aws_cloudwatch_scrape_job" "dressme" {
 
   service {
     name                    = "AWS/CloudFront"
-    scrape_interval_seconds = 300
+    scrape_interval_seconds = 900
 
     metric {
       name       = "Requests"
