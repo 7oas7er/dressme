@@ -104,7 +104,7 @@ test("delimiter near-match shows chip; canonicalize still folds to option", func
   );
 });
 
-test("Levenshtein-1 brand typo chips; canonicalize does not auto-apply", function () {
+test("Levenshtein-1 non-brand chips; canonicalize does not auto-apply", function () {
   var options = ["Ralph Lauren", "Drake's"];
   var result = attrNormalize.matchAttrOption("Ralph Laurn", options, [
     "Ralph Lauren",
@@ -119,6 +119,68 @@ test("Levenshtein-1 brand typo chips; canonicalize does not auto-apply", functio
       "Drake's",
     ]),
     "Ralph Laurn"
+  );
+});
+
+test("brandModel approved aliases rewrite on normalize", function () {
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Joe Marino", "brandModel"),
+    "Joe Merino"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Mr. Mavis", "brandModel"),
+    "Mr. Marvis"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Ruffs and Rocks", "brandModel"),
+    "Rooks & Rocks"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Roots & Rocks", "brandModel"),
+    "Rooks & Rocks"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Suit Supply", "brandModel"),
+    "Suitsupply"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Etana", "brandModel"),
+    "Eterna"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Polo Ralph Lauren", "brandModel"),
+    "Ralph Lauren"
+  );
+});
+
+test("brandModel Levenshtein-1 prefers META silently on write", function () {
+  var options = ["Ralph Lauren", "Joe Merino", "Rooks & Rocks"];
+  var customs = options.slice();
+  var tip = attrNormalize.matchAttrOption(
+    "Ralph Laurn",
+    options,
+    customs,
+    "brandModel"
+  );
+  assert.equal(tip.action, "silent");
+  assert.equal(tip.normalized, "Ralph Lauren");
+  assert.equal(
+    attrNormalize.canonicalizeAttrValue(
+      "Ralph Laurn",
+      options,
+      customs,
+      "brandModel"
+    ),
+    "Ralph Lauren"
+  );
+  assert.equal(
+    attrNormalize.canonicalizeAttrValue(
+      "Joe Merono",
+      options,
+      customs,
+      "brandModel"
+    ),
+    "Joe Merino"
   );
 });
 

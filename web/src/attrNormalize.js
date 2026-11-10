@@ -9,33 +9,24 @@ const DELIMITER_RE = /[/|;,&]+/g;
 /** brandModel: keep `&`; still unify `/` `|` `;` `,`. */
 const BRAND_DELIMITER_RE = /[/|;,]+/g;
 
+/**
+ * Approved brandModel remaps (foldForMatch key → canonical spelling).
+ * Keep small; expand only with Frank-approved drifts.
+ */
+export const BRAND_ALIASES = {
+  "joe marino": "Joe Merino",
+  "mr mavis": "Mr. Marvis",
+  "ruffs,rocks": "Rooks & Rocks",
+  "roots,rocks": "Rooks & Rocks",
+  "suit supply": "Suitsupply",
+  etana: "Eterna",
+  "polo ralph lauren": "Ralph Lauren",
+};
+
 /** Rules 1–2: Unicode trim, collapse internal whitespace, clamp ≤120. */
 export function lightNormalize(value) {
   if (value == null) return "";
   const text = String(value).replace(/\s+/g, " ").trim();
-  if (!text) return "";
-  return text.slice(0, MAX_ATTR_LEN);
-}
-
-/**
- * Rules 1–4: light normalize + delimiter unify + strip trailing . ,
- * Colors stay one string; `/` `|` `;` `&` → `, `.
- * Exception: field === "brandModel" keeps `&`, and rewrites ` and ` → ` & `
- * so Appraise "Rooks and Rocks" lands as "Rooks & Rocks" without needing META.
- */
-export function normalizeAttrValue(value, field) {
-  let text = lightNormalize(value);
-  if (!text) return "";
-  const delim = field === "brandModel" ? BRAND_DELIMITER_RE : DELIMITER_RE;
-  text = text.replace(delim, ", ");
-  text = text.replace(/\s+/g, " ").trim();
-  text = text.replace(/\s*,\s*/g, ", ");
-  if (field === "brandModel") {
-    text = text.replace(/\s+and\s+/gi, " & ");
-    text = text.replace(/\s+/g, " ").trim();
-  }
-  text = text.replace(/[.,]+$/g, "").trim();
-  text = text.replace(/(?:,\s*)+$/g, "").trim();
   if (!text) return "";
   return text.slice(0, MAX_ATTR_LEN);
 }
@@ -53,6 +44,42 @@ export function foldForMatch(value, field) {
     text = text.replace(/\s+and\s+/g, ",");
     text = text.replace(/\s*&\s*/g, ",");
     text = text.replace(/\s*,\s*/g, ",");
+  }
+  return text;
+}
+
+function applyBrandAlias(text) {
+  if (!text) return "";
+  const fold = foldForMatch(text, "brandModel");
+  if (Object.prototype.hasOwnProperty.call(BRAND_ALIASES, fold)) {
+    return BRAND_ALIASES[fold];
+  }
+  return text;
+}
+
+/**
+ * Rules 1–4: light normalize + delimiter unify + strip trailing . ,
+ * Colors stay one string; `/` `|` `;` `&` → `, `.
+ * Exception: field === "brandModel" keeps `&`, rewrites ` and ` → ` & `,
+ * then applies the approved alias map.
+ */
+export function normalizeAttrValue(value, field) {
+  let text = lightNormalize(value);
+  if (!text) return "";
+  const delim = field === "brandModel" ? BRAND_DELIMITER_RE : DELIMITER_RE;
+  text = text.replace(delim, ", ");
+  text = text.replace(/\s+/g, " ").trim();
+  text = text.replace(/\s*,\s*/g, ", ");
+  if (field === "brandModel") {
+    text = text.replace(/\s+and\s+/gi, " & ");
+    text = text.replace(/\s+/g, " ").trim();
+  }
+  text = text.replace(/[.,]+$/g, "").trim();
+  text = text.replace(/(?:,\s*)+$/g, "").trim();
+  if (!text) return "";
+  text = text.slice(0, MAX_ATTR_LEN);
+  if (field === "brandModel") {
+    text = applyBrandAlias(text);
   }
   return text;
 }
@@ -124,6 +151,28 @@ function pickBest(candidates, customs, field) {
   return candidates[0];
 }
 
+function collectFoldEquals(normFold, opts, field) {
+  const foldEquals = [];
+  for (let i = 0; i < opts.length; i++) {
+    const opt = String(opts[i] || "").trim();
+    if (!opt) continue;
+    if (foldForMatch(opt, field) === normFold) foldEquals.push(opt);
+  }
+  return foldEquals;
+}
+
+function collectLevenshtein1(normFold, opts, field) {
+  const typos = [];
+  for (let j = 0; j < opts.length; j++) {
+    const candidate = String(opts[j] || "").trim();
+    if (!candidate) continue;
+    if (levenshtein(normFold, foldForMatch(candidate, field)) === 1) {
+      typos.push(candidate);
+    }
+  }
+  return typos;
+}
+
 /**
  * Classify raw input against option list for blur chips / silent rewrite.
  * @returns {{ normalized: string, action: 'exact'|'silent'|'chip'|'none', suggestion: string|null }}
@@ -137,12 +186,7 @@ export function matchAttrOption(raw, options, customList, field) {
   const customs = customFoldSet(customList, field);
   const normFold = foldForMatch(normalized, field);
 
-  const foldEquals = [];
-  for (let i = 0; i < opts.length; i++) {
-    const opt = String(opts[i] || "").trim();
-    if (!opt) continue;
-    if (foldForMatch(opt, field) === normFold) foldEquals.push(opt);
-  }
+  const foldEquals = collectFoldEquals(normFold, opts, field);
   if (foldEquals.length) {
     const best = pickBest(foldEquals, customs, field);
     if (normalized === best) {
@@ -156,23 +200,21 @@ export function matchAttrOption(raw, options, customList, field) {
     return { normalized: normalized, action: "chip", suggestion: best };
   }
 
-  const typos = [];
-  for (let j = 0; j < opts.length; j++) {
-    const candidate = String(opts[j] || "").trim();
-    if (!candidate) continue;
-    if (levenshtein(normFold, foldForMatch(candidate, field)) === 1) {
-      typos.push(candidate);
-    }
-  }
+  const typos = collectLevenshtein1(normFold, opts, field);
   if (typos.length) {
     const tip = pickBest(typos, customs, field);
+    // brandModel: auto-prefer close META/seed spelling (write path + blur).
+    if (field === "brandModel") {
+      return { normalized: tip, action: "silent", suggestion: tip };
+    }
     return { normalized: normalized, action: "chip", suggestion: tip };
   }
   return { normalized: normalized, action: "none", suggestion: null };
 }
 
 /**
- * Persist path helper: rules 1–4 + silent fold rewrite (no typo auto-apply).
+ * Persist path helper: rules 1–4 + silent fold rewrite.
+ * brandModel also auto-applies Levenshtein-1 matches (prefer &). Other fields do not.
  * Mirrors Lambda canonicalizeAttrValue.
  */
 export function canonicalizeAttrValue(raw, options, customList, field) {
@@ -181,14 +223,15 @@ export function canonicalizeAttrValue(raw, options, customList, field) {
   const opts = Array.isArray(options) ? options : [];
   const customs = customFoldSet(customList, field);
   const normFold = foldForMatch(normalized, field);
-  const foldEquals = [];
-  for (let i = 0; i < opts.length; i++) {
-    const opt = String(opts[i] || "").trim();
-    if (!opt) continue;
-    if (foldForMatch(opt, field) === normFold) foldEquals.push(opt);
-  }
+  const foldEquals = collectFoldEquals(normFold, opts, field);
   if (foldEquals.length) {
     return pickBest(foldEquals, customs, field);
+  }
+  if (field === "brandModel") {
+    const typos = collectLevenshtein1(normFold, opts, field);
+    if (typos.length) {
+      return pickBest(typos, customs, field);
+    }
   }
   return normalized;
 }

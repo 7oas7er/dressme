@@ -88,7 +88,7 @@ test("delimiter near-match shows chip; canonicalize still folds to option", () =
   assert.equal(canonicalizeAttrValue("White/Blue", options, []), "white, blue");
 });
 
-test("Levenshtein-1 brand typo chips; canonicalize does not auto-apply", () => {
+test("Levenshtein-1 non-brand chips; canonicalize does not auto-apply", () => {
   const options = ["Ralph Lauren", "Drake's"];
   const customs = ["Ralph Lauren", "Drake's"];
   const result = matchAttrOption("Ralph Laurn", options, customs);
@@ -96,6 +96,41 @@ test("Levenshtein-1 brand typo chips; canonicalize does not auto-apply", () => {
   assert.equal(result.suggestion, "Ralph Lauren");
   assert.equal(result.normalized, "Ralph Laurn");
   assert.equal(canonicalizeAttrValue("Ralph Laurn", options, customs), "Ralph Laurn");
+});
+
+test("brandModel approved aliases rewrite on normalize", () => {
+  assert.equal(normalizeAttrValue("Joe Marino", "brandModel"), "Joe Merino");
+  assert.equal(normalizeAttrValue("Mr. Mavis", "brandModel"), "Mr. Marvis");
+  assert.equal(
+    normalizeAttrValue("Ruffs and Rocks", "brandModel"),
+    "Rooks & Rocks"
+  );
+  assert.equal(
+    normalizeAttrValue("Roots & Rocks", "brandModel"),
+    "Rooks & Rocks"
+  );
+  assert.equal(normalizeAttrValue("Suit Supply", "brandModel"), "Suitsupply");
+  assert.equal(normalizeAttrValue("Etana", "brandModel"), "Eterna");
+  assert.equal(
+    normalizeAttrValue("Polo Ralph Lauren", "brandModel"),
+    "Ralph Lauren"
+  );
+});
+
+test("brandModel Levenshtein-1 prefers META silently on write", () => {
+  const options = ["Ralph Lauren", "Joe Merino", "Rooks & Rocks"];
+  const customs = options.slice();
+  const tip = matchAttrOption("Ralph Laurn", options, customs, "brandModel");
+  assert.equal(tip.action, "silent");
+  assert.equal(tip.normalized, "Ralph Lauren");
+  assert.equal(
+    canonicalizeAttrValue("Ralph Laurn", options, customs, "brandModel"),
+    "Ralph Lauren"
+  );
+  assert.equal(
+    canonicalizeAttrValue("Joe Merono", options, customs, "brandModel"),
+    "Joe Merino"
+  );
 });
 
 test("prefer seed over custom when both fold-match", () => {
