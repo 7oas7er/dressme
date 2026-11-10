@@ -344,12 +344,12 @@ test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   assert.match(suggest, /lookHeadline|lookSummary|clampLookTitle/);
   assert.match(lookLayout, /itemToSlot|buildLookVisual|layerImageUrl/);
   assert.match(lookLayout, /primaryWadaHex|fillFromWada/);
-  assert.match(lookCard, /look-pieces|look-wada-plate|look-piece-btn/);
+  assert.match(lookCard, /look-pieces|look-piece-col|look-wada-swatch|look-piece-btn/);
   assert.match(lookCard, /look-rationale/);
-  assert.match(lookCard, /lookWadaPlateEntries/);
+  assert.match(lookCard, /primaryWadaPlateEntry/);
   // Mannequin helpers retained for Later hero but un-wired from the card.
   assert.match(lookCard, /look-mannequin|renderMannequinSvg|100 240/);
-  assert.match(lookWadaPlate, /lookWadaPlateEntries|primaryWadaId/);
+  assert.match(lookWadaPlate, /lookWadaPlateEntries|primaryWadaPlateEntry|primaryWadaId/);
   assert.match(mannequinColor, /resolveFillColor|resolvePatternHint/);
   assert.ok(
     fs.existsSync(path.join(root, "web/src/thumbSample.js")),
@@ -362,7 +362,7 @@ test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   assert.match(apiSrc, /occasion:\s*context/);
   assert.match(catalog, /missing_occasion/);
   assert.match(styles, /\.look-pieces/);
-  assert.match(styles, /\.look-wada-plate/);
+  assert.match(styles, /\.look-wada-swatch|\.look-piece-col/);
   assert.match(styles, /\.look-rationale/);
   assert.match(styles, /\.looks-grid/);
   assert.match(useCases, /UC-04 — Request outfit suggestions/);

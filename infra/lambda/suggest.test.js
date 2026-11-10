@@ -304,14 +304,28 @@ test("enforceSlotUniqueness drops dual footwear and extra outers", function () {
 
 test("syncLookCopy rewrites title/rationale after ID change or foreign copy", function () {
   var catalog = [
-    { itemId: "shirt1", outfitRole: "shirt", type: "oxford", brandModel: "TM Lewin" },
-    { itemId: "pants1", outfitRole: "trousers", type: "chinos" },
+    {
+      itemId: "shirt1",
+      outfitRole: "shirt",
+      type: "oxford",
+      brandModel: "TM Lewin",
+      fabric: "cotton",
+      wadaColorIds: ["wada:v1:42"],
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "chinos",
+      fabric: "cotton twill",
+      wadaColorIds: ["wada:v1:7"],
+    },
     { itemId: "shoe1", outfitRole: "footwear", type: "loafers" },
     {
       itemId: "jacket1",
       outfitRole: "outerwear",
       type: "leather jacket",
       brandModel: "Schott",
+      fabric: "leather",
     },
     {
       itemId: "cardigan1",
@@ -325,6 +339,7 @@ test("syncLookCopy rewrites title/rationale after ID change or foreign copy", fu
       return [row.itemId, row];
     })
   );
+  var ctx = "cool garden evening, 4 looks";
   var afterDrop = suggest.syncLookCopy(
     {
       lookId: "1",
@@ -334,13 +349,21 @@ test("syncLookCopy rewrites title/rationale after ID change or foreign copy", fu
     },
     ["shirt1", "pants1", "shoe1", "jacket1", "cardigan1"],
     byId,
-    catalog
+    catalog,
+    ctx
   );
   assert.ok(!/cardigan/i.test(afterDrop.title));
   assert.ok(!/cardigan/i.test(afterDrop.rationale));
   assert.match(afterDrop.title, /Schott|leather jacket/i);
   assert.match(afterDrop.rationale, /leather jacket|Schott/i);
   assert.ok(!/cardigan/i.test(afterDrop.rationale));
+  // Verbose advice tone — not a one-line "Pairs A with B" stub.
+  var sentences = afterDrop.rationale
+    .split(/(?<=\.)\s+/)
+    .filter(Boolean);
+  assert.ok(sentences.length >= 2, afterDrop.rationale);
+  assert.match(afterDrop.rationale, /garden|chill|cool|layer/i);
+  assert.ok(afterDrop.rationale.length > 80);
 
   var foreignOnly = suggest.syncLookCopy(
     {
@@ -351,10 +374,12 @@ test("syncLookCopy rewrites title/rationale after ID change or foreign copy", fu
     },
     ["shirt1", "pants1", "shoe1", "jacket1"],
     byId,
-    catalog
+    catalog,
+    ctx
   );
   assert.ok(!/cardigan/i.test(foreignOnly.title));
   assert.ok(!/cardigan/i.test(foreignOnly.rationale));
+  assert.ok(foreignOnly.rationale.split(/(?<=\.)\s+/).filter(Boolean).length >= 2);
 
   var unchanged = suggest.syncLookCopy(
     {
@@ -365,13 +390,21 @@ test("syncLookCopy rewrites title/rationale after ID change or foreign copy", fu
     },
     ["shirt1", "pants1", "shoe1", "jacket1"],
     byId,
-    catalog
+    catalog,
+    ctx
   );
   assert.equal(unchanged.title, "Schott Leather Night");
   assert.equal(
     unchanged.rationale,
     "Schott leather jacket over oxford and chinos."
   );
+});
+
+test("systemPrompt asks for verbose titles and 2–4 sentence rationales", function () {
+  var prompt = suggest.systemPrompt(3);
+  assert.match(prompt, /2–4 sentences|2-4 sentences/i);
+  assert.match(prompt, /catchy but full/i);
+  assert.match(prompt, /Wada\/palette|palette/i);
 });
 
 test("extractLookCount defaults, parses digits/words, and clamps 1–8", function () {

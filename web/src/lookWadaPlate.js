@@ -1,25 +1,42 @@
 /**
  * Ad-hoc Wada combination plate for a look card (display only).
- * Primary Wada only; skip items without a resolvable primary; dedupe identical IDs.
+ * Primary Wada only; preserve look/photo order; one swatch per piece
+ * (no dedupe / reorder). Skip items without a resolvable primary.
  * No free-text color fallback. UC-28 book combo IDs are out of scope.
  */
 
 import { getWadaColor, primaryWadaId } from "./wadaPalette.js";
 
 /**
- * @param {Array<{ wadaColorIds?: string[] }>} items look items in display order
- * @returns {Array<{ id: string, name: string, hex: string }>}
+ * @param {{ wadaColorIds?: string[], itemId?: string, id?: string } | null | undefined} item
+ * @returns {{ id: string, name: string, hex: string, itemId: string } | null}
+ */
+export function primaryWadaPlateEntry(item) {
+  const id = primaryWadaId((item && item.wadaColorIds) || []);
+  if (!id) return null;
+  const color = getWadaColor(id);
+  if (!color || !color.hex || !color.name) return null;
+  return {
+    id,
+    name: color.name,
+    hex: color.hex,
+    itemId: String((item && (item.itemId || item.id)) || ""),
+  };
+}
+
+/**
+ * Ordered plate entries matching `items` order (typically the photo strip).
+ * Does not dedupe identical Wada IDs — two navy pieces → two swatches so each
+ * sits above its photo. Skips pieces with no resolvable primary.
+ *
+ * @param {Array<{ wadaColorIds?: string[], itemId?: string, id?: string }>} items
+ * @returns {Array<{ id: string, name: string, hex: string, itemId: string }>}
  */
 export function lookWadaPlateEntries(items) {
   const entries = [];
-  const seen = new Set();
   for (const item of items || []) {
-    const id = primaryWadaId((item && item.wadaColorIds) || []);
-    if (!id || seen.has(id)) continue;
-    const color = getWadaColor(id);
-    if (!color || !color.hex || !color.name) continue;
-    seen.add(id);
-    entries.push({ id, name: color.name, hex: color.hex });
+    const entry = primaryWadaPlateEntry(item);
+    if (entry) entries.push(entry);
   }
   return entries;
 }

@@ -965,20 +965,22 @@ textarea {
   min-width: 0;
 }
 
-/* Ad-hoc Wada plate from look primaries (book-plate vibe). */
-.look-wada-plate {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  margin: 0.15rem 0 0.1rem;
+/* Ad-hoc Wada plate: one swatch per photo column (strip order, no reorder). */
+.look-piece-col {
+  display: grid;
+  gap: 0.28rem;
+  align-content: start;
+  min-width: 0;
 }
 
 .look-wada-swatch {
   display: grid;
   gap: 0.28rem;
-  flex: 1 1 4.5rem;
-  min-width: 4.25rem;
-  max-width: 7.5rem;
+  min-width: 0;
+}
+
+.look-wada-swatch--empty {
+  visibility: hidden;
 }
 
 .look-wada-block {
@@ -994,6 +996,9 @@ textarea {
   line-height: 1.2;
   color: var(--ink-soft);
   text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .look-pieces {
