@@ -29,8 +29,17 @@ test("brandModel keeps ampersand; other delimiters still unify", () => {
   assert.equal(normalizeAttrValue("H&M", "brandModel"), "H&M");
   assert.equal(normalizeAttrValue("H & M", "brandModel"), "H & M");
   assert.equal(normalizeAttrValue("Rooks/Rocks", "brandModel"), "Rooks, Rocks");
-  // Non-brand fields still rewrite & → ,
+  assert.equal(
+    normalizeAttrValue("Rooks and Rocks", "brandModel"),
+    "Rooks & Rocks"
+  );
+  assert.equal(
+    normalizeAttrValue("Naked and Famous", "brandModel"),
+    "Naked & Famous"
+  );
+  // Non-brand fields still rewrite & → , and leave "and" alone
   assert.equal(normalizeAttrValue("white&blue", "color"), "white, blue");
+  assert.equal(normalizeAttrValue("black and white", "color"), "black and white");
 });
 
 test("brandModel prefers & option over comma form on fold-match", () => {

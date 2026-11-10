@@ -20,7 +20,8 @@ export function lightNormalize(value) {
 /**
  * Rules 1–4: light normalize + delimiter unify + strip trailing . ,
  * Colors stay one string; `/` `|` `;` `&` → `, `.
- * Exception: field === "brandModel" does not rewrite `&` (keep Mey & Edlich, H&M).
+ * Exception: field === "brandModel" keeps `&`, and rewrites ` and ` → ` & `
+ * so Appraise "Rooks and Rocks" lands as "Rooks & Rocks" without needing META.
  */
 export function normalizeAttrValue(value, field) {
   let text = lightNormalize(value);
@@ -29,6 +30,10 @@ export function normalizeAttrValue(value, field) {
   text = text.replace(delim, ", ");
   text = text.replace(/\s+/g, " ").trim();
   text = text.replace(/\s*,\s*/g, ", ");
+  if (field === "brandModel") {
+    text = text.replace(/\s+and\s+/gi, " & ");
+    text = text.replace(/\s+/g, " ").trim();
+  }
   text = text.replace(/[.,]+$/g, "").trim();
   text = text.replace(/(?:,\s*)+$/g, "").trim();
   if (!text) return "";
