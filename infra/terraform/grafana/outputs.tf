@@ -22,8 +22,13 @@ output "grafana_aws_external_id" {
 }
 
 output "cloudwatch_scrape_job_name" {
-  description = "Name of the CloudWatch scrape job in Grafana Cloud (null while enable_cloudwatch_scrape is false)."
+  description = "Name of the eu-north-1 app CloudWatch scrape job (null while enable_cloudwatch_scrape is false)."
   value       = try(grafana_cloud_provider_aws_cloudwatch_scrape_job.dressme[0].name, null)
+}
+
+output "cloudwatch_cloudfront_scrape_job_name" {
+  description = "Name of the us-east-1 CloudFront CloudWatch scrape job (null while enable_cloudwatch_scrape is false)."
+  value       = try(grafana_cloud_provider_aws_cloudwatch_scrape_job.dressme_cloudfront[0].name, null)
 }
 
 output "enable_cloudwatch_scrape" {
