@@ -50,10 +50,23 @@ var STYLE_PACK_V1 = [
   "- Classic menswear: match occasion formality; keep shoe–trouser relationships coherent; avoid costume stacking.",
   "- Function: fabrics/weights vs weather — open-weave/linen lose in cold; waxed/wool suit damp evening outdoors.",
   "- Completeness: every look needs base + bottom (+ footwear when shoes exist). Accessories when context warrants.",
+  "- Slot uniqueness: at most one base, one bottom, one footwear, and one outer/mid-layer per look — never two shoes or two jackets.",
   "- Cold or outdoor evening / garden / patio: prefer a warm layer (coat, blazer, cardigan, knit overshirt) when the catalog has one.",
-  "- Waist finish: looped trousers need a belt, or suspenders/braces when the trousers' aiContext supports them; side-adjuster / beltless trousers are exempt. Prefer belt for casual; suspenders OK when dressy or trousers only support suspenders. Match belt to footwear when using a belt.",
+  "- Waist finish: looped trousers need a belt, or suspenders/braces when the trousers' aiContext supports them; side-adjuster / beltless trousers are exempt. Prefer belt for casual; suspenders OK when dressy or trousers only support suspenders. Match belt to footwear when using a belt. At most one belt (or one suspenders).",
   "- Honor Frank's session context and each item's aiContext. Diversify the N looks. Closet-only — never invent IDs.",
+  "- Title and rationale must describe only the itemIds in that look (attrs + Wada names) — never name a piece that is not listed.",
 ].join("\n");
+
+/** Core (+ waist) slots that may appear at most once per look. */
+var UNIQUE_SLOTS = ["base", "trousers", "footwear", "outer", "belt"];
+
+var FORMALITY_RANK = {
+  "black tie": 5,
+  formal: 4,
+  business: 3,
+  "smart casual": 2,
+  casual: 1,
+};
 
 var COLD_OUTDOOR_RE =
   /\b(cold|cool|chilly|frosty|freezing|winter)\b|\bgarden\b|\bpatio\b|\bterrace\b|\boutdoors?\b|\boutside\b|\bevening\b.{0,48}\b(outdoor|outside|garden|patio|terrace)\b|\b(outdoor|outside|garden|patio|terrace)\b.{0,48}\b(evening|night|cold|cool|chilly)\b/i;
@@ -407,38 +420,108 @@ function classifySlot(item) {
   return null;
 }
 
+function formalityRank(value) {
+  var key = String(value || "")
+    .toLowerCase()
+    .trim();
+  if (!key) return 0;
+  if (FORMALITY_RANK[key] != null) return FORMALITY_RANK[key];
+  if (key.indexOf("black tie") >= 0) return 5;
+  if (key.indexOf("formal") >= 0) return 4;
+  if (key.indexOf("business") >= 0) return 3;
+  if (key.indexOf("smart") >= 0) return 2;
+  if (key.indexOf("casual") >= 0) return 1;
+  return 0;
+}
+
+function lookTargetFormality(ids, byId) {
+  for (var i = 0; i < (ids || []).length; i++) {
+    var record =
+      byId && typeof byId.get === "function" ? byId.get(ids[i]) : null;
+    if (classifySlot(record || {}) === "footwear") {
+      return formalityRank(record && record.formality);
+    }
+  }
+  var best = 0;
+  for (var j = 0; j < (ids || []).length; j++) {
+    var row =
+      byId && typeof byId.get === "function" ? byId.get(ids[j]) : null;
+    best = Math.max(best, formalityRank(row && row.formality));
+  }
+  return best;
+}
+
+function isUniqueSlot(slot) {
+  return UNIQUE_SLOTS.indexOf(slot) >= 0;
+}
+
 /**
- * Keep the first base-slot item; drop later bases. Shirt + sweater stacks are
- * a common Bedrock miss; mandatory-core still requires bottom (+ shoes).
+ * Keep at most one item per unique slot (base, bottom, footwear, outer, belt).
+ * Prefer higher formality match to the look's footwear (else first). Never ship
+ * two shoes / two jackets / two belts.
  */
-function salvageCompetingBases(looks, byId) {
+function enforceSlotUniqueness(looks, byId) {
   var out = [];
   for (var i = 0; i < (looks || []).length; i++) {
     var look = looks[i] || {};
-    var ids =
-      look.itemIds ||
-      (look.items || [])
-        .map(function (item) {
-          return item && item.itemId ? String(item.itemId) : "";
-        })
-        .filter(Boolean);
-    var baseSeen = false;
-    var kept = [];
+    var ids = lookItemIds(look);
+    var targetFormality = lookTargetFormality(ids, byId);
+    var bestBySlot = {};
+    var order = [];
+    var dropped = [];
+
     for (var j = 0; j < ids.length; j++) {
       var id = ids[j];
-      var record = byId && typeof byId.get === "function" ? byId.get(id) : null;
+      var record =
+        byId && typeof byId.get === "function" ? byId.get(id) : null;
       var slot = classifySlot(record || {});
-      if (slot === "base") {
-        if (baseSeen) continue;
-        baseSeen = true;
+      if (!isUniqueSlot(slot)) {
+        order.push(id);
+        continue;
       }
-      kept.push(id);
+      var score = formalityRank(record && record.formality);
+      var match =
+        targetFormality > 0 ? -Math.abs(score - targetFormality) : -j;
+      var prev = bestBySlot[slot];
+      if (!prev) {
+        bestBySlot[slot] = { id: id, match: match, index: j };
+        continue;
+      }
+      if (
+        match > prev.match ||
+        (match === prev.match && j < prev.index)
+      ) {
+        dropped.push(prev.id);
+        bestBySlot[slot] = { id: id, match: match, index: j };
+      } else {
+        dropped.push(id);
+      }
     }
+
+    var keepSet = {};
+    for (var s = 0; s < UNIQUE_SLOTS.length; s++) {
+      var pick = bestBySlot[UNIQUE_SLOTS[s]];
+      if (pick) keepSet[pick.id] = true;
+    }
+    for (var o = 0; o < order.length; o++) keepSet[order[o]] = true;
+
+    var kept = [];
+    for (var k = 0; k < ids.length; k++) {
+      if (keepSet[ids[k]] && kept.indexOf(ids[k]) < 0) kept.push(ids[k]);
+    }
+    if (dropped.length) {
+      console.warn(
+        JSON.stringify({
+          event: "suggest_slot_dedupe",
+          lookId: look.lookId,
+          dropped: dropped,
+        })
+      );
+    }
+
     if (look.itemIds) {
       out.push(Object.assign({}, look, { itemIds: kept }));
     } else if (look.items) {
-      var keepSet = {};
-      for (var k = 0; k < kept.length; k++) keepSet[kept[k]] = true;
       out.push(
         Object.assign({}, look, {
           items: (look.items || []).filter(function (item) {
@@ -451,6 +534,11 @@ function salvageCompetingBases(looks, byId) {
     }
   }
   return out;
+}
+
+/** @deprecated Prefer enforceSlotUniqueness — kept for callers/tests. */
+function salvageCompetingBases(looks, byId) {
+  return enforceSlotUniqueness(looks, byId);
 }
 
 function shuffleInPlace(arr, random) {
@@ -546,6 +634,221 @@ function clampTitle(value) {
   return clampText(raw, MAX_TITLE);
 }
 
+function sameIdList(a, b) {
+  var left = (a || []).map(String);
+  var right = (b || []).map(String);
+  if (left.length !== right.length) return false;
+  for (var i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) return false;
+  }
+  return true;
+}
+
+function itemPrimaryWadaName(item) {
+  var ids = item && Array.isArray(item.wadaColorIds) ? item.wadaColorIds : [];
+  if (!ids.length) return "";
+  var resolved = wadaPalette.resolveWadaColor(String(ids[0] || ""));
+  return resolved && resolved.name ? String(resolved.name) : "";
+}
+
+function itemLabel(item) {
+  var row = item || {};
+  var wada = itemPrimaryWadaName(row);
+  var brand = String(row.brandModel || "").trim();
+  var type = String(row.type || row.outfitRole || "piece").trim();
+  if (brand && type && brand.toLowerCase() !== type.toLowerCase()) {
+    return (wada ? wada + " " : "") + brand;
+  }
+  if (wada && type) return wada + " " + type;
+  return brand || type || "piece";
+}
+
+function significantTokens(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/[\s/-]+/)
+    .filter(function (tok) {
+      return (
+        tok.length >= 4 &&
+        [
+          "with",
+          "from",
+          "this",
+          "that",
+          "look",
+          "pair",
+          "pairs",
+          "piece",
+          "pieces",
+          "outfit",
+          "classic",
+          "navy", // too common alone; still caught via full phrases below
+        ].indexOf(tok) < 0
+      );
+    });
+}
+
+function itemMentionTokens(item) {
+  var row = item || {};
+  var bits = [
+    row.brandModel,
+    row.type,
+    row.outfitRole,
+    itemPrimaryWadaName(row),
+  ];
+  var out = [];
+  var seen = {};
+  for (var i = 0; i < bits.length; i++) {
+    var tokens = significantTokens(bits[i]);
+    for (var t = 0; t < tokens.length; t++) {
+      if (seen[tokens[t]]) continue;
+      seen[tokens[t]] = true;
+      out.push(tokens[t]);
+    }
+  }
+  // Multi-word brand/type phrases (e.g. "leather jacket", "cardigan").
+  var phrases = [row.brandModel, row.type]
+    .map(function (v) {
+      return String(v || "")
+        .toLowerCase()
+        .trim();
+    })
+    .filter(function (v) {
+      return v.length >= 5;
+    });
+  return { tokens: out, phrases: phrases };
+}
+
+/**
+ * True when title/rationale names catalog pieces (or their distinctive labels)
+ * that are not in the final look — classic cardigan-copy / jacket-photo miss.
+ */
+function copyMentionsForeignPieces(title, rationale, finalIds, byId, catalog) {
+  var finalSet = {};
+  for (var i = 0; i < (finalIds || []).length; i++) {
+    finalSet[String(finalIds[i])] = true;
+  }
+  var copy = String(title || "") + " " + String(rationale || "");
+  var lower = copy.toLowerCase();
+  if (!lower.trim()) return false;
+
+  // Explicit catalog IDs in copy that are not final.
+  for (var c = 0; c < (catalog || []).length; c++) {
+    var item = catalog[c];
+    if (!item || !item.itemId) continue;
+    var id = String(item.itemId);
+    if (finalSet[id]) continue;
+    if (lower.indexOf(id.toLowerCase()) >= 0) return true;
+    var mentions = itemMentionTokens(item);
+    for (var p = 0; p < mentions.phrases.length; p++) {
+      if (lower.indexOf(mentions.phrases[p]) >= 0) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Deterministic title + rationale from final pieces only (attrs + Wada names).
+ */
+function rewriteLookCopy(look, byId) {
+  var ids = lookItemIds(look);
+  var pieces = ids
+    .map(function (id) {
+      return byId && typeof byId.get === "function" ? byId.get(id) : null;
+    })
+    .filter(Boolean);
+  var anchor = null;
+  for (var i = 0; i < pieces.length; i++) {
+    if (classifySlot(pieces[i]) === "outer") {
+      anchor = pieces[i];
+      break;
+    }
+  }
+  if (!anchor) {
+    for (var b = 0; b < pieces.length; b++) {
+      if (classifySlot(pieces[b]) === "base") {
+        anchor = pieces[b];
+        break;
+      }
+    }
+  }
+  if (!anchor && pieces.length) anchor = pieces[0];
+
+  var titleSeed = anchor
+    ? itemLabel(anchor)
+        .replace(/\s+/g, " ")
+        .trim()
+    : "Closet look";
+  // Short catchy title from the anchor piece.
+  var title = clampTitle(titleSeed);
+
+  var labels = pieces.map(itemLabel);
+  var rationale;
+  if (!labels.length) {
+    rationale = "";
+  } else if (labels.length === 1) {
+    rationale = clampText(
+      "Built around " + labels[0] + " from your closet.",
+      MAX_RATIONALE
+    );
+  } else if (labels.length === 2) {
+    rationale = clampText(
+      "Pairs " + labels[0] + " with " + labels[1] + " for this occasion.",
+      MAX_RATIONALE
+    );
+  } else {
+    var head = labels.slice(0, labels.length - 1).join(", ");
+    var tail = labels[labels.length - 1];
+    rationale = clampText(
+      "Pairs " + head + ", and " + tail + " for this occasion.",
+      MAX_RATIONALE
+    );
+  }
+
+  return Object.assign({}, look, { title: title, rationale: rationale });
+}
+
+/**
+ * After salvage/repair, rewrite title/rationale when IDs changed or copy names
+ * pieces that are not in the final look.
+ */
+function syncLookCopy(look, priorIds, byId, catalog) {
+  var finalIds = lookItemIds(look);
+  var changed = !sameIdList(priorIds, finalIds);
+  var foreign = copyMentionsForeignPieces(
+    look && look.title,
+    look && look.rationale,
+    finalIds,
+    byId,
+    catalog
+  );
+  if (!changed && !foreign) return look;
+  console.warn(
+    JSON.stringify({
+      event: "suggest_copy_rewrite",
+      lookId: look && look.lookId,
+      reason: changed ? "ids_changed" : "foreign_copy",
+    })
+  );
+  return rewriteLookCopy(look, byId);
+}
+
+function syncLooksCopy(looks, priorIdLists, byId, catalog) {
+  var out = [];
+  for (var i = 0; i < (looks || []).length; i++) {
+    out.push(
+      syncLookCopy(
+        looks[i],
+        (priorIdLists && priorIdLists[i]) || lookItemIds(looks[i]),
+        byId,
+        catalog
+      )
+    );
+  }
+  return out;
+}
+
 /**
  * Catalog has ≥1 footwear item → footwear is mandatory core for every look.
  */
@@ -570,22 +873,26 @@ function lookCompleteness(itemIds, byId, options) {
   var hasBase = false;
   var hasTrousers = false;
   var hasFootwear = false;
-  var baseCount = 0;
+  var slotCounts = {};
   for (var j = 0; j < (itemIds || []).length; j++) {
     var record = byId.get(itemIds[j]);
     var slot = classifySlot(record || {});
-    if (slot === "base") {
-      hasBase = true;
-      baseCount += 1;
-    }
+    if (slot === "base") hasBase = true;
     if (slot === "trousers") hasTrousers = true;
     if (slot === "footwear") hasFootwear = true;
+    if (isUniqueSlot(slot)) {
+      slotCounts[slot] = (slotCounts[slot] || 0) + 1;
+    }
   }
   var reasons = [];
   if (!hasBase) reasons.push("missing_base");
   if (!hasTrousers) reasons.push("missing_trousers");
   if (opts.requireFootwear && !hasFootwear) reasons.push("missing_footwear");
-  if (baseCount > 1) reasons.push("competing_bases");
+  if ((slotCounts.base || 0) > 1) reasons.push("competing_bases");
+  if ((slotCounts.footwear || 0) > 1) reasons.push("duplicate_footwear");
+  if ((slotCounts.trousers || 0) > 1) reasons.push("duplicate_trousers");
+  if ((slotCounts.outer || 0) > 1) reasons.push("duplicate_outer");
+  if ((slotCounts.belt || 0) > 1) reasons.push("duplicate_belt");
   if (opts.requireColdLayer && !lookHasOuterLayer(itemIds, byId)) {
     reasons.push("missing_layer_for_cold");
   }
@@ -883,7 +1190,10 @@ function backfillLooksDeterministic(existing, catalog, context, lookCount) {
         .filter(Boolean),
     };
   });
+  var prior = asIds.map(lookItemIds);
   var repaired = repairLooksLocally(asIds, byId, allCatalog, context);
+  repaired.looks = enforceSlotUniqueness(repaired.looks, byId);
+  repaired.looks = syncLooksCopy(repaired.looks, prior, byId, allCatalog);
   var complete = filterCompleteLooks(
     repaired.looks,
     byId,
@@ -1145,10 +1455,12 @@ function systemPrompt(lookCount) {
     "Each look: ordered itemIds (catalog id strings) + title (3–5 word catchy name for the look's key idea, ≤48 chars) + rationale (1–3 short sentences,",
     "plain language, why these pieces fit THIS context).",
     "Each look MUST include the mandatory core: base (shirt/knit/polo/tee) + bottom (trousers/jeans/chinos/shorts), plus footwear when shoes exist in the catalog.",
-    "Do not stack two competing tops (e.g. two shirts, or shirt + polo) as the whole look; at most one base. Outerwear may layer over that single base.",
+    "Slot uniqueness: at most one base, one bottom, one footwear, and one outer/mid-layer per look. Never two shoes, two jackets, or two competing tops.",
+    "Outerwear may layer over a single base. Distinct accessory types (hat, scarf, etc.) may co-exist; still at most one belt or suspenders.",
     "When context is cold / cool / outdoor evening / garden / patio, include a warm outer or mid layer when the catalog has candidates.",
     "When trousers need a waist finish (not side-adjuster/beltless), include a belt — or suspenders/braces when the trousers' aiContext supports them.",
     "Accessories beyond waist finish remain optional — hat, scarf, jewelry, bag, neckwear, etc. Add them when they improve the look or fit the occasion.",
+    "Title and rationale must name only pieces present in that look's itemIds (use type / brandModel / Wada colour). Never describe a cardigan if the look's outer is a leather jacket.",
     "Never return a look that is only tops, only bottoms, or missing a bottom when trousers/jeans/shorts exist in the catalog.",
     "If the catalog lacks a mandatory slot class (e.g. no footwear at all), omit that slot rather than inventing IDs — still require every available mandatory-core slot.",
     "Diversify across the " +
@@ -1185,10 +1497,11 @@ function completenessRepairNote(incomplete, lookCount) {
     "These looks failed completeness: " +
     bits.join("; ") +
     ". Fix each look: include base + bottom" +
-    " (+ footwear when the catalog has shoes). At most one base; outer may layer." +
+    " (+ footwear when the catalog has shoes). At most one base, one bottom, one footwear, one outer; outer may layer." +
+    " If duplicate_footwear / duplicate_outer / competing_bases: keep a single piece in that slot." +
     " If missing_layer_for_cold: add a warm outer/mid layer from the catalog." +
     " If missing_waist_finish: add a belt, or suspenders when trousers support them." +
-    " Other accessories remain optional." +
+    " Other accessories remain optional. Titles/rationales must match the final itemIds only." +
     " Return " +
     count +
     " complete looks with valid itemIds and short titles."
@@ -1414,7 +1727,8 @@ async function assembleWithBedrock(catalog, input) {
     });
   }
 
-  validated.looks = salvageCompetingBases(validated.looks, byId);
+  var priorIdsBeforeDedupe = (validated.looks || []).map(lookItemIds);
+  validated.looks = enforceSlotUniqueness(validated.looks, byId);
   var completeness = assertLooksComplete(
     validated.looks,
     byId,
@@ -1436,7 +1750,8 @@ async function assembleWithBedrock(catalog, input) {
         allowedIds,
         lookCount
       );
-      validated.looks = salvageCompetingBases(validated.looks, byId);
+      priorIdsBeforeDedupe = (validated.looks || []).map(lookItemIds);
+      validated.looks = enforceSlotUniqueness(validated.looks, byId);
     } catch (_repairErr) {
       console.warn(
         JSON.stringify({
@@ -1458,6 +1773,13 @@ async function assembleWithBedrock(catalog, input) {
   }
 
   var local = repairLooksLocally(validated.looks, byId, catalog, context);
+  local.looks = enforceSlotUniqueness(local.looks, byId);
+  local.looks = syncLooksCopy(
+    local.looks,
+    priorIdsBeforeDedupe,
+    byId,
+    catalog
+  );
   var completeLooks = filterCompleteLooks(
     local.looks,
     byId,
@@ -1501,12 +1823,20 @@ async function assembleWithBedrock(catalog, input) {
         allowedIds,
         missing
       );
-      fillValidated.looks = salvageCompetingBases(fillValidated.looks, byId);
+      fillValidated.looks = enforceSlotUniqueness(fillValidated.looks, byId);
+      var fillPrior = (fillValidated.looks || []).map(lookItemIds);
       var fillLocal = repairLooksLocally(
         fillValidated.looks,
         byId,
         catalog,
         context
+      );
+      fillLocal.looks = enforceSlotUniqueness(fillLocal.looks, byId);
+      fillLocal.looks = syncLooksCopy(
+        fillLocal.looks,
+        fillPrior,
+        byId,
+        catalog
       );
       var fillComplete = filterCompleteLooks(
         fillLocal.looks,
@@ -1802,7 +2132,13 @@ exports.MAX_TITLE = MAX_TITLE;
 exports.SLOT_DEFS = SLOT_DEFS;
 exports.STYLE_PACK_V1 = STYLE_PACK_V1;
 exports.classifySlot = classifySlot;
+exports.UNIQUE_SLOTS = UNIQUE_SLOTS;
+exports.enforceSlotUniqueness = enforceSlotUniqueness;
 exports.salvageCompetingBases = salvageCompetingBases;
+exports.rewriteLookCopy = rewriteLookCopy;
+exports.syncLookCopy = syncLookCopy;
+exports.syncLooksCopy = syncLooksCopy;
+exports.copyMentionsForeignPieces = copyMentionsForeignPieces;
 exports.assembleRandomLooks = assembleRandomLooks;
 exports.assembleWithBedrock = assembleWithBedrock;
 exports.serializeCatalogForPrompt = serializeCatalogForPrompt;
