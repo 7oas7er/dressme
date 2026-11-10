@@ -27,7 +27,8 @@ var MAX_LOOK_COUNT = 8;
 var LOOK_COUNT = DEFAULT_LOOK_COUNT;
 var MAX_CONTEXT = 480;
 var MAX_LEGACY_FIELD = 240;
-var MAX_RATIONALE = 400;
+/** Room for 2–4 thoughtful advice sentences after copy sync. */
+var MAX_RATIONALE = 560;
 var MAX_TITLE = 48;
 var MAX_AI_CONTEXT_PROMPT = 300;
 var SOFT_CATALOG_CAP = 80;
@@ -54,7 +55,7 @@ var STYLE_PACK_V1 = [
   "- Cold or outdoor evening / garden / patio: prefer a warm layer (coat, blazer, cardigan, knit overshirt) when the catalog has one.",
   "- Waist finish: looped trousers need a belt, or suspenders/braces when the trousers' aiContext supports them; side-adjuster / beltless trousers are exempt. Prefer belt for casual; suspenders OK when dressy or trousers only support suspenders. Match belt to footwear when using a belt. At most one belt (or one suspenders).",
   "- Honor Frank's session context and each item's aiContext. Diversify the N looks. Closet-only — never invent IDs.",
-  "- Title and rationale must describe only the itemIds in that look (attrs + Wada names) — never name a piece that is not listed.",
+  "- Title and rationale must describe only the itemIds in that look (attrs + Wada names) — never name a piece that is not listed. Titles stay catchy but full; rationales are 2–4 thoughtful sentences (occasion/weather, materials, palette), not telegraphic one-liners.",
 ].join("\n");
 
 /** Core (+ waist) slots that may appear at most once per look. */
@@ -748,10 +749,56 @@ function copyMentionsForeignPieces(title, rationale, finalIds, byId, catalog) {
   return false;
 }
 
+/** Short occasion/weather cue from session context (for titles + prose). */
+function contextCue(context) {
+  var text = String(context || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "";
+  text = text
+    .replace(
+      /\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:looks?|outfits?|suggestions?|options?)\b/gi,
+      " "
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+  var clause = text.split(/[.;]/)[0] || text;
+  return clampText(clause.trim(), 64);
+}
+
+function pieceDetail(item) {
+  var label = itemLabel(item);
+  var fabric = String((item && item.fabric) || "").trim();
+  if (
+    fabric &&
+    label.toLowerCase().indexOf(fabric.toLowerCase()) < 0
+  ) {
+    return label + " in " + fabric;
+  }
+  return label;
+}
+
+function uniqueNonEmpty(values) {
+  var out = [];
+  var seen = {};
+  for (var i = 0; i < (values || []).length; i++) {
+    var v = String(values[i] || "").trim();
+    if (!v) continue;
+    var key = v.toLowerCase();
+    if (seen[key]) continue;
+    seen[key] = true;
+    out.push(v);
+  }
+  return out;
+}
+
 /**
  * Deterministic title + rationale from final pieces only (attrs + Wada names).
+ * Verbose on purpose: catchy full titles; 2–4 advice sentences (occasion /
+ * weather, materials, palette, why the set works) — Sonnet-like tone without
+ * a second Bedrock call after slot repair.
  */
-function rewriteLookCopy(look, byId) {
+function rewriteLookCopy(look, byId, context) {
   var ids = lookItemIds(look);
   var pieces = ids
     .map(function (id) {
@@ -775,37 +822,111 @@ function rewriteLookCopy(look, byId) {
   }
   if (!anchor && pieces.length) anchor = pieces[0];
 
-  var titleSeed = anchor
-    ? itemLabel(anchor)
-        .replace(/\s+/g, " ")
-        .trim()
-    : "Closet look";
-  // Short catchy title from the anchor piece.
+  var cue = contextCue(context);
+  var cold = contextNeedsColdLayer(context);
+  var titleSeed;
+  if (anchor) {
+    var anchorCore = itemLabel(anchor).replace(/\s+/g, " ").trim();
+    var mood = "";
+    if (/\bgarden\b|\bpatio\b|\bterrace\b/i.test(cue)) mood = "Garden";
+    else if (/\blunch\b|\bdinner\b|\bclient\b/i.test(cue)) mood = "Lunch";
+    else if (/\bevening\b|\bnight\b/i.test(cue)) mood = "Evening";
+    else if (cold) mood = "Layered";
+    titleSeed = mood ? clampTitle(anchorCore + " " + mood) : anchorCore;
+    // Prefer a fuller catchy title when mood fit still leaves headroom.
+    if (!mood && cue) {
+      var cueWord = cue.split(/\s+/).slice(0, 2).join(" ");
+      if (cueWord && titleSeed.length + cueWord.length + 1 <= MAX_TITLE) {
+        titleSeed = titleSeed + " " + cueWord;
+      }
+    }
+  } else {
+    titleSeed = cue ? cue : "Closet look";
+  }
   var title = clampTitle(titleSeed);
 
-  var labels = pieces.map(itemLabel);
-  var rationale;
-  if (!labels.length) {
-    rationale = "";
-  } else if (labels.length === 1) {
-    rationale = clampText(
-      "Built around " + labels[0] + " from your closet.",
-      MAX_RATIONALE
+  var details = pieces.map(pieceDetail);
+  var wadaNames = uniqueNonEmpty(pieces.map(itemPrimaryWadaName));
+  var fabrics = uniqueNonEmpty(
+    pieces.map(function (p) {
+      return p && p.fabric;
+    })
+  );
+  var sentences = [];
+  if (!details.length) {
+    return Object.assign({}, look, { title: title, rationale: "" });
+  }
+
+  var occasionBit = cue
+    ? "for " + cue
+    : cold
+      ? "for cool outdoor air"
+      : "for this occasion";
+  if (details.length === 1) {
+    sentences.push(
+      "Built around " + details[0] + " from your closet " + occasionBit + "."
     );
-  } else if (labels.length === 2) {
-    rationale = clampText(
-      "Pairs " + labels[0] + " with " + labels[1] + " for this occasion.",
-      MAX_RATIONALE
+  } else if (anchor) {
+    var support = pieces
+      .filter(function (p) {
+        return p !== anchor;
+      })
+      .map(pieceDetail)
+      .slice(0, 3);
+    sentences.push(
+      pieceDetail(anchor) +
+        " anchors the look " +
+        occasionBit +
+        (support.length
+          ? ", with " + support.join(", ") + " keeping the line coherent."
+          : ".")
     );
   } else {
-    var head = labels.slice(0, labels.length - 1).join(", ");
-    var tail = labels[labels.length - 1];
-    rationale = clampText(
-      "Pairs " + head + ", and " + tail + " for this occasion.",
-      MAX_RATIONALE
+    sentences.push(
+      "Pairs " +
+        details.slice(0, details.length - 1).join(", ") +
+        (details.length > 1 ? ", and " + details[details.length - 1] : "") +
+        " " +
+        occasionBit +
+        "."
     );
   }
 
+  if (cold && anchor && classifySlot(anchor) === "outer") {
+    sentences.push(
+      "The outer layer earns its place against the chill without turning the rest of the closet theatrical."
+    );
+  } else if (fabrics.length) {
+    sentences.push(
+      "Materials stay honest for the brief: " +
+        fabrics.slice(0, 3).join(", ") +
+        " read as classic menswear rather than costume."
+    );
+  } else {
+    sentences.push(
+      "Shoe–trouser formality and the base layer stay aligned so nothing fights the occasion."
+    );
+  }
+
+  if (wadaNames.length >= 2) {
+    sentences.push(
+      "Palette-wise, " +
+        wadaNames.slice(0, 3).join(", ") +
+        " keep the true-color story tidy across the pieces you actually wear."
+    );
+  } else if (wadaNames.length === 1) {
+    sentences.push(
+      "Primary Wada " +
+        wadaNames[0] +
+        " gives the set a clear colour centre without inventing hues."
+    );
+  } else if (details.length >= 3) {
+    sentences.push(
+      "Each listed piece pulls weight: nothing ornamental, nothing missing from the photos."
+    );
+  }
+
+  var rationale = clampText(sentences.slice(0, 4).join(" "), MAX_RATIONALE);
   return Object.assign({}, look, { title: title, rationale: rationale });
 }
 
@@ -813,7 +934,7 @@ function rewriteLookCopy(look, byId) {
  * After salvage/repair, rewrite title/rationale when IDs changed or copy names
  * pieces that are not in the final look.
  */
-function syncLookCopy(look, priorIds, byId, catalog) {
+function syncLookCopy(look, priorIds, byId, catalog, context) {
   var finalIds = lookItemIds(look);
   var changed = !sameIdList(priorIds, finalIds);
   var foreign = copyMentionsForeignPieces(
@@ -831,10 +952,10 @@ function syncLookCopy(look, priorIds, byId, catalog) {
       reason: changed ? "ids_changed" : "foreign_copy",
     })
   );
-  return rewriteLookCopy(look, byId);
+  return rewriteLookCopy(look, byId, context);
 }
 
-function syncLooksCopy(looks, priorIdLists, byId, catalog) {
+function syncLooksCopy(looks, priorIdLists, byId, catalog, context) {
   var out = [];
   for (var i = 0; i < (looks || []).length; i++) {
     out.push(
@@ -842,7 +963,8 @@ function syncLooksCopy(looks, priorIdLists, byId, catalog) {
         looks[i],
         (priorIdLists && priorIdLists[i]) || lookItemIds(looks[i]),
         byId,
-        catalog
+        catalog,
+        context
       )
     );
   }
@@ -1193,7 +1315,13 @@ function backfillLooksDeterministic(existing, catalog, context, lookCount) {
   var prior = asIds.map(lookItemIds);
   var repaired = repairLooksLocally(asIds, byId, allCatalog, context);
   repaired.looks = enforceSlotUniqueness(repaired.looks, byId);
-  repaired.looks = syncLooksCopy(repaired.looks, prior, byId, allCatalog);
+  repaired.looks = syncLooksCopy(
+    repaired.looks,
+    prior,
+    byId,
+    allCatalog,
+    context
+  );
   var complete = filterCompleteLooks(
     repaired.looks,
     byId,
@@ -1452,8 +1580,8 @@ function systemPrompt(lookCount) {
     "Return exactly " +
       count +
       " distinct looks as JSON only (no prose outside JSON).",
-    "Each look: ordered itemIds (catalog id strings) + title (3–5 word catchy name for the look's key idea, ≤48 chars) + rationale (1–3 short sentences,",
-    "plain language, why these pieces fit THIS context).",
+    "Each look: ordered itemIds (catalog id strings) + title (catchy but full name for the look's key idea, about 3–7 words, ≤48 chars) + rationale (2–4 sentences of thoughtful menswear advice:",
+    "occasion/weather, materials, Wada/palette harmony, and why these pieces work together — plain language, only from this look's itemIds).",
     "Each look MUST include the mandatory core: base (shirt/knit/polo/tee) + bottom (trousers/jeans/chinos/shorts), plus footwear when shoes exist in the catalog.",
     "Slot uniqueness: at most one base, one bottom, one footwear, and one outer/mid-layer per look. Never two shoes, two jackets, or two competing tops.",
     "Outerwear may layer over a single base. Distinct accessory types (hat, scarf, etc.) may co-exist; still at most one belt or suspenders.",
@@ -1501,10 +1629,10 @@ function completenessRepairNote(incomplete, lookCount) {
     " If duplicate_footwear / duplicate_outer / competing_bases: keep a single piece in that slot." +
     " If missing_layer_for_cold: add a warm outer/mid layer from the catalog." +
     " If missing_waist_finish: add a belt, or suspenders when trousers support them." +
-    " Other accessories remain optional. Titles/rationales must match the final itemIds only." +
+    " Other accessories remain optional. Titles/rationales must match the final itemIds only — keep titles catchy but full and rationales 2–4 thoughtful sentences (not one-liners)." +
     " Return " +
     count +
-    " complete looks with valid itemIds and short titles."
+    " complete looks with valid itemIds."
   );
 }
 
@@ -1778,7 +1906,8 @@ async function assembleWithBedrock(catalog, input) {
     local.looks,
     priorIdsBeforeDedupe,
     byId,
-    catalog
+    catalog,
+    context
   );
   var completeLooks = filterCompleteLooks(
     local.looks,
@@ -1836,7 +1965,8 @@ async function assembleWithBedrock(catalog, input) {
         fillLocal.looks,
         fillPrior,
         byId,
-        catalog
+        catalog,
+        context
       );
       var fillComplete = filterCompleteLooks(
         fillLocal.looks,

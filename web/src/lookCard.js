@@ -5,7 +5,7 @@
 
 import { buildLookVisual } from "./lookLayout.js";
 import { lookHeadline, lookSummary } from "./suggest.js";
-import { lookWadaPlateEntries } from "./lookWadaPlate.js";
+import { primaryWadaPlateEntry } from "./lookWadaPlate.js";
 import { sampleThumb } from "./thumbSample.js";
 
 function el(tag, attrs = {}, children = []) {
@@ -486,30 +486,28 @@ function applyThumbSamples(defs, lookIndex, panelRefs) {
 /** Later hero: Option D SVG mannequin (un-wired from the photos-only card). */
 export { renderMannequinSvg };
 
-function renderWadaPlate(entries) {
-  if (!entries || !entries.length) return null;
-  const plate = el("div", {
-    className: "look-wada-plate",
-    role: "list",
-    "aria-label": "Wada colour plate",
+function renderWadaSwatch(entry, { empty = false } = {}) {
+  const cell = el("div", {
+    className: empty
+      ? "look-wada-swatch look-wada-swatch--empty"
+      : "look-wada-swatch",
   });
-  for (const entry of entries) {
-    const cell = el("div", {
-      className: "look-wada-swatch",
-      role: "listitem",
-    });
-    cell.append(
-      el("div", {
-        className: "look-wada-block",
-        title: entry.name,
-        "aria-label": entry.name,
-        style: `background:${entry.hex}`,
-      }),
-      el("span", { className: "look-wada-name", text: entry.name })
-    );
-    plate.append(cell);
+  if (empty || !entry) {
+    cell.setAttribute("aria-hidden", "true");
+    cell.append(el("div", { className: "look-wada-block" }));
+    cell.append(el("span", { className: "look-wada-name", text: "\u00a0" }));
+    return cell;
   }
-  return plate;
+  cell.append(
+    el("div", {
+      className: "look-wada-block",
+      title: entry.name,
+      "aria-label": entry.name,
+      style: `background:${entry.hex}`,
+    }),
+    el("span", { className: "look-wada-name", text: entry.name })
+  );
+  return cell;
 }
 
 function itemById(look, itemId) {
@@ -554,6 +552,8 @@ function renderPieceThumb(layer, look, onItemOpen) {
 
 /**
  * Build one look card DOM node (Wada plate + enlarged tappable photos + rationale).
+ * Plate swatches share columns with the photo strip so each colour sits directly
+ * above its piece (strip order; no separate reordered plate).
  * @param {object} look
  * @param {number} index
  * @param {{ onItemOpen?: (item: object) => void }} [options]
@@ -571,35 +571,49 @@ export function renderLookCard(look, index = 0, options = {}) {
     el("p", { className: "muted look-summary", text: lookSummary(look) })
   );
 
-  const plate = renderWadaPlate(lookWadaPlateEntries((look && look.items) || []));
-  if (plate) lookEl.append(plate);
-
   const body = el("div", {
     className: "look-body",
     role: "group",
     "aria-label": `${headline} pieces`,
   });
 
+  const stripItems = (visual.strip || []).map((layer) =>
+    itemById(look, layer.itemId)
+  );
+  const showPlate = stripItems.some((item) => Boolean(primaryWadaPlateEntry(item)));
+
   const pieces = el("div", {
-    className: "look-pieces",
+    className: showPlate ? "look-pieces look-pieces--with-plate" : "look-pieces",
     role: "list",
-    "aria-label": "Look piece photos",
+    "aria-label": showPlate
+      ? "Look Wada colours and piece photos"
+      : "Look piece photos",
   });
   if (!visual.strip.length) {
     pieces.append(el("p", { className: "muted", text: "No photos" }));
   } else {
     for (const layer of visual.strip) {
-      const item = renderPieceThumb(layer, look, onItemOpen);
-      item.setAttribute("role", "listitem");
-      pieces.append(item);
+      const item = itemById(look, layer.itemId);
+      const col = el("div", {
+        className: "look-piece-col",
+        role: "listitem",
+      });
+      if (showPlate) {
+        const entry = primaryWadaPlateEntry(item);
+        col.append(
+          renderWadaSwatch(entry, { empty: !entry })
+        );
+      }
+      col.append(renderPieceThumb(layer, look, onItemOpen));
+      pieces.append(col);
     }
   }
 
   body.append(pieces);
   lookEl.append(body);
 
-  // UC-09: Bedrock rationale below the look body.
-  const rationale = String((look && look.rationale) || "").trim().slice(0, 400);
+  // UC-09: Bedrock rationale below the look body (matches Lambda MAX_RATIONALE).
+  const rationale = String((look && look.rationale) || "").trim().slice(0, 560);
   if (rationale) {
     lookEl.append(
       el("p", {

@@ -326,10 +326,25 @@ test("renderLookCard DOM is photos-only with Wada plate and tappable pieces", ()
   assert.ok(card.querySelector(".look-body"));
   assert.equal(card.querySelector(".look-mannequin"), null);
   assert.equal(card.querySelector(".look-hero"), null);
-  assert.ok(card.querySelector(".look-wada-plate"));
+  assert.ok(card.querySelector(".look-pieces--with-plate"));
   assert.ok(card.querySelectorAll(".look-wada-swatch").length >= 1);
   assert.ok(card.querySelector(".look-pieces"));
+  assert.equal(card.querySelectorAll(".look-piece-col").length, 5);
   assert.equal(card.querySelectorAll(".look-piece").length, 5);
+  // Plate columns follow photo strip order (jacket → shirt → trousers → shoes → belt).
+  const cols = [...card.querySelectorAll(".look-piece-col")];
+  const stripIds = cols.map((col) =>
+    col.querySelector(".look-piece")?.getAttribute("data-item-id")
+  );
+  assert.deepEqual(stripIds, ["jk", "si", "tr", "sh", "be"]);
+  const swatchOverJacket = cols[0].querySelector(".look-wada-swatch");
+  assert.ok(swatchOverJacket);
+  assert.doesNotMatch(swatchOverJacket.className || "", /look-wada-swatch--empty/);
+  assert.match(
+    swatchOverJacket.querySelector(".look-wada-name")?.textContent || "",
+    /Seashell Pink|Pink/i
+  );
+  assert.ok(cols[1].querySelector(".look-wada-swatch--empty"));
   assert.ok(card.querySelectorAll(".look-piece-btn").length >= 1);
   const rationale = card.querySelector(".look-rationale");
   assert.ok(rationale);
