@@ -476,10 +476,229 @@ test("rewriteLookCopy is occasion-led and never pastes raw session context", fun
   assert.ok(!/I would like you to create/i.test(rewritten.rationale));
   assert.ok(!/^Dark Tyrian Blue Rooks/i.test(rewritten.title));
   assert.match(rewritten.title, /board/i);
-  assert.match(rewritten.rationale, /board|For /i);
+  assert.match(rewritten.rationale, /board/i);
+  assert.ok(!/anchors the look/i.test(rewritten.rationale));
+  assert.ok(!/Materials stay honest/i.test(rewritten.rationale));
+  assert.ok(!/Palette-wise,/i.test(rewritten.rationale));
   var sentences = rewritten.rationale.split(/(?<=\.)\s+/).filter(Boolean);
   assert.ok(sentences.length >= 2, rewritten.rationale);
   assert.ok(sentences.length <= 4, rewritten.rationale);
+  assert.equal(
+    suggest.copyLooksFormulaic(
+      "Board day navy",
+      "Dark Tyrian Blue Rooks & Rocks in wool anchors the look, with White Eterna. Materials stay honest for the brief: wool, cotton. Palette-wise, Dark Tyrian Blue, White keep the true-color story tidy."
+    ),
+    true
+  );
+  assert.equal(
+    suggest.copyLooksFormulaic(
+      "Board day navy",
+      "Board day leans on a navy blazer, backed by a white oxford."
+    ),
+    false
+  );
+});
+
+test("beltFootwearMatchScore prefers matching leather tones", function () {
+  var blackShoes = {
+    itemId: "bugatti",
+    outfitRole: "footwear",
+    type: "shoes",
+    brandModel: "Bugatti",
+    fabric: "black leather",
+    wadaColorIds: [],
+  };
+  var brownShoes = {
+    itemId: "lloyd",
+    outfitRole: "footwear",
+    type: "shoes",
+    brandModel: "Lloyd",
+    fabric: "brown leather",
+  };
+  var blackBelt = {
+    itemId: "belt-black",
+    outfitRole: "belt",
+    type: "leather belt",
+    fabric: "black leather",
+  };
+  var brownBelt = {
+    itemId: "belt-brown",
+    outfitRole: "belt",
+    type: "leather belt",
+    aiContext: "cognac brown dress belt",
+  };
+  assert.equal(suggest.leatherToneFamily(blackShoes), "black");
+  assert.equal(suggest.leatherToneFamily(brownBelt), "brown");
+  assert.ok(
+    suggest.beltFootwearMatchScore(blackBelt, blackShoes) >
+      suggest.beltFootwearMatchScore(brownBelt, blackShoes)
+  );
+  assert.ok(
+    suggest.beltFootwearMatchScore(brownBelt, brownShoes) >
+      suggest.beltFootwearMatchScore(blackBelt, brownShoes)
+  );
+});
+
+test("repairBeltFootwearMatch swaps mismatched belt for matching unused belt", function () {
+  var catalog = [
+    {
+      itemId: "shirt1",
+      outfitRole: "shirt",
+      type: "shirt",
+      formality: "business",
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "trousers",
+      aiContext: "belt loops",
+      formality: "business",
+    },
+    {
+      itemId: "shoe-black",
+      outfitRole: "footwear",
+      type: "shoes",
+      brandModel: "Bugatti",
+      fabric: "black leather",
+      formality: "business",
+    },
+    {
+      itemId: "belt-brown",
+      outfitRole: "belt",
+      type: "leather belt",
+      fabric: "brown leather",
+    },
+    {
+      itemId: "belt-black",
+      outfitRole: "belt",
+      type: "leather belt",
+      fabric: "black leather",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var repaired = suggest.repairBeltFootwearMatch(
+    [
+      {
+        lookId: "1",
+        title: "Board",
+        rationale: "",
+        itemIds: ["shirt1", "pants1", "shoe-black", "belt-brown"],
+      },
+    ],
+    byId,
+    catalog
+  );
+  assert.ok(repaired.repairs >= 1);
+  assert.ok(repaired.looks[0].itemIds.indexOf("belt-black") >= 0);
+  assert.ok(repaired.looks[0].itemIds.indexOf("belt-brown") < 0);
+});
+
+test("repairBeltFootwearMatch drops mismatched belt when trousers are beltless", function () {
+  var catalog = [
+    { itemId: "shirt1", outfitRole: "shirt", type: "shirt" },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "trousers",
+      aiContext: "side-adjusters; no belt needed.",
+    },
+    {
+      itemId: "shoe-black",
+      outfitRole: "footwear",
+      type: "shoes",
+      fabric: "black leather",
+    },
+    {
+      itemId: "belt-brown",
+      outfitRole: "belt",
+      type: "leather belt",
+      fabric: "brown leather",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var repaired = suggest.repairBeltFootwearMatch(
+    [
+      {
+        lookId: "1",
+        itemIds: ["shirt1", "pants1", "shoe-black", "belt-brown"],
+      },
+    ],
+    byId,
+    catalog
+  );
+  assert.ok(repaired.repairs >= 1);
+  assert.ok(repaired.looks[0].itemIds.indexOf("belt-brown") < 0);
+});
+
+test("pickWaistFinish prefers belt matching footwear leather tone", function () {
+  var catalog = [
+    { itemId: "shirt1", outfitRole: "shirt", type: "oxford" },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "chinos",
+      aiContext: "belt loops",
+    },
+    {
+      itemId: "shoe-black",
+      outfitRole: "footwear",
+      type: "shoes",
+      fabric: "black leather",
+      formality: "business",
+    },
+    {
+      itemId: "belt-brown",
+      outfitRole: "belt",
+      type: "leather belt",
+      fabric: "brown leather",
+      formality: "business",
+    },
+    {
+      itemId: "belt-black",
+      outfitRole: "belt",
+      type: "leather belt",
+      fabric: "black leather",
+      formality: "business",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var repaired = suggest.repairLookLocally(
+    {
+      lookId: "1",
+      itemIds: ["shirt1", "pants1", "shoe-black"],
+    },
+    byId,
+    catalog,
+    "board meeting",
+    new Set()
+  );
+  assert.ok(repaired.repairs.includes("attach_waist_finish"));
+  assert.ok(repaired.look.itemIds.indexOf("belt-black") >= 0);
+  assert.ok(repaired.look.itemIds.indexOf("belt-brown") < 0);
+});
+
+test("publicOccasions strips bodies for API/export", function () {
+  var brief = suggest.parseTripBrief(
+    "Day 1: train and dinner. Day 2: board meeting. Day 3: casual train home.",
+    3
+  );
+  var rows = suggest.publicOccasions(brief);
+  assert.equal(rows.length, 3);
+  assert.equal(rows[1].shortTitle.toLowerCase().indexOf("board") >= 0, true);
+  assert.equal(rows[0].body, undefined);
+  assert.ok(rows[0].formalityHint || rows[1].formalityHint);
 });
 
 test("parsePackingLimits defaults for trip language and parses bundled luggage", function () {
@@ -792,6 +1011,7 @@ test("systemPrompt mentions Wada colour reference and mandatory core", function 
   assert.match(prompt, /DressMe style pack v1/);
   assert.match(prompt, /Soft Sanzo Wada combination prior/);
   assert.match(prompt, /missing_waist_finish|waist finish|suspenders/i);
+  assert.match(prompt, /Match belt leather tone|brown belt with black/i);
   assert.match(prompt, /cold|warm layer|garden/i);
   var five = suggest.systemPrompt(5);
   assert.match(five, /exactly 5 distinct looks/);

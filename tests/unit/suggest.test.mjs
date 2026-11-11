@@ -138,9 +138,13 @@ test("buildSuggestExportPayload shapes session for hillclimb paste", () => {
     looks: [],
     packing: { footwear: ["f1"], trousers: ["t1"], outer: ["j1"] },
     packingLimits: { footwear: 2, trousers: 2, outer: 2 },
+    occasions: [
+      { day: 1, label: "Day 1", shortTitle: "Train-to-dinner", formalityHint: "business" },
+    ],
   });
   assert.deepEqual(withPacking.packing.footwear, ["f1"]);
   assert.equal(withPacking.packingLimits.outer, 2);
+  assert.equal(withPacking.occasions[0].shortTitle, "Train-to-dinner");
 });
 
 test("suggestOutfits posts context and dual-writes occasion for deploy window", async () => {

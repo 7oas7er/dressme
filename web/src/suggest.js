@@ -113,6 +113,7 @@ export function exportItemForSuggest(item) {
  *   lookCountShortfall?: boolean,
  *   packing?: object | null,
  *   packingLimits?: object | null,
+ *   occasions?: Array | null,
  * }} session
  * @param {{ now?: () => Date }} [options]
  */
@@ -161,6 +162,9 @@ export function buildSuggestExportPayload(session, options = {}) {
     typeof session.packingLimits === "object"
   ) {
     payload.packingLimits = session.packingLimits;
+  }
+  if (session && Array.isArray(session.occasions) && session.occasions.length) {
+    payload.occasions = session.occasions;
   }
   const engine = String((session && session.engine) || "").trim();
   if (engine) payload.engine = engine;
