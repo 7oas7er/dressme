@@ -55,7 +55,9 @@ var STYLE_PACK_V1 = [
   "- Cold or outdoor evening / garden / patio: prefer a warm layer (coat, blazer, cardigan, knit overshirt) when the catalog has one.",
   "- Waist finish: looped trousers need a belt, or suspenders/braces when the trousers' aiContext supports them; side-adjuster / beltless trousers are exempt. Prefer belt for casual; suspenders OK when dressy or trousers only support suspenders. Match belt to footwear when using a belt. At most one belt (or one suspenders).",
   "- Honor Frank's session context and each item's aiContext. Diversify the N looks. Closet-only — never invent IDs.",
-  "- Title and rationale must describe only the itemIds in that look (attrs + Wada names) — never name a piece that is not listed. Titles stay catchy but full; rationales are 2–4 thoughtful sentences (occasion/weather, materials, palette), not telegraphic one-liners.",
+  "- Multi-day / multi-occasion briefs: one look per named day or occasion when N matches; put that day/occasion in the title and the first rationale sentence. Soft-align formality (board → business; casual train → smart casual).",
+  "- Luggage / trip reuse: when packing limits are implied, plan a shared capsule first (≤N unique footwear, trousers, jackets) and reuse across looks.",
+  "- Title and rationale must describe only the itemIds in that look (attrs + Wada names) — never name a piece that is not listed. Titles are catchy occasion-led phrases — never lead with Wada name + brand, never paste session context, never end mid-phrase. Rationales are 2–4 thoughtful sentences (lead with this look's occasion, then materials/palette), not telegraphic one-liners.",
 ].join("\n");
 
 /** Core (+ waist) slots that may appear at most once per look. */
@@ -77,6 +79,13 @@ var SUSPENDER_CAPABLE_RE =
   /suspenders?|\bbraces\b|suspender\s+buttons?|buttons?\s+for\s+suspenders?/i;
 var BELT_ITEM_RE = /\bbelt\b/i;
 var SUSPENDERS_ITEM_RE = /suspenders?|\bbraces\b/i;
+var TRIP_LUGGAGE_RE =
+  /\b(trip|travel(?:ing|ling)?|luggage|suitcase|carry[- ]?on|packing|packed)\b/i;
+var DEFAULT_PACKING_LIMIT = 2;
+var COLOR_WORD_RE =
+  /\b(navy|blue|grey|gray|green|black|brown|white|cream|beige|tan|olive|burgundy|charcoal|slate|cognac|wine|red|khaki)\b/i;
+var BROKEN_COPY_RE =
+  /\bI would(?: like)?\b|\bcreate for me\b|\btraveling next wee\b/i;
 
 var WORD_COUNTS = {
   one: 1,
@@ -749,21 +758,211 @@ function copyMentionsForeignPieces(title, rationale, finalIds, byId, catalog) {
   return false;
 }
 
-/** Short occasion/weather cue from session context (for titles + prose). */
-function contextCue(context) {
-  var text = String(context || "")
-    .replace(/\s+/g, " ")
+/** Parse "two"/"2" style counts for packing limits. */
+function parseCountToken(raw) {
+  var key = String(raw || "")
+    .toLowerCase()
     .trim();
-  if (!text) return "";
-  text = text
-    .replace(
-      /\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:looks?|outfits?|suggestions?|options?)\b/gi,
-      " "
+  if (WORD_COUNTS[key] != null) return WORD_COUNTS[key];
+  var n = parseInt(key, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * Structured day/occasion list from multi-day briefs (Day 1: … Day 2: …).
+ * Soft formality hints for board vs casual/train vs dinner.
+ */
+function parseOccasions(context, lookCount) {
+  var text = String(context || "").replace(/\s+/g, " ").trim();
+  var occasions = [];
+  if (!text) return occasions;
+  var re =
+    /Day\s*(\d+)\s*:\s*(.+?)(?=(?:\s*[-–•]?\s*)Day\s*\d+\s*:|$)/gi;
+  var match;
+  while ((match = re.exec(text)) !== null) {
+    var body = String(match[2] || "")
+      .replace(/^[-–•]\s*/, "")
+      .replace(/\s*[-–]\s*$/, "")
+      .trim();
+    if (!body) continue;
+    occasions.push(buildOccasionMeta(Number(match[1]), body));
+  }
+  occasions.sort(function (a, b) {
+    return a.day - b.day;
+  });
+  if (!occasions.length) {
+    // Single-occasion fallback from keyword cues (no raw context paste).
+    var single = inferOccasionFromText(text, 1);
+    if (single) occasions.push(single);
+  }
+  var limit = clampLookCount(
+    lookCount != null ? lookCount : occasions.length || DEFAULT_LOOK_COUNT
+  );
+  if (occasions.length > limit) occasions = occasions.slice(0, limit);
+  return occasions;
+}
+
+function formalityHintFromText(body) {
+  var t = String(body || "").toLowerCase();
+  if (/\b(board|boardroom|formal|black\s*tie|opera|gala)\b/.test(t)) {
+    return "business";
+  }
+  if (/\b(casual)\b/.test(t) && /\b(train|travel|meeting)\b/.test(t)) {
+    return "smart casual";
+  }
+  if (/\b(casual|weekend|jeans)\b/.test(t)) return "casual";
+  if (/\b(dinner|client|colleagues?|business|office|meeting)\b/.test(t)) {
+    return "business";
+  }
+  if (/\b(train|travel|smart\s*casual)\b/.test(t)) return "smart casual";
+  return "";
+}
+
+function shortTitleFromOccasionBody(body, day) {
+  var t = String(body || "").toLowerCase();
+  if (/\bboard\b/.test(t)) return "Board day";
+  if (/\btrain\b/.test(t) && /\bdinner\b/.test(t)) return "Train-to-dinner";
+  if (/\bcasual\b/.test(t) && /\btrain\b/.test(t)) return "Casual train";
+  if (/\bdinner\b/.test(t) && /\b(client|colleague)/.test(t)) {
+    return "Client dinner";
+  }
+  if (/\bgarden\b|\bpatio\b|\bterrace\b/.test(t)) return "Garden evening";
+  if (/\bdinner\b/.test(t)) return "Dinner look";
+  if (/\blunch\b/.test(t)) return "Lunch look";
+  if (/\btrain\b|\btravel/.test(t)) return "Travel day";
+  if (/\bcasual\b/.test(t)) return "Casual day";
+  if (day) return "Day " + day;
+  return "Day look";
+}
+
+function buildOccasionMeta(day, body) {
+  return {
+    day: day || null,
+    label: day ? "Day " + day : "Occasion",
+    shortTitle: shortTitleFromOccasionBody(body, day),
+    formalityHint: formalityHintFromText(body),
+    body: clampText(body, 160),
+  };
+}
+
+function inferOccasionFromText(text, day) {
+  var t = String(text || "");
+  if (
+    !/\b(board|dinner|lunch|garden|patio|train|travel|casual|client|evening|office)\b/i.test(
+      t
     )
-    .replace(/\s+/g, " ")
+  ) {
+    return null;
+  }
+  return buildOccasionMeta(day || null, t.slice(0, 160));
+}
+
+/**
+ * Luggage limits from context. Trip/luggage language → default 2 each for
+ * footwear / trousers / outer when no explicit N is found.
+ */
+function parsePackingLimits(context) {
+  var text = String(context || "");
+  if (!text.trim()) return null;
+  var hasTrip = TRIP_LUGGAGE_RE.test(text);
+  var n = null;
+  var bundled = text.match(
+    /(?:don'?t want.{0,48}|no more than|at most|max(?:imum)?|≤|<=)\s*(\d+|one|two|three|four)\s*(?:pairs?\s+of\s+)?(?:shoes?|footwear)[,\s]+(?:trousers|pants)[,\s]+(?:and\s+)?(?:jackets?|coats?|blazers?)/i
+  );
+  if (bundled) n = parseCountToken(bundled[1]);
+  if (n == null) {
+    var shoe = text.match(
+      /(?:no more than|at most|max(?:imum)?|≤|<=)\s*(\d+|one|two|three|four)\s*(?:pairs?\s+of\s+)?(?:shoes?|footwear)/i
+    );
+    if (shoe) n = parseCountToken(shoe[1]);
+  }
+  if (n == null && !hasTrip) return null;
+  var limit = n != null ? n : DEFAULT_PACKING_LIMIT;
+  if (limit < 1) limit = 1;
+  if (limit > 8) limit = 8;
+  return { footwear: limit, trousers: limit, outer: limit };
+}
+
+function parseTripBrief(context, lookCount) {
+  return {
+    occasions: parseOccasions(context, lookCount),
+    packing: parsePackingLimits(context),
+    cold: contextNeedsColdLayer(context),
+  };
+}
+
+function occasionForLook(brief, look, index) {
+  var list = (brief && brief.occasions) || [];
+  if (!list.length) return null;
+  var idx =
+    index != null
+      ? index
+      : Math.max(0, (parseInt(String((look && look.lookId) || "1"), 10) || 1) - 1);
+  if (idx >= list.length) return null;
+  return list[idx];
+}
+
+/** Structured occasion cue — never raw/truncated session context. */
+function contextCue(context, occasion) {
+  if (occasion && occasion.shortTitle) return occasion.shortTitle;
+  if (occasion && occasion.label) return occasion.label;
+  var brief = parseTripBrief(context, null);
+  if (brief.occasions.length === 1) return brief.occasions[0].shortTitle;
+  if (contextNeedsColdLayer(context)) return "Cool outdoor";
+  return "";
+}
+
+function colorCueFromItem(item) {
+  var wada = itemPrimaryWadaName(item);
+  if (wada) {
+    var known = wada.match(COLOR_WORD_RE);
+    if (known) return known[1].toLowerCase();
+  }
+  var fabric = String((item && item.fabric) || "").toLowerCase();
+  var fabColor = fabric.match(COLOR_WORD_RE);
+  return fabColor ? fabColor[1].toLowerCase() : "";
+}
+
+function shortTypeWord(item) {
+  var type = String((item && (item.type || item.outfitRole)) || "")
+    .toLowerCase()
     .trim();
-  var clause = text.split(/[.;]/)[0] || text;
-  return clampText(clause.trim(), 64);
+  if (/\bblazer\b/.test(type)) return "blazer";
+  if (/\bcoat\b/.test(type)) return "coat";
+  if (/\bjacket\b/.test(type)) return "jacket";
+  if (/\bcardigan\b/.test(type)) return "cardigan";
+  if (/\bshirt\b/.test(type)) return "shirt";
+  if (/\btrousers?\b|\bpants\b|\bchinos?\b/.test(type)) return "trousers";
+  if (/\bshoe|\bboot|\bloafer|\bderby/.test(type)) return "shoes";
+  var bits = type.split(/\s+/).filter(Boolean);
+  return bits.length ? bits[bits.length - 1] : "";
+}
+
+function pieceTypeLabel(item) {
+  var brand = String((item && item.brandModel) || "").trim();
+  var type = String((item && (item.type || item.outfitRole)) || "piece").trim();
+  if (brand && type && brand.toLowerCase() !== type.toLowerCase()) {
+    return brand + " " + type;
+  }
+  return brand || type || "piece";
+}
+
+function copyLooksBroken(title, rationale) {
+  var blob = String(title || "") + " " + String(rationale || "");
+  if (BROKEN_COPY_RE.test(blob)) return true;
+  if (/\bI would\s*$/i.test(String(title || "").trim())) return true;
+  if (/anchors the look for I would/i.test(blob)) return true;
+  return false;
+}
+
+function lookAnchorPiece(pieces) {
+  for (var i = 0; i < (pieces || []).length; i++) {
+    if (classifySlot(pieces[i]) === "outer") return pieces[i];
+  }
+  for (var b = 0; b < (pieces || []).length; b++) {
+    if (classifySlot(pieces[b]) === "base") return pieces[b];
+  }
+  return (pieces && pieces[0]) || null;
 }
 
 function pieceDetail(item) {
@@ -793,57 +992,38 @@ function uniqueNonEmpty(values) {
 }
 
 /**
- * Deterministic title + rationale from final pieces only (attrs + Wada names).
- * Verbose on purpose: catchy full titles; 2–4 advice sentences (occasion /
- * weather, materials, palette, why the set works) — Sonnet-like tone without
- * a second Bedrock call after slot repair.
+ * Deterministic title + rationale from structured occasion + piece attrs/Wada.
+ * Never pastes raw session context. Titles are occasion-led (not Wada+brand).
  */
-function rewriteLookCopy(look, byId, context) {
+function rewriteLookCopy(look, byId, context, opts) {
+  opts = opts || {};
+  var brief = opts.brief || parseTripBrief(context, null);
+  var occasion =
+    opts.occasion || occasionForLook(brief, look, opts.index);
   var ids = lookItemIds(look);
   var pieces = ids
     .map(function (id) {
       return byId && typeof byId.get === "function" ? byId.get(id) : null;
     })
     .filter(Boolean);
-  var anchor = null;
-  for (var i = 0; i < pieces.length; i++) {
-    if (classifySlot(pieces[i]) === "outer") {
-      anchor = pieces[i];
-      break;
-    }
-  }
-  if (!anchor) {
-    for (var b = 0; b < pieces.length; b++) {
-      if (classifySlot(pieces[b]) === "base") {
-        anchor = pieces[b];
-        break;
-      }
-    }
-  }
-  if (!anchor && pieces.length) anchor = pieces[0];
-
-  var cue = contextCue(context);
-  var cold = contextNeedsColdLayer(context);
+  var anchor = lookAnchorPiece(pieces);
+  var cue = contextCue(context, occasion);
+  var cold = brief.cold || contextNeedsColdLayer(context);
+  var color = colorCueFromItem(anchor);
+  var typeWord = shortTypeWord(anchor);
   var titleSeed;
-  if (anchor) {
-    var anchorCore = itemLabel(anchor).replace(/\s+/g, " ").trim();
-    var mood = "";
-    if (/\bgarden\b|\bpatio\b|\bterrace\b/i.test(cue)) mood = "Garden";
-    else if (/\blunch\b|\bdinner\b|\bclient\b/i.test(cue)) mood = "Lunch";
-    else if (/\bevening\b|\bnight\b/i.test(cue)) mood = "Evening";
-    else if (cold) mood = "Layered";
-    titleSeed = mood ? clampTitle(anchorCore + " " + mood) : anchorCore;
-    // Prefer a fuller catchy title when mood fit still leaves headroom.
-    if (!mood && cue) {
-      var cueWord = cue.split(/\s+/).slice(0, 2).join(" ");
-      if (cueWord && titleSeed.length + cueWord.length + 1 <= MAX_TITLE) {
-        titleSeed = titleSeed + " " + cueWord;
-      }
-    }
-  } else {
-    titleSeed = cue ? cue : "Closet look";
+  if (cue && color) titleSeed = cue + " " + color;
+  else if (cue && typeWord) titleSeed = cue + " " + typeWord;
+  else if (cue) titleSeed = cue;
+  else if (color && typeWord) titleSeed = color + " " + typeWord;
+  else if (typeWord) titleSeed = typeWord + " look";
+  else titleSeed = "Closet look";
+  if (cold && !cue && titleSeed.indexOf("Layered") < 0) {
+    titleSeed = clampTitle("Layered " + titleSeed);
   }
   var title = clampTitle(titleSeed);
+  // Guard mid-phrase / first-person leftovers.
+  title = clampTitle(title.replace(/\bI would\b.*$/i, "").trim() || "Closet look");
 
   var details = pieces.map(pieceDetail);
   var wadaNames = uniqueNonEmpty(pieces.map(itemPrimaryWadaName));
@@ -852,19 +1032,19 @@ function rewriteLookCopy(look, byId, context) {
       return p && p.fabric;
     })
   );
-  var sentences = [];
   if (!details.length) {
     return Object.assign({}, look, { title: title, rationale: "" });
   }
 
-  var occasionBit = cue
-    ? "for " + cue
+  var occasionLead = cue
+    ? cue
     : cold
-      ? "for cool outdoor air"
-      : "for this occasion";
+      ? "cool outdoor air"
+      : "this occasion";
+  var sentences = [];
   if (details.length === 1) {
     sentences.push(
-      "Built around " + details[0] + " from your closet " + occasionBit + "."
+      "For " + occasionLead + ", this set keeps " + details[0] + " working as one coherent line."
     );
   } else if (anchor) {
     var support = pieces
@@ -874,37 +1054,38 @@ function rewriteLookCopy(look, byId, context) {
       .map(pieceDetail)
       .slice(0, 3);
     sentences.push(
-      pieceDetail(anchor) +
-        " anchors the look " +
-        occasionBit +
+      "For " +
+        occasionLead +
+        ", " +
+        pieceDetail(anchor) +
+        " anchors the look" +
         (support.length
           ? ", with " + support.join(", ") + " keeping the line coherent."
           : ".")
     );
   } else {
     sentences.push(
-      "Pairs " +
-        details.slice(0, details.length - 1).join(", ") +
-        (details.length > 1 ? ", and " + details[details.length - 1] : "") +
-        " " +
-        occasionBit +
-        "."
+      "For " +
+        occasionLead +
+        ", this set keeps " +
+        details.slice(0, Math.min(3, details.length)).join(", ") +
+        " working as one coherent line."
     );
   }
 
-  if (cold && anchor && classifySlot(anchor) === "outer") {
-    sentences.push(
-      "The outer layer earns its place against the chill without turning the rest of the closet theatrical."
-    );
-  } else if (fabrics.length) {
+  if (fabrics.length) {
     sentences.push(
       "Materials stay honest for the brief: " +
         fabrics.slice(0, 3).join(", ") +
         " read as classic menswear rather than costume."
     );
+  } else if (cold && anchor && classifySlot(anchor) === "outer") {
+    sentences.push(
+      "The outer layer earns its place against the chill without turning the rest of the closet theatrical."
+    );
   } else {
     sentences.push(
-      "Shoe–trouser formality and the base layer stay aligned so nothing fights the occasion."
+      "Shoe–trouser formality and the base layer stay aligned so nothing fights the day."
     );
   }
 
@@ -926,15 +1107,28 @@ function rewriteLookCopy(look, byId, context) {
     );
   }
 
+  if (
+    occasion &&
+    occasion.formalityHint &&
+    sentences.length < 4
+  ) {
+    sentences.push(
+      "Formality stays near " +
+        occasion.formalityHint +
+        " so the look matches the day's role."
+    );
+  }
+
   var rationale = clampText(sentences.slice(0, 4).join(" "), MAX_RATIONALE);
   return Object.assign({}, look, { title: title, rationale: rationale });
 }
 
 /**
- * After salvage/repair, rewrite title/rationale when IDs changed or copy names
- * pieces that are not in the final look.
+ * After salvage/repair, rewrite title/rationale when IDs changed, copy names
+ * foreign pieces, or title/rationale still pastes raw context / mid-phrase junk.
  */
-function syncLookCopy(look, priorIds, byId, catalog, context) {
+function syncLookCopy(look, priorIds, byId, catalog, context, opts) {
+  opts = opts || {};
   var finalIds = lookItemIds(look);
   var changed = !sameIdList(priorIds, finalIds);
   var foreign = copyMentionsForeignPieces(
@@ -944,18 +1138,35 @@ function syncLookCopy(look, priorIds, byId, catalog, context) {
     byId,
     catalog
   );
-  if (!changed && !foreign) return look;
+  var broken = copyLooksBroken(look && look.title, look && look.rationale);
+  var force = Boolean(opts.force);
+  if (!changed && !foreign && !broken && !force) return look;
+  var reason = changed
+    ? "ids_changed"
+    : foreign
+      ? "foreign_copy"
+      : broken
+        ? "broken_copy"
+        : "force";
   console.warn(
     JSON.stringify({
       event: "suggest_copy_rewrite",
       lookId: look && look.lookId,
-      reason: changed ? "ids_changed" : "foreign_copy",
+      reason: reason,
     })
   );
-  return rewriteLookCopy(look, byId, context);
+  return rewriteLookCopy(look, byId, context, {
+    brief: opts.brief,
+    occasion: opts.occasion,
+    index: opts.index,
+  });
 }
 
-function syncLooksCopy(looks, priorIdLists, byId, catalog, context) {
+function syncLooksCopy(looks, priorIdLists, byId, catalog, context, opts) {
+  opts = opts || {};
+  var brief =
+    opts.brief ||
+    parseTripBrief(context, (looks && looks.length) || DEFAULT_LOOK_COUNT);
   var out = [];
   for (var i = 0; i < (looks || []).length; i++) {
     out.push(
@@ -964,11 +1175,302 @@ function syncLooksCopy(looks, priorIdLists, byId, catalog, context) {
         (priorIdLists && priorIdLists[i]) || lookItemIds(looks[i]),
         byId,
         catalog,
-        context
+        context,
+        {
+          brief: brief,
+          occasion: occasionForLook(brief, looks[i], i),
+          index: i,
+          force: opts.force,
+        }
       )
     );
   }
   return out;
+}
+
+function uniqueIdsForSlot(looks, byId, slotId) {
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < (looks || []).length; i++) {
+    var ids = lookItemIds(looks[i]);
+    for (var j = 0; j < ids.length; j++) {
+      var rec = byId.get(ids[j]);
+      if (classifySlot(rec || {}) !== slotId) continue;
+      var id = String(ids[j]);
+      if (seen[id]) continue;
+      seen[id] = true;
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+function packingSummary(looks, byId) {
+  return {
+    footwear: uniqueIdsForSlot(looks, byId, "footwear"),
+    trousers: uniqueIdsForSlot(looks, byId, "trousers"),
+    outer: uniqueIdsForSlot(looks, byId, "outer"),
+  };
+}
+
+function findSlotIdInLook(ids, byId, slotId) {
+  for (var i = 0; i < (ids || []).length; i++) {
+    var rec = byId.get(ids[i]);
+    if (classifySlot(rec || {}) === slotId) return String(ids[i]);
+  }
+  return null;
+}
+
+function bestCapsuleSubstitute(capsuleIds, byId, targetId, slotId) {
+  var target = byId.get(targetId);
+  var targetRank = formalityRank(target && target.formality);
+  var best = null;
+  var bestScore = -1;
+  for (var i = 0; i < (capsuleIds || []).length; i++) {
+    var id = capsuleIds[i];
+    if (id === targetId) return id;
+    var rec = byId.get(id);
+    if (classifySlot(rec || {}) !== slotId) continue;
+    var score = 10 - Math.abs(formalityRank(rec && rec.formality) - targetRank);
+    if (score > bestScore) {
+      bestScore = score;
+      best = id;
+    }
+  }
+  return best;
+}
+
+/**
+ * Hard cross-look packing repair: when unique footwear/trousers/outer exceed
+ * limits, reuse capsule pieces from earlier looks (prefer formality match).
+ */
+function repairCrossLookPacking(looks, byId, limits) {
+  if (!limits) {
+    return { looks: looks || [], repairs: 0, packing: packingSummary(looks, byId) };
+  }
+  var slots = ["footwear", "trousers", "outer"];
+  var capsule = {};
+  var repairs = 0;
+  var nextLooks = (looks || []).map(function (look) {
+    return Object.assign({}, look, { itemIds: lookItemIds(look).slice() });
+  });
+
+  for (var s = 0; s < slots.length; s++) {
+    var slotId = slots[s];
+    var maxN = limits[slotId];
+    if (!(maxN > 0)) continue;
+    var uniques = uniqueIdsForSlot(nextLooks, byId, slotId);
+    capsule[slotId] = uniques.slice(0, maxN);
+    if (uniques.length <= maxN) continue;
+
+    for (var li = 0; li < nextLooks.length; li++) {
+      var ids = nextLooks[li].itemIds;
+      var current = findSlotIdInLook(ids, byId, slotId);
+      if (!current) continue;
+      if (capsule[slotId].indexOf(current) >= 0) continue;
+      var sub = bestCapsuleSubstitute(capsule[slotId], byId, current, slotId);
+      if (!sub || sub === current) continue;
+      for (var k = 0; k < ids.length; k++) {
+        if (String(ids[k]) === current) {
+          ids[k] = sub;
+          repairs += 1;
+          console.warn(
+            JSON.stringify({
+              event: "suggest_packing_repair",
+              lookId: nextLooks[li].lookId,
+              slot: slotId,
+              from: current,
+              to: sub,
+            })
+          );
+          break;
+        }
+      }
+      nextLooks[li].itemIds = ids;
+    }
+  }
+
+  // Restore items arrays when callers used items-only shape.
+  for (var i = 0; i < nextLooks.length; i++) {
+    var look = nextLooks[i];
+    if (look.items && !looks[i].itemIds) {
+      look.items = look.itemIds
+        .map(function (id) {
+          return byId.get(id);
+        })
+        .filter(Boolean);
+      delete look.itemIds;
+    }
+  }
+
+  return {
+    looks: nextLooks,
+    repairs: repairs,
+    packing: packingSummary(nextLooks, byId),
+  };
+}
+
+function softFormalityMismatches(looks, brief, byId) {
+  var mismatches = [];
+  var occasions = (brief && brief.occasions) || [];
+  for (var i = 0; i < (looks || []).length; i++) {
+    var occ = occasions[i];
+    if (!occ || !occ.formalityHint) continue;
+    var want = formalityRank(occ.formalityHint);
+    if (!want) continue;
+    var ids = lookItemIds(looks[i]);
+    var ranks = [];
+    for (var j = 0; j < ids.length; j++) {
+      var rec = byId.get(ids[j]);
+      var slot = classifySlot(rec || {});
+      if (slot === "base" || slot === "trousers" || slot === "outer" || slot === "footwear") {
+        ranks.push(formalityRank(rec && rec.formality));
+      }
+    }
+    if (!ranks.length) continue;
+    var avg =
+      ranks.reduce(function (a, b) {
+        return a + b;
+      }, 0) / ranks.length;
+    // Soft: board/business look averaging below smart-casual is a miss.
+    if (want >= formalityRank("business") && avg < formalityRank("smart casual")) {
+      mismatches.push({
+        lookId: looks[i] && looks[i].lookId,
+        want: occ.formalityHint,
+        avg: Math.round(avg * 10) / 10,
+      });
+    }
+  }
+  if (mismatches.length) {
+    console.warn(
+      JSON.stringify({
+        event: "suggest_formality_soft_mismatch",
+        mismatches: mismatches,
+      })
+    );
+  }
+  return mismatches;
+}
+
+function tripBriefPromptNote(brief) {
+  if (!brief) return "";
+  var parts = [];
+  if (brief.occasions && brief.occasions.length) {
+    parts.push(
+      "One look per occasion in order: " +
+        brief.occasions
+          .map(function (o, i) {
+            return (
+              "look " +
+              (i + 1) +
+              " = " +
+              o.shortTitle +
+              (o.formalityHint ? " (" + o.formalityHint + ")" : "")
+            );
+          })
+          .join("; ") +
+        ". Put that day/occasion in the title and the first rationale sentence."
+    );
+  }
+  if (brief.packing) {
+    parts.push(
+      "Plan a shared luggage capsule first, then build looks from it. Across all looks use at most " +
+        brief.packing.footwear +
+        " unique footwear, " +
+        brief.packing.trousers +
+        " unique trousers/bottoms, and " +
+        brief.packing.outer +
+        " unique jackets/outers — reuse pieces across days when needed."
+    );
+  }
+  return parts.join(" ");
+}
+
+function copyRewriteSystemPrompt(lookCount) {
+  return [
+    "You rewrite outfit look titles and rationales for a menswear wardrobe app.",
+    'Return JSON only: {"looks":[{"lookId":"1","title":"...","rationale":"..."}]} with exactly ' +
+      clampLookCount(lookCount) +
+      " looks.",
+    'Titles: catchy occasion-led phrases (about 3–7 words, ≤48 chars). Never lead with Wada colour name + brand. Never paste session context. Never end mid-phrase (no trailing "I would").',
+    "Rationales: 2–4 sentences. First sentence names this look's occasion/day. Then materials and Wada/palette harmony. Describe only the listed pieces.",
+  ].join("\n");
+}
+
+function copyRewriteUserPrompt(looks, byId, brief) {
+  var payload = (looks || []).map(function (look, index) {
+    var occ = occasionForLook(brief, look, index);
+    var ids = lookItemIds(look);
+    return {
+      lookId: String((look && look.lookId) || index + 1),
+      occasion: occ
+        ? {
+            shortTitle: occ.shortTitle,
+            formalityHint: occ.formalityHint || "",
+          }
+        : null,
+      pieces: ids.map(function (id) {
+        var item = byId.get(id) || {};
+        return {
+          id: id,
+          type: item.type || "",
+          brandModel: item.brandModel || "",
+          fabric: item.fabric || "",
+          formality: item.formality || "",
+          wada: itemPrimaryWadaName(item) || "",
+        };
+      }),
+    };
+  });
+  return (
+    "Rewrite title + rationale for each look from occasion + pieces only.\n" +
+    JSON.stringify({ looks: payload })
+  );
+}
+
+/**
+ * Optional short Bedrock pass after slot/packing repair. Falls back to null
+ * when the model fails — caller keeps deterministic rewrite.
+ */
+async function rewriteLooksCopyWithBedrock(looks, byId, brief, callBedrock) {
+  if (!looks || !looks.length || typeof callBedrock !== "function") return null;
+  try {
+    var result = await callBedrock(
+      copyRewriteUserPrompt(looks, byId, brief),
+      copyRewriteSystemPrompt(looks.length)
+    );
+    var parsed = parseJsonObject(result.text);
+    var rows = parsed && Array.isArray(parsed.looks) ? parsed.looks : null;
+    if (!rows || !rows.length) return null;
+    var byLookId = {};
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i] || {};
+      var id = String(row.lookId || i + 1);
+      byLookId[id] = row;
+    }
+    return (looks || []).map(function (look, index) {
+      var id = String((look && look.lookId) || index + 1);
+      var row = byLookId[id] || rows[index];
+      if (!row) return look;
+      var title = clampTitle(row.title);
+      var rationale = clampText(row.rationale, MAX_RATIONALE);
+      if (!title || copyLooksBroken(title, rationale)) {
+        return rewriteLookCopy(look, byId, "", {
+          brief: brief,
+          occasion: occasionForLook(brief, look, index),
+          index: index,
+        });
+      }
+      return Object.assign({}, look, { title: title, rationale: rationale });
+    });
+  } catch (_err) {
+    console.warn(
+      JSON.stringify({
+        event: "suggest_copy_bedrock_rewrite_failed",
+      })
+    );
+    return null;
+  }
 }
 
 /**
@@ -1589,24 +2091,31 @@ function systemPrompt(lookCount) {
     "When trousers need a waist finish (not side-adjuster/beltless), include a belt — or suspenders/braces when the trousers' aiContext supports them.",
     "Accessories beyond waist finish remain optional — hat, scarf, jewelry, bag, neckwear, etc. Add them when they improve the look or fit the occasion.",
     "Title and rationale must name only pieces present in that look's itemIds (use type / brandModel / Wada colour). Never describe a cardigan if the look's outer is a leather jacket.",
+    "Titles: catchy occasion-led phrases (e.g. Board-day navy, Train-to-dinner grey). Never lead with Wada name + brand. Never paste or truncate session context into titles. Never end mid-phrase.",
+    "Rationales: 2–4 sentences; first sentence names this look's occasion/day; then materials and palette. Do not paste session context.",
+    "When the context lists Day 1 / Day 2 / … or distinct occasions and asks for that many looks, return one look per day/occasion in order with matching formality (board → business; casual train → smart casual).",
+    "When luggage/trip limits appear (or a multi-day trip implies packing), plan a shared capsule first and reuse footwear/trousers/jackets across looks so unique counts stay within the stated (or default ≤2) limits.",
     "Never return a look that is only tops, only bottoms, or missing a bottom when trousers/jeans/shorts exist in the catalog.",
     "If the catalog lacks a mandatory slot class (e.g. no footwear at all), omit that slot rather than inventing IDs — still require every available mandatory-core slot.",
     "Diversify across the " +
       count +
-      " looks (formality or palette) when the closet allows.",
+      " looks (formality or palette) when the closet allows — except where packing reuse requires repeating capsule pieces.",
     "Schema:",
     JSON.stringify(schemaExample(count)),
   ].join("\n");
 }
 
-function userPrompt(context, catalogJson, repairNote, lookCount) {
+function userPrompt(context, catalogJson, repairNote, lookCount, brief) {
   var count = clampLookCount(lookCount);
+  var trip = brief || parseTripBrief(context, count);
   var parts = [
     "Context: " + context,
     "Catalog JSON:",
     catalogJson,
     "Each look needs mandatory core (base + bottom + footwear when available). Accessories optional for interest — not required.",
   ];
+  var tripNote = tripBriefPromptNote(trip);
+  if (tripNote) parts.push(tripNote);
   if (repairNote) {
     parts.push(repairNote);
   }
@@ -1721,6 +2230,7 @@ async function assembleWithBedrock(catalog, input) {
     input && input.lookCount != null ? input.lookCount : DEFAULT_LOOK_COUNT
   );
   var context = (input && input.context) || "";
+  var brief = parseTripBrief(context, lookCount);
   var compact = serializeCatalogForPrompt(catalog);
   var allowedIds = catalogIdSet(catalog);
   var byId = catalogById(catalog);
@@ -1731,6 +2241,7 @@ async function assembleWithBedrock(catalog, input) {
   var outputTokens = 0;
   var lastModelId = modelId();
   var startedAt = nowMs();
+  var packingRepairs = 0;
 
   function withinSecondPassBudget() {
     return nowMs() - startedAt < SECOND_PASS_DEADLINE_MS;
@@ -1740,8 +2251,9 @@ async function assembleWithBedrock(catalog, input) {
     return bedrockCalls < 2 && withinSecondPassBudget();
   }
 
-  async function callBedrock(userText) {
-    var result = await invokeBedrockWithRetry(system, userText, lookCount);
+  async function callBedrock(userText, systemOverride) {
+    var sys = systemOverride || system;
+    var result = await invokeBedrockWithRetry(sys, userText, lookCount);
     bedrockCalls += 1;
     lastModelId = result.modelId || lastModelId;
     if (typeof result.inputTokens === "number") {
@@ -1756,7 +2268,7 @@ async function assembleWithBedrock(catalog, input) {
   var bedrockResult;
   try {
     bedrockResult = await callBedrock(
-      userPrompt(context, catalogJson, null, lookCount)
+      userPrompt(context, catalogJson, null, lookCount, brief)
     );
   } catch (err) {
     if (err && err.statusCode) throw err;
@@ -1786,7 +2298,8 @@ async function assembleWithBedrock(catalog, input) {
           context,
           catalogJson,
           "Previous reply was not valid JSON. Return ONLY the schema object.",
-          lookCount
+          lookCount,
+          brief
         )
       );
       validated = validateLookPayload(
@@ -1818,7 +2331,8 @@ async function assembleWithBedrock(catalog, input) {
             ". Return " +
             lookCount +
             " looks with valid itemIds.",
-          lookCount
+          lookCount,
+          brief
         )
       );
       validated = validateLookPayload(
@@ -1870,7 +2384,8 @@ async function assembleWithBedrock(catalog, input) {
           context,
           catalogJson,
           completenessRepairNote(completeness.incomplete, lookCount),
-          lookCount
+          lookCount,
+          brief
         )
       );
       validated = validateLookPayload(
@@ -1907,7 +2422,8 @@ async function assembleWithBedrock(catalog, input) {
     priorIdsBeforeDedupe,
     byId,
     catalog,
-    context
+    context,
+    { brief: brief }
   );
   var completeLooks = filterCompleteLooks(
     local.looks,
@@ -1944,7 +2460,8 @@ async function assembleWithBedrock(catalog, input) {
             ". Same schema; only the new looks array (length " +
             missing +
             ").",
-          missing
+          missing,
+          brief
         )
       );
       var fillValidated = validateLookPayload(
@@ -1966,7 +2483,8 @@ async function assembleWithBedrock(catalog, input) {
         fillPrior,
         byId,
         catalog,
-        context
+        context,
+        { brief: brief }
       );
       var fillComplete = filterCompleteLooks(
         fillLocal.looks,
@@ -2010,6 +2528,70 @@ async function assembleWithBedrock(catalog, input) {
     });
   }
 
+  // P1: hard cross-look packing repair when trip/luggage limits apply.
+  var priorBeforePacking = completeLooks.map(lookItemIds);
+  var packingResult = repairCrossLookPacking(
+    completeLooks,
+    byId,
+    brief.packing
+  );
+  packingRepairs = packingResult.repairs || 0;
+  completeLooks = packingResult.looks;
+  completeLooks = enforceSlotUniqueness(completeLooks, byId);
+  softFormalityMismatches(completeLooks, brief, byId);
+
+  // Prefer short Bedrock copy rewrite after slot/packing repair when budget allows.
+  var needsCopyPass =
+    packingRepairs > 0 ||
+    completeLooks.some(function (look, index) {
+      if (copyLooksBroken(look && look.title, look && look.rationale)) {
+        return true;
+      }
+      var occ = occasionForLook(brief, look, index);
+      if (!occ || !occ.shortTitle) return false;
+      var title = String((look && look.title) || "").toLowerCase();
+      var keys = String(occ.shortTitle)
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter(function (tok) {
+          return tok.length > 2;
+        });
+      return !keys.some(function (tok) {
+        return title.indexOf(tok) >= 0;
+      });
+    });
+  if (needsCopyPass && canOptionalBedrockPass()) {
+    var bedrockCopy = await rewriteLooksCopyWithBedrock(
+      completeLooks,
+      byId,
+      brief,
+      callBedrock
+    );
+    if (bedrockCopy) {
+      completeLooks = bedrockCopy;
+    } else {
+      completeLooks = syncLooksCopy(
+        completeLooks,
+        priorBeforePacking,
+        byId,
+        catalog,
+        context,
+        { brief: brief, force: true }
+      );
+    }
+  } else {
+    completeLooks = syncLooksCopy(
+      completeLooks,
+      priorBeforePacking,
+      byId,
+      catalog,
+      context,
+      { brief: brief, force: packingRepairs > 0 || needsCopyPass }
+    );
+  }
+
+  var packing = packingSummary(completeLooks, byId);
+
   var shortfall = completeLooks.length < lookCount;
   if (shortfall) {
     console.warn(
@@ -2019,6 +2601,7 @@ async function assembleWithBedrock(catalog, input) {
         returnedLookCount: completeLooks.length,
         layerRepairs: local.repairCounts.layer,
         waistRepairs: local.repairCounts.waist,
+        packingRepairs: packingRepairs,
         modelId: lastModelId,
       })
     );
@@ -2038,6 +2621,10 @@ async function assembleWithBedrock(catalog, input) {
     };
   });
 
+  var repairCounts = Object.assign({}, local.repairCounts, {
+    packing: packingRepairs,
+  });
+
   return {
     looks: looks,
     modelId: lastModelId,
@@ -2046,8 +2633,10 @@ async function assembleWithBedrock(catalog, input) {
     requestedLookCount: lookCount,
     returnedLookCount: looks.length,
     lookCountShortfall: shortfall,
-    repairCounts: local.repairCounts,
+    repairCounts: repairCounts,
     bedrockCalls: bedrockCalls,
+    packing: brief.packing ? packing : null,
+    packingLimits: brief.packing || null,
   };
 }
 
@@ -2159,6 +2748,8 @@ async function suggestLooks(user, body) {
         outputTokens: assembled.outputTokens,
         repairCounts: assembled.repairCounts,
         bedrockCalls: assembled.bedrockCalls,
+        packing: assembled.packing || null,
+        packingLimits: assembled.packingLimits || null,
       };
       countMeta.requestedLookCount = assembled.requestedLookCount;
       countMeta.returnedLookCount = assembled.returnedLookCount;
@@ -2226,6 +2817,8 @@ async function suggestLooks(user, body) {
           bedrockMeta.repairCounts && bedrockMeta.repairCounts.layer,
         waistRepairs:
           bedrockMeta.repairCounts && bedrockMeta.repairCounts.waist,
+        packingRepairs:
+          bedrockMeta.repairCounts && bedrockMeta.repairCounts.packing,
         bedrockCalls: bedrockMeta.bedrockCalls,
       })
     );
@@ -2244,6 +2837,12 @@ async function suggestLooks(user, body) {
   }
   if (bedrockMeta && bedrockMeta.modelId) {
     responseBody.modelId = bedrockMeta.modelId;
+  }
+  if (bedrockMeta && bedrockMeta.packing) {
+    responseBody.packing = bedrockMeta.packing;
+  }
+  if (bedrockMeta && bedrockMeta.packingLimits) {
+    responseBody.packingLimits = bedrockMeta.packingLimits;
   }
 
   return {
@@ -2269,6 +2868,13 @@ exports.rewriteLookCopy = rewriteLookCopy;
 exports.syncLookCopy = syncLookCopy;
 exports.syncLooksCopy = syncLooksCopy;
 exports.copyMentionsForeignPieces = copyMentionsForeignPieces;
+exports.copyLooksBroken = copyLooksBroken;
+exports.parseOccasions = parseOccasions;
+exports.parsePackingLimits = parsePackingLimits;
+exports.parseTripBrief = parseTripBrief;
+exports.repairCrossLookPacking = repairCrossLookPacking;
+exports.packingSummary = packingSummary;
+exports.contextCue = contextCue;
 exports.assembleRandomLooks = assembleRandomLooks;
 exports.assembleWithBedrock = assembleWithBedrock;
 exports.serializeCatalogForPrompt = serializeCatalogForPrompt;

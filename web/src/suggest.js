@@ -111,6 +111,8 @@ export function exportItemForSuggest(item) {
  *   requestedLookCount?: number,
  *   returnedLookCount?: number,
  *   lookCountShortfall?: boolean,
+ *   packing?: object | null,
+ *   packingLimits?: object | null,
  * }} session
  * @param {{ now?: () => Date }} [options]
  */
@@ -149,6 +151,16 @@ export function buildSuggestExportPayload(session, options = {}) {
   if (returned > 0) payload.returnedLookCount = returned;
   if (session && session.lookCountShortfall) {
     payload.lookCountShortfall = true;
+  }
+  if (session && session.packing && typeof session.packing === "object") {
+    payload.packing = session.packing;
+  }
+  if (
+    session &&
+    session.packingLimits &&
+    typeof session.packingLimits === "object"
+  ) {
+    payload.packingLimits = session.packingLimits;
   }
   const engine = String((session && session.engine) || "").trim();
   if (engine) payload.engine = engine;
