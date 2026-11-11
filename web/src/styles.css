@@ -884,8 +884,9 @@ button.linkish:hover {
   color: var(--ink);
 }
 
-/* Calm waiting state while Sonnet Suggest runs (~30–40s). */
-.suggest-progress {
+/* Calm waiting state: Suggest (~30–40s) and catalog list fetch. */
+.suggest-progress,
+.catalog-progress {
   display: grid;
   gap: 0.75rem;
   max-width: 28rem;
@@ -897,7 +898,8 @@ button.linkish:hover {
   animation: rise 480ms ease both;
 }
 
-.suggest-progress-status {
+.suggest-progress-status,
+.catalog-progress-status {
   margin: 0;
   font-family: var(--font-brand);
   font-size: 1.15rem;
@@ -906,14 +908,16 @@ button.linkish:hover {
   color: var(--ink);
 }
 
-.suggest-progress-tip {
+.suggest-progress-tip,
+.catalog-progress-tip {
   margin: 0;
   font-size: 0.9rem;
   min-height: 1.35em;
   transition: opacity 280ms ease;
 }
 
-.suggest-progress-track {
+.suggest-progress-track,
+.catalog-progress-track {
   position: relative;
   height: 0.35rem;
   border-radius: 999px;
@@ -921,7 +925,8 @@ button.linkish:hover {
   background: rgba(21, 32, 51, 0.08);
 }
 
-.suggest-progress-bar {
+.suggest-progress-bar,
+.catalog-progress-bar {
   position: absolute;
   inset: 0 auto 0 0;
   width: 42%;
