@@ -3,6 +3,13 @@ import { matchAttrOption, normalizeAttrValue } from "./attrNormalize.js";
 import { layerImageUrl } from "./lookLayout.js";
 import { renderLookCard } from "./lookCard.js";
 import { rotateImageFromUrl } from "./rotateImage.js";
+import {
+  buildSuggestExportPayload,
+  copyTextToClipboard,
+  downloadTextFile,
+  stringifySuggestExport,
+  suggestExportFilename,
+} from "./suggest.js";
 import { sampleThumb } from "./thumbSample.js";
 import {
   MAX_WADA_COLORS,
@@ -374,6 +381,7 @@ export function renderCatalogApp(root, { onLogout }) {
       context: "",
       looks: null,
       engine: "",
+      modelId: "",
       suggestionId: "",
       requestedLookCount: 0,
       returnedLookCount: 0,
@@ -381,6 +389,8 @@ export function renderCatalogApp(root, { onLogout }) {
       /** True while POST /api/suggest is in flight (waiting UI). */
       generating: false,
       tipIndex: 0,
+      /** Brief “Copied” feedback after export clipboard write. */
+      exportStatus: "",
     },
     /** Detail opened from a look card — show “Back to looks” (DM-110). */
     detailFromSuggest: false,
@@ -972,11 +982,62 @@ export function renderCatalogApp(root, { onLogout }) {
   ];
 
   let suggestTipTimer = null;
+  let suggestExportStatusTimer = null;
 
   function stopSuggestTipRotation() {
     if (suggestTipTimer) {
       clearInterval(suggestTipTimer);
       suggestTipTimer = null;
+    }
+  }
+
+  function clearSuggestExportStatusSoon() {
+    if (suggestExportStatusTimer) {
+      clearTimeout(suggestExportStatusTimer);
+      suggestExportStatusTimer = null;
+    }
+    suggestExportStatusTimer = setTimeout(() => {
+      suggestExportStatusTimer = null;
+      if (!state.suggest.exportStatus) return;
+      state.suggest.exportStatus = "";
+      paint();
+    }, 2200);
+  }
+
+  function currentSuggestExportText() {
+    const payload = buildSuggestExportPayload(state.suggest);
+    return stringifySuggestExport(payload);
+  }
+
+  async function copySuggestExport() {
+    if (!state.suggest.looks || !state.suggest.looks.length) return;
+    try {
+      await copyTextToClipboard(currentSuggestExportText());
+      state.suggest.exportStatus = "Copied";
+      state.error = "";
+      paint();
+      clearSuggestExportStatusSoon();
+    } catch {
+      state.suggest.exportStatus = "";
+      state.error = "Could not copy JSON — try Download .json instead.";
+      paint();
+    }
+  }
+
+  function downloadSuggestExport() {
+    if (!state.suggest.looks || !state.suggest.looks.length) return;
+    try {
+      const text = currentSuggestExportText();
+      const payload = JSON.parse(text);
+      downloadTextFile(suggestExportFilename(payload.exportedAt), text);
+      state.suggest.exportStatus = "Downloaded";
+      state.error = "";
+      paint();
+      clearSuggestExportStatusSoon();
+    } catch {
+      state.suggest.exportStatus = "";
+      state.error = "Could not download JSON.";
+      paint();
     }
   }
 
@@ -1015,11 +1076,13 @@ export function renderCatalogApp(root, { onLogout }) {
       const data = await api.suggestOutfits({ context });
       state.suggest.looks = data.looks || [];
       state.suggest.engine = data.engine || "random";
+      state.suggest.modelId = data.modelId || "";
       state.suggest.suggestionId = data.suggestionId || "";
       state.suggest.requestedLookCount = Number(data.requestedLookCount) || 0;
       state.suggest.returnedLookCount =
         Number(data.returnedLookCount) || (data.looks || []).length;
       state.suggest.lookCountShortfall = Boolean(data.lookCountShortfall);
+      state.suggest.exportStatus = "";
       const n = state.suggest.looks.length;
       state.status =
         (n === 1 ? "1 look" : `${n} looks`) +
@@ -1045,9 +1108,11 @@ export function renderCatalogApp(root, { onLogout }) {
         state.error = code || "Could not suggest outfits.";
       }
       state.suggest.looks = null;
+      state.suggest.modelId = "";
       state.suggest.lookCountShortfall = false;
       state.suggest.requestedLookCount = 0;
       state.suggest.returnedLookCount = 0;
+      state.suggest.exportStatus = "";
     } finally {
       stopSuggestTipRotation();
       state.suggest.generating = false;
@@ -2342,6 +2407,51 @@ export function renderCatalogApp(root, { onLogout }) {
           })
         );
       }
+      const exportRow = el("div", {
+        className: "row suggest-export",
+      });
+      exportRow.append(
+        el("button", {
+          type: "button",
+          className: "secondary",
+          text:
+            state.suggest.exportStatus === "Copied"
+              ? "Copied"
+              : "Copy JSON",
+          title: "Copy this suggest session as JSON for hillclimb / Cursor",
+          onClick: () => {
+            copySuggestExport();
+          },
+        })
+      );
+      exportRow.append(
+        el("button", {
+          type: "button",
+          className: "linkish",
+          text:
+            state.suggest.exportStatus === "Downloaded"
+              ? "Downloaded"
+              : "Download .json",
+          title: "Download this suggest session as a .json file",
+          onClick: () => {
+            downloadSuggestExport();
+          },
+        })
+      );
+      if (
+        state.suggest.exportStatus &&
+        state.suggest.exportStatus !== "Copied" &&
+        state.suggest.exportStatus !== "Downloaded"
+      ) {
+        exportRow.append(
+          el("span", {
+            className: "muted suggest-export-status",
+            role: "status",
+            text: state.suggest.exportStatus,
+          })
+        );
+      }
+      results.append(exportRow);
       state.suggest.looks.forEach((look, index) => {
         results.append(
           renderLookCard(look, index, {

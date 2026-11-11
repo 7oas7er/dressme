@@ -340,8 +340,12 @@ test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   assert.match(catalog, /suggest-progress|Assembling looks from your wardrobe/);
   assert.match(catalog, /lookCountShortfall|Could assemble/);
   assert.match(catalog, /suggest-shortfall/);
+  assert.match(catalog, /Copy JSON|Download \.json|buildSuggestExportPayload/);
+  assert.match(catalog, /modelId/);
   assert.match(styles, /suggest-progress-bar|suggest-progress-slide/);
+  assert.match(styles, /suggest-export|button\.linkish/);
   assert.match(suggest, /lookHeadline|lookSummary|clampLookTitle/);
+  assert.match(suggest, /buildSuggestExportPayload|exportItemForSuggest|copyTextToClipboard/);
   assert.match(lookLayout, /itemToSlot|buildLookVisual|layerImageUrl/);
   assert.match(lookLayout, /primaryWadaHex|fillFromWada/);
   assert.match(lookCard, /look-pieces|look-piece-col|look-wada-swatch|look-piece-btn/);
