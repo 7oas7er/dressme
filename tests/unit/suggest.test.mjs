@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { collagePhotoUrl, lookHeadline, lookSummary } from "../../web/src/suggest.js";
+import {
+  buildSuggestExportPayload,
+  collagePhotoUrl,
+  exportItemForSuggest,
+  lookHeadline,
+  lookSummary,
+  stringifySuggestExport,
+  suggestExportFilename,
+} from "../../web/src/suggest.js";
 import { suggestOutfits } from "../../web/src/api.js";
 
 test("collagePhotoUrl prefers full-res over thumb", () => {
@@ -42,6 +50,88 @@ test("look helpers summarize pieces without feedback UI", () => {
     "Hermosa Pink outerwear · shirt"
   );
   assert.match(lookSummary({ items: [] }), /No pieces/);
+});
+
+test("exportItemForSuggest keeps attrs and Wada, drops photo URLs", () => {
+  const exported = exportItemForSuggest({
+    itemId: "i1",
+    type: "blazer",
+    brandModel: "Drake's Donegal",
+    fabric: "wool",
+    formality: "smart",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "outerwear",
+    aiContext: "Navy Donegal; soft shoulder.",
+    wadaColorIds: ["wada:v1:0"],
+    photos: [
+      {
+        photoId: "p1",
+        url: "https://signed.example/full.jpg",
+        thumbUrl: "https://signed.example/thumb.jpg",
+      },
+    ],
+  });
+  assert.equal(exported.itemId, "i1");
+  assert.equal(exported.brandModel, "Drake's Donegal");
+  assert.equal(exported.aiContext, "Navy Donegal; soft shoulder.");
+  assert.deepEqual(exported.photoIds, ["p1"]);
+  assert.equal(exported.wada.length, 1);
+  assert.equal(exported.wada[0].id, "wada:v1:0");
+  assert.ok(exported.wada[0].name);
+  assert.match(exported.wada[0].hex, /^#/);
+  assert.equal(exported.url, undefined);
+  assert.equal(exported.photos, undefined);
+});
+
+test("buildSuggestExportPayload shapes session for hillclimb paste", () => {
+  const payload = buildSuggestExportPayload(
+    {
+      context: "client lunch, cool and dry — 2 looks please",
+      engine: "bedrock",
+      modelId: "anthropic.claude-sonnet-4-6",
+      suggestionId: "sid-1",
+      requestedLookCount: 2,
+      returnedLookCount: 2,
+      looks: [
+        {
+          lookId: "1",
+          title: "Soft Navy Stack",
+          rationale: "Navy Donegal over a white oxford keeps lunch sharp.",
+          items: [
+            {
+              itemId: "a",
+              type: "blazer",
+              outfitRole: "outerwear",
+              wadaColorIds: ["wada:v1:0"],
+              photos: [{ photoId: "pa", url: "https://x/a.jpg" }],
+            },
+            {
+              itemId: "b",
+              type: "shirt",
+              outfitRole: "base",
+              brandModel: "Eterna",
+            },
+          ],
+        },
+      ],
+    },
+    { now: () => new Date("2026-11-11T12:00:00.000Z") }
+  );
+  assert.equal(payload.exportedAt, "2026-11-11T12:00:00.000Z");
+  assert.equal(payload.context, "client lunch, cool and dry — 2 looks please");
+  assert.equal(payload.lookCount, 1);
+  assert.equal(payload.requestedLookCount, 2);
+  assert.equal(payload.engine, "bedrock");
+  assert.equal(payload.modelId, "anthropic.claude-sonnet-4-6");
+  assert.equal(payload.looks[0].title, "Soft Navy Stack");
+  assert.deepEqual(payload.looks[0].itemIds, ["a", "b"]);
+  assert.equal(payload.looks[0].items[0].photoIds[0], "pa");
+  assert.match(stringifySuggestExport(payload), /"Soft Navy Stack"/);
+  assert.match(
+    suggestExportFilename(payload.exportedAt),
+    /^dressme-suggest-20261111-120000Z\.json$/
+  );
 });
 
 test("suggestOutfits posts context and dual-writes occasion for deploy window", async () => {
