@@ -2,10 +2,16 @@ aws_region = "eu-north-1"
 # Provider only (backends use env AWS_PROFILE / default chain).
 aws_profile = "7oas7er"
 
-# Required: DressMe prod ACM in us-east-1 (never copy another app's certificate ARN).
+# Required: DressMe prod ACM in us-east-1 for dressme.7oas7er.com
+# (never copy another app's or stg's certificate ARN).
 site_certificate_arn = "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID"
 
-# Must match Cloudflare prod_origin_verify_secret (never commit the real value).
+# Must match platform shared-edge dressme_prod_origin_verify_secret
+# (distinct from stg; never commit the real value).
 # Rotation: see infra/terraform/docs/origin-verify-secret-rotation.md
 origin_verify_secret = "replace-with-a-long-random-secret"
 # origin_verify_secret_previous = "previous-secret-only-while-rotating"
+
+# Single v1 user (admin-created). Use lowercase; Cognito email sign-in is case-sensitive.
+# Temp password after apply: terraform output -raw cognito_owner_temporary_password
+# cognito_owner_email = "you@example.com"
