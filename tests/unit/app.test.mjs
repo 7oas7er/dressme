@@ -165,11 +165,19 @@ test("item detail shows catalog entry date from createdAt (UC-02)", () => {
   assert.match(catalog, /detail-entry-date/);
   assert.match(catalog, /Entry date/);
   assert.match(catalog, /item\.createdAt/);
+  // Catalog card sub: Brand · Wada name only; no outfit role / free-text color.
+  assert.match(catalog, /catalogCardSubLine/);
+  assert.doesNotMatch(
+    catalog,
+    /className:\s*"sub"[\s\S]{0,80}item\.color.*item\.outfitRole/
+  );
+  assert.doesNotMatch(catalog, /key:\s*"color",\s*label:\s*"Color",\s*placeholder/);
   assert.match(styles, /\.detail-actions/);
   assert.match(styles, /\.detail-entry-date/);
   assert.match(itemsSrc, /createdAt:\s*ts/);
   assert.match(itemsSrc, /createdAt:\s*item\.createdAt/);
   assert.match(useCases, /entry date/i);
+  assert.match(useCases, /Brand · color|Brand · Wada|primary Wada/i);
 });
 
 test("catalog list exposes attribute filters above the grid (UC-07)", () => {
@@ -213,6 +221,28 @@ test("catalog chrome: Catalog / Add item / DressMe nav, Sign out with Imprint, A
   assert.match(styles, /\.catalog-count/);
   assert.match(styles, /\.page-footer/);
   assert.match(styles, /\.page-footer[\s\S]*justify-content:\s*space-between/);
+});
+
+test("in-app History: pushState/popstate restore view; logout only via Sign out", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const authSrc = fs.readFileSync(path.join(root, "web/src/auth.js"), "utf8");
+  const mainSrc = fs.readFileSync(path.join(root, "web/src/main.js"), "utf8");
+  assert.match(catalog, /history\.pushState/);
+  assert.match(catalog, /history\.replaceState/);
+  assert.match(catalog, /addEventListener\("popstate"/);
+  assert.match(catalog, /restoreFromHistory|dressme:\s*1/);
+  assert.match(catalog, /skipHistory/);
+  // popstate path must not clear session or call logout.
+  assert.doesNotMatch(
+    catalog,
+    /onPopState[\s\S]{0,400}onLogout|onPopState[\s\S]{0,400}clearSession|onPopState[\s\S]{0,400}logout\(/
+  );
+  assert.match(mainSrc, /onLogout:\s*\(\)\s*=>\s*auth\.logout/);
+  assert.match(authSrc, /export function logout/);
+  assert.match(
+    catalog,
+    /className: "secondary sign-out"[\s\S]*onClick:\s*onLogout/
+  );
 });
 
 test("add/edit form exposes Appraise assist (UC-25)", () => {
@@ -279,11 +309,15 @@ test("mobile add UX: camera-first, sticky Save, Add next (UC-01 phone)", () => {
   assert.doesNotMatch(useCases, /Mic control|Web Speech API|microphone=\(self\)/);
 });
 
-test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
+test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const suggest = fs.readFileSync(path.join(root, "web/src/suggest.js"), "utf8");
   const lookLayout = fs.readFileSync(path.join(root, "web/src/lookLayout.js"), "utf8");
   const lookCard = fs.readFileSync(path.join(root, "web/src/lookCard.js"), "utf8");
+  const lookWadaPlate = fs.readFileSync(
+    path.join(root, "web/src/lookWadaPlate.js"),
+    "utf8"
+  );
   const mannequinColor = fs.readFileSync(
     path.join(root, "web/src/mannequinColor.js"),
     "utf8"
@@ -295,16 +329,31 @@ test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   assert.match(catalog, /openSuggest|view === "suggest"/);
   assert.match(catalog, /runSuggest/);
   assert.match(catalog, /renderLookCard/);
+  assert.match(catalog, /fromSuggest|Back to looks|backToLooks/);
+  assert.match(catalog, /suggest_incomplete_looks/);
   assert.match(catalog, /Nothing is recorded|does not record worn/);
   assert.match(catalog, /name: "context"/);
   assert.doesNotMatch(catalog, /name: "occasion"/);
   assert.doesNotMatch(catalog, /name: "weather"/);
   assert.match(catalog, /AI suggestions from your catalog/);
-  assert.match(suggest, /lookHeadline|lookSummary/);
+  assert.match(catalog, /Generating looks/);
+  assert.match(catalog, /suggest-progress|Assembling looks from your wardrobe/);
+  assert.match(catalog, /lookCountShortfall|Could assemble/);
+  assert.match(catalog, /suggest-shortfall/);
+  assert.match(catalog, /Copy JSON|Download \.json|buildSuggestExportPayload/);
+  assert.match(catalog, /modelId/);
+  assert.match(styles, /suggest-progress-bar|suggest-progress-slide/);
+  assert.match(styles, /suggest-export|button\.linkish/);
+  assert.match(suggest, /lookHeadline|lookSummary|clampLookTitle/);
+  assert.match(suggest, /buildSuggestExportPayload|exportItemForSuggest|copyTextToClipboard/);
   assert.match(lookLayout, /itemToSlot|buildLookVisual|layerImageUrl/);
-  assert.match(lookCard, /look-hero|look-strip|look-mannequin/);
+  assert.match(lookLayout, /primaryWadaHex|fillFromWada/);
+  assert.match(lookCard, /look-pieces|look-piece-col|look-wada-swatch|look-piece-btn/);
   assert.match(lookCard, /look-rationale/);
-  assert.match(lookCard, /mn-wash|sampleThumb|100 240/);
+  assert.match(lookCard, /primaryWadaPlateEntry/);
+  // Mannequin helpers retained for Later hero but un-wired from the card.
+  assert.match(lookCard, /look-mannequin|renderMannequinSvg|100 240/);
+  assert.match(lookWadaPlate, /lookWadaPlateEntries|primaryWadaPlateEntry|primaryWadaId/);
   assert.match(mannequinColor, /resolveFillColor|resolvePatternHint/);
   assert.ok(
     fs.existsSync(path.join(root, "web/src/thumbSample.js")),
@@ -316,13 +365,88 @@ test("suggest outfits flow and SVG mannequin look cards (UC-04–06)", () => {
   // Dual-write occasion until stg Lambda zip is applied (missing_occasion).
   assert.match(apiSrc, /occasion:\s*context/);
   assert.match(catalog, /missing_occasion/);
-  assert.match(styles, /\.look-hero/);
-  assert.match(styles, /\.look-mannequin/);
-  assert.match(styles, /\.look-strip/);
+  assert.match(styles, /\.look-pieces/);
+  assert.match(styles, /\.look-wada-swatch|\.look-piece-col/);
   assert.match(styles, /\.look-rationale/);
   assert.match(styles, /\.looks-grid/);
   assert.match(useCases, /UC-04 — Request outfit suggestions/);
-  assert.match(useCases, /UC-05 — View a look as an SVG mannequin/);
-  assert.match(useCases, /UC-06 — Pick among three looks/);
+  assert.match(useCases, /UC-05 — View a look as photos \+ Wada plate/);
+  assert.match(useCases, /UC-06 — Pick among looks/);
+  assert.match(useCases, /clamped \*\*1–8\*\*|clamped \*\*1-8\*\*|default \*\*3\*\*/);
+  assert.match(catalog, /Assembling looks/);
+  assert.doesNotMatch(catalog, /Assembling three looks/);
+  assert.match(catalog, /5 looks please/);
+  assert.match(catalog, /pick one mentally/);
+  const mainSrc = fs.readFileSync(path.join(root, "web/src/main.js"), "utf8");
+  assert.doesNotMatch(mainSrc, /three looks/);
+  assert.match(mainSrc, /outfit looks|looks from it/);
   assert.match(useCases, /UC-09 — Short rationale per look/);
+});
+
+test("catalog list load shows Suggest-style staged progress", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  assert.match(catalog, /catalogLoading/);
+  assert.match(catalog, /CATALOG_WAIT_TIPS|Loading your catalog/);
+  assert.match(catalog, /catalog-progress|data-catalog-tip/);
+  assert.match(catalog, /startCatalogTipRotation|stopCatalogTipRotation/);
+  // Progress replaces the empty/grid body while GET /api/items is in flight.
+  assert.match(catalog, /if \(state\.catalogLoading\)/);
+  assert.match(styles, /\.catalog-progress/);
+  assert.match(styles, /catalog-progress-bar|suggest-progress-slide/);
+});
+
+test("Wada Slice A: picker, catalog swatch, API ids, attribution (UC-26/27)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const itemsSrc = fs.readFileSync(path.join(root, "infra/lambda/items.js"), "utf8");
+  const imprint = fs.readFileSync(path.join(root, "web/imprint.html"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.ok(fs.existsSync(path.join(root, "web/src/data/wada-colors.v1.json")));
+  assert.ok(fs.existsSync(path.join(root, "web/src/wadaPalette.js")));
+  assert.ok(fs.existsSync(path.join(root, "infra/lambda/wadaPalette.js")));
+  assert.ok(fs.existsSync(path.join(root, "THIRD_PARTY.md")));
+  assert.match(catalog, /Wada reference/);
+  assert.match(catalog, /renderWadaField|wadaColorIds|wada-swatch/);
+  assert.match(catalog, /wadaPrimarySwatch|lede-row/);
+  assert.match(catalog, /Browse palette|Clear/);
+  // Swatch fills must use CSSOM (cssText), not style="" — CSP blocks unsafe-inline.
+  assert.match(catalog, /style\.cssText/);
+  assert.match(styles, /\.wada-swatch|\.wada-field|\.sub-row|\.lede-row/);
+  // Detail swatch is 2× catalog (1.7rem); fills still CSSOM / CSP-safe.
+  assert.match(styles, /\.lede-row\s+\.wada-swatch\s*\{[^}]*1\.7rem/s);
+  assert.match(itemsSrc, /applyWadaColorIds|wadaColorIds/);
+  assert.match(itemsSrc, /wadaPalette/);
+  assert.match(imprint, /dictionary-of-colour-combinations|THIRD_PARTY/);
+  assert.match(useCases, /UC-26/);
+  assert.match(useCases, /UC-27/);
+  assert.match(useCases, /item detail/);
+});
+
+test("item detail: dotted attrs above AI text, no AI context label (UC-02/27)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const detailFn = catalog.match(/function renderDetail\([\s\S]*?\n  function renderSuggest/);
+  assert.ok(detailFn, "renderDetail present");
+  const body = detailFn[0];
+  assert.match(body, /attrParts\.join\(" · "\)/);
+  assert.match(body, /className: "ai-context"/);
+  assert.doesNotMatch(body, /text: "AI context"/);
+  assert.doesNotMatch(body, /ai-context-block|field-label/);
+  assert.doesNotMatch(body, /role: \$\{item\.outfitRole\}/);
+});
+
+test("Wada Slice B: client Lab nearest propose after Appraise / from photo", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.ok(fs.existsSync(path.join(root, "web/src/wadaNearest.js")));
+  assert.ok(fs.existsSync(path.join(root, "tests/unit/wadaNearest.test.mjs")));
+  assert.match(catalog, /proposeWadaFromPhoto|nearestWadaColor|sampleThumb/);
+  assert.match(catalog, /Replace from photo|From photo/);
+  assert.match(catalog, /wada-from-photo/);
+  // Still CSP-safe for dynamic swatch fills.
+  assert.match(catalog, /style\.cssText/);
+  assert.doesNotMatch(catalog, /setAttribute\(\s*["']style["']/);
+  assert.match(styles, /\.wada-from-photo|\.wada-field-actions/);
+  assert.match(useCases, /nearest|from photo|Slice B/i);
 });

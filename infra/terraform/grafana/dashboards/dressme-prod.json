@@ -544,7 +544,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(aws_cloudfront_requests_sum{project=\"dressme\", Name=\"prod-dressme-site-distribution\"}[1h]))",
+          "expr": "sum(rate(aws_cloudfront_requests_sum{project=\"dressme\", tag_Name=\"prod-dressme-site-distribution\"}[1h]))",
           "legendFormat": "req/s"
         }
       ]
@@ -1086,12 +1086,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(aws_cloudfront_4xx_error_rate_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "expr": "avg(aws_cloudfront_4xx_error_rate_average{project=\"dressme\", tag_Name=\"prod-dressme-site-distribution\"})",
           "legendFormat": "4xx %"
         },
         {
           "refId": "B",
-          "expr": "avg(aws_cloudfront_5xx_error_rate_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "expr": "avg(aws_cloudfront_5xx_error_rate_average{project=\"dressme\", tag_Name=\"prod-dressme-site-distribution\"})",
           "legendFormat": "5xx %"
         }
       ]
@@ -1156,7 +1156,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", tag_Name=\"prod-dressme-site-distribution\"})",
           "legendFormat": "CF OriginLatency"
         },
         {
@@ -1243,7 +1243,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", tag_Name=\"prod-dressme-site-distribution\"})",
           "legendFormat": "CF OriginLatency"
         },
         {
@@ -1330,7 +1330,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", tag_Name=\"prod-dressme-site-distribution\"})",
           "legendFormat": "CF OriginLatency"
         },
         {
@@ -1417,7 +1417,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", tag_Name=\"prod-dressme-site-distribution\"})",
           "legendFormat": "CF OriginLatency"
         },
         {
@@ -1504,7 +1504,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", Name=\"prod-dressme-site-distribution\"})",
+          "expr": "avg(aws_cloudfront_origin_latency_average{project=\"dressme\", tag_Name=\"prod-dressme-site-distribution\"})",
           "legendFormat": "CF OriginLatency"
         }
       ]
@@ -1920,7 +1920,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(aws_lambda_invocations_sum{project=\"dressme\", Name=\"prod-dressme-health-function\"})",
+          "expr": "sum(aws_lambda_invocations_sum{project=\"dressme\", tag_Name=\"prod-dressme-health-function\"})",
           "legendFormat": "invocations"
         }
       ]
@@ -1968,7 +1968,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(aws_lambda_errors_sum{project=\"dressme\", Name=\"prod-dressme-health-function\"})",
+          "expr": "sum(aws_lambda_errors_sum{project=\"dressme\", tag_Name=\"prod-dressme-health-function\"})",
           "legendFormat": "errors"
         }
       ]
@@ -2016,7 +2016,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(aws_lambda_throttles_sum{project=\"dressme\", Name=\"prod-dressme-health-function\"})",
+          "expr": "sum(aws_lambda_throttles_sum{project=\"dressme\", tag_Name=\"prod-dressme-health-function\"})",
           "legendFormat": "throttles"
         }
       ]
@@ -2025,7 +2025,7 @@
       "id": 31,
       "type": "timeseries",
       "title": "Duration",
-      "description": "Lambda Duration Average + Maximum (prod-dressme-health-function); timeout is 90s.",
+      "description": "Lambda Duration Average (prod-dressme-health-function); timeout is 90s. (Maximum not scraped \u2014 GMD trim.)",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -2064,13 +2064,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(aws_lambda_duration_average{project=\"dressme\", Name=\"prod-dressme-health-function\"})",
+          "expr": "avg(aws_lambda_duration_average{project=\"dressme\", tag_Name=\"prod-dressme-health-function\"})",
           "legendFormat": "avg"
-        },
-        {
-          "refId": "B",
-          "expr": "max(aws_lambda_duration_maximum{project=\"dressme\", Name=\"prod-dressme-health-function\"})",
-          "legendFormat": "max"
         }
       ]
     },
@@ -2231,80 +2226,22 @@
       ]
     },
     {
-      "id": 36,
-      "type": "timeseries",
-      "title": "Errors / throttles",
-      "description": "Bedrock InvocationClientErrors, InvocationServerErrors, InvocationThrottles.",
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 0,
-        "y": 54
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 1,
-            "fillOpacity": 80,
-            "spanNulls": false,
-            "showPoints": "never",
-            "barAlignment": 0
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(aws_bedrock_invocation_client_errors_sum{project=\"dressme\"})",
-          "legendFormat": "client errors"
-        },
-        {
-          "refId": "B",
-          "expr": "sum(aws_bedrock_invocation_server_errors_sum{project=\"dressme\"})",
-          "legendFormat": "server errors"
-        },
-        {
-          "refId": "C",
-          "expr": "sum(aws_bedrock_invocation_throttles_sum{project=\"dressme\"})",
-          "legendFormat": "throttles"
-        }
-      ]
-    },
-    {
       "type": "row",
-      "title": "DynamoDB \u2014 errors, throttles, consumed capacity",
+      "title": "DynamoDB \u2014 throttles & consumed capacity",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 58
       },
-      "id": 37,
+      "id": 36,
       "collapsed": false
     },
     {
-      "id": 38,
+      "id": 37,
       "type": "timeseries",
-      "title": "User / system errors",
-      "description": "DynamoDB UserErrors + SystemErrors Sum (prod-dressme-items-table).",
+      "title": "Throttles",
+      "description": "DynamoDB ThrottledRequests Sum (prod-dressme-items-table).",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -2343,21 +2280,16 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(aws_dynamodb_user_errors_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
-          "legendFormat": "user errors"
-        },
-        {
-          "refId": "B",
-          "expr": "sum(aws_dynamodb_system_errors_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
-          "legendFormat": "system errors"
+          "expr": "sum(aws_dynamodb_throttled_requests_sum{project=\"dressme\", tag_Name=\"prod-dressme-items-table\"})",
+          "legendFormat": "throttled requests"
         }
       ]
     },
     {
-      "id": 39,
+      "id": 38,
       "type": "timeseries",
-      "title": "Throttles",
-      "description": "DynamoDB ThrottledRequests + Read/WriteThrottleEvents Sum (prod-dressme-items-table).",
+      "title": "Consumed capacity",
+      "description": "DynamoDB ConsumedRead/WriteCapacityUnits Sum (prod-dressme-items-table); on-demand table still emits these units.",
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -2396,70 +2328,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(aws_dynamodb_throttled_requests_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
-          "legendFormat": "throttled requests"
-        },
-        {
-          "refId": "B",
-          "expr": "sum(aws_dynamodb_read_throttle_events_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
-          "legendFormat": "read throttle events"
-        },
-        {
-          "refId": "C",
-          "expr": "sum(aws_dynamodb_write_throttle_events_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
-          "legendFormat": "write throttle events"
-        }
-      ]
-    },
-    {
-      "id": 40,
-      "type": "timeseries",
-      "title": "Consumed capacity",
-      "description": "DynamoDB ConsumedRead/WriteCapacityUnits Sum (prod-dressme-items-table); on-demand table still emits these units.",
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 16,
-        "y": 59
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 1,
-            "fillOpacity": 80,
-            "spanNulls": false,
-            "showPoints": "never",
-            "barAlignment": 0
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(aws_dynamodb_consumed_read_capacity_units_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
+          "expr": "sum(aws_dynamodb_consumed_read_capacity_units_sum{project=\"dressme\", tag_Name=\"prod-dressme-items-table\"})",
           "legendFormat": "read capacity"
         },
         {
           "refId": "B",
-          "expr": "sum(aws_dynamodb_consumed_write_capacity_units_sum{project=\"dressme\", Name=\"prod-dressme-items-table\"})",
+          "expr": "sum(aws_dynamodb_consumed_write_capacity_units_sum{project=\"dressme\", tag_Name=\"prod-dressme-items-table\"})",
           "legendFormat": "write capacity"
         }
       ]
@@ -2473,11 +2347,11 @@
         "x": 0,
         "y": 63
       },
-      "id": 41,
+      "id": 39,
       "collapsed": false
     },
     {
-      "id": 42,
+      "id": 40,
       "type": "timeseries",
       "title": "Bandwidth",
       "description": "sum.edgeResponseBytes for dressme.7oas7er.com (eyeball traffic).",
@@ -2550,7 +2424,7 @@
       ]
     },
     {
-      "id": 43,
+      "id": 41,
       "type": "timeseries",
       "title": "Visits",
       "description": "sum.visits for dressme.7oas7er.com (Cloudflare visit = page view with external/direct referrer).",
@@ -2623,7 +2497,7 @@
       ]
     },
     {
-      "id": 44,
+      "id": 42,
       "type": "table",
       "title": "Status mix",
       "description": "edgeResponseStatus totals for dressme.7oas7er.com in the dashboard range.",
@@ -2686,11 +2560,11 @@
         "x": 0,
         "y": 68
       },
-      "id": 45,
+      "id": 43,
       "collapsed": false
     },
     {
-      "id": 46,
+      "id": 44,
       "type": "table",
       "title": "Cache status",
       "description": "cacheStatus breakdown for dressme.7oas7er.com (HIT/MISS/EXPIRED/\u2026).",
@@ -2750,7 +2624,7 @@
       ]
     },
     {
-      "id": 47,
+      "id": 45,
       "type": "table",
       "title": "Verified bots",
       "description": "verifiedBotCategory for dressme.7oas7er.com (empty = unverified / human-ish).",
@@ -2805,7 +2679,7 @@
       ]
     },
     {
-      "id": 48,
+      "id": 46,
       "type": "table",
       "title": "Countries",
       "description": "Top clientCountryName for dressme.7oas7er.com.",
@@ -2868,11 +2742,11 @@
         "x": 0,
         "y": 73
       },
-      "id": 49,
+      "id": 47,
       "collapsed": false
     },
     {
-      "id": 50,
+      "id": 48,
       "type": "table",
       "title": "Top paths",
       "description": "Top clientRequestPath + method for dressme.7oas7er.com.",
@@ -2937,7 +2811,7 @@
       ]
     },
     {
-      "id": 51,
+      "id": 49,
       "type": "table",
       "title": "Firewall events",
       "description": "firewallEventsAdaptive for dressme.7oas7er.com (may be empty when no WAF/firewall matches). Free plan: event rows only; aggregated firewall groups are unavailable.",
@@ -3030,11 +2904,11 @@
         "x": 0,
         "y": 82
       },
-      "id": 52,
+      "id": 50,
       "collapsed": false
     },
     {
-      "id": 53,
+      "id": 51,
       "type": "table",
       "title": "Deploy workflow runs",
       "description": "Workflow_Runs for deploy-dressme.yml.",
@@ -3064,7 +2938,7 @@
       ]
     },
     {
-      "id": 54,
+      "id": 52,
       "type": "table",
       "title": "Terraform plan workflow runs",
       "description": "Workflow_Runs for terraform-plan.yml.",
@@ -3094,7 +2968,7 @@
       ]
     },
     {
-      "id": 55,
+      "id": 53,
       "type": "table",
       "title": "Deploy workflow usage",
       "description": "Workflow_Usage for deploy-dressme.yml.",
@@ -3124,7 +2998,7 @@
       ]
     },
     {
-      "id": 56,
+      "id": 54,
       "type": "table",
       "title": "Terraform plan workflow usage",
       "description": "Workflow_Usage for terraform-plan.yml.",

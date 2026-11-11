@@ -1,7 +1,8 @@
 /**
- * Option D — map free-text wardrobe color/pattern attrs to SVG fills.
- * Attribute map is the instant fallback; lookCard may override with a
- * client-side thumb dominant-color sample (Phase 1 / Path 4a).
+ * Option D — SVG fill helpers (kept for Later hero work).
+ * Catalog color is Wada-only now; lookLayout uses primary Wada hex or
+ * MANNEQUIN_FALLBACK_FILL. resolveFillColor remains for any residual name/hex.
+ * lookCard may still override with a client thumb dominant-color sample.
  */
 
 /** Classic menswear seed colors → CSS. Unknown names fall back below. */

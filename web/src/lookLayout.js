@@ -1,12 +1,20 @@
 /**
  * Layered look layout (Option 4 chrome + Option D SVG mannequin hero).
  * Slot synonyms + hero/strip view-model for suggest cards.
- * Hero uses attribute fills (color + cheap pattern hint) as the instant baseline;
+ * Hero fills from primary Wada hex when set (else neutral fallback) + pattern hint;
  * lookCard may refine fills from a client thumb sample. Strip stays photographic.
  * Cutouts are no longer preferred (generation stopped; existing keys left in place).
  */
 
-import { resolveFillColor, resolvePatternHint } from "./mannequinColor.js";
+import {
+  MANNEQUIN_FALLBACK_FILL,
+  resolvePatternHint,
+} from "./mannequinColor.js";
+import {
+  primaryWadaHex,
+  primaryWadaId,
+  resolveWadaName,
+} from "./wadaPalette.js";
 
 /** Bottom → top paint / low → high z-index. */
 export const HERO_SLOT_ORDER = ["shoes", "trousers", "shirt", "jacket"];
@@ -182,7 +190,8 @@ export function layerImageUrl(item, { purpose = "hero" } = {}) {
 function itemLabel(item) {
   const type = String((item && item.type) || "item").trim();
   const brand = String((item && item.brandModel) || "").trim();
-  const color = String((item && item.color) || "").trim();
+  const primaryId = primaryWadaId(item && item.wadaColorIds);
+  const color = primaryId ? resolveWadaName(primaryId) : "";
   const bits = [color, type, brand].filter(Boolean);
   return bits.join(" ") || type;
 }
@@ -190,17 +199,22 @@ function itemLabel(item) {
 function makeLayer(item, slotId, { hero }) {
   const band = slotId && SLOT_BANDS[slotId] ? { ...SLOT_BANDS[slotId] } : null;
   const inset = slotId && SLOT_INSET[slotId] ? { ...SLOT_INSET[slotId] } : null;
-  const colorRaw = String((item && item.color) || "").trim();
   const patternRaw = String((item && item.pattern) || "").trim();
+  // UC-05 / Wada: primary Wada hex only; thumb sample may refine when unset.
+  const wadaHex = primaryWadaHex((item && item.wadaColorIds) || []);
+  const fillFromWada = Boolean(wadaHex);
+  const primaryId = primaryWadaId(item && item.wadaColorIds);
+  const colorLabel = primaryId ? resolveWadaName(primaryId) : "";
   return {
     itemId: String((item && (item.itemId || item.id)) || ""),
     slotId,
     zIndex: slotId && SLOT_Z[slotId] != null ? SLOT_Z[slotId] : 0,
     imageUrl: layerImageUrl(item, { purpose: "hero" }),
     thumbUrl: layerImageUrl(item, { purpose: "strip" }),
-    fillColor: resolveFillColor(colorRaw),
+    fillColor: fillFromWada ? wadaHex : MANNEQUIN_FALLBACK_FILL,
+    fillFromWada,
     patternHint: resolvePatternHint(patternRaw),
-    colorLabel: colorRaw,
+    colorLabel,
     label: itemLabel(item),
     band,
     inset,

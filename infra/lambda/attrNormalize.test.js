@@ -21,6 +21,56 @@ test("normalizeAttrValue unifies delimiters and strips trailing punct", function
   assert.equal(attrNormalize.normalizeAttrValue("navy,"), "navy");
 });
 
+test("brandModel keeps ampersand; other delimiters still unify", function () {
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Mey & Edlich", "brandModel"),
+    "Mey & Edlich"
+  );
+  assert.equal(attrNormalize.normalizeAttrValue("H&M", "brandModel"), "H&M");
+  assert.equal(attrNormalize.normalizeAttrValue("H & M", "brandModel"), "H & M");
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Rooks/Rocks", "brandModel"),
+    "Rooks, Rocks"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Rooks and Rocks", "brandModel"),
+    "Rooks & Rocks"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Naked and Famous", "brandModel"),
+    "Naked & Famous"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("white&blue", "color"),
+    "white, blue"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("black and white", "color"),
+    "black and white"
+  );
+});
+
+test("brandModel prefers & option over comma form on fold-match", function () {
+  var options = ["Mey, Edlich", "Mey & Edlich", "H&M"];
+  var customs = ["Mey, Edlich", "Mey & Edlich", "H&M"];
+  assert.equal(
+    attrNormalize.canonicalizeAttrValue("Mey, Edlich", options, customs, "brandModel"),
+    "Mey & Edlich"
+  );
+  assert.equal(
+    attrNormalize.canonicalizeAttrValue("H, M", options, customs, "brandModel"),
+    "H&M"
+  );
+  var mey = attrNormalize.matchAttrOption(
+    "Mey, Edlich",
+    options,
+    customs,
+    "brandModel"
+  );
+  assert.equal(mey.action, "silent");
+  assert.equal(mey.suggestion, "Mey & Edlich");
+});
+
 test("foldForMatch drops case and periods", function () {
   assert.equal(attrNormalize.foldForMatch("U.S.A."), "usa");
   assert.equal(attrNormalize.foldForMatch("USA"), "usa");
@@ -54,7 +104,7 @@ test("delimiter near-match shows chip; canonicalize still folds to option", func
   );
 });
 
-test("Levenshtein-1 brand typo chips; canonicalize does not auto-apply", function () {
+test("Levenshtein-1 non-brand chips; canonicalize does not auto-apply", function () {
   var options = ["Ralph Lauren", "Drake's"];
   var result = attrNormalize.matchAttrOption("Ralph Laurn", options, [
     "Ralph Lauren",
@@ -69,6 +119,68 @@ test("Levenshtein-1 brand typo chips; canonicalize does not auto-apply", functio
       "Drake's",
     ]),
     "Ralph Laurn"
+  );
+});
+
+test("brandModel approved aliases rewrite on normalize", function () {
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Joe Marino", "brandModel"),
+    "Joe Merino"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Mr. Mavis", "brandModel"),
+    "Mr. Marvis"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Ruffs and Rocks", "brandModel"),
+    "Rooks & Rocks"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Roots & Rocks", "brandModel"),
+    "Rooks & Rocks"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Suit Supply", "brandModel"),
+    "Suitsupply"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Etana", "brandModel"),
+    "Eterna"
+  );
+  assert.equal(
+    attrNormalize.normalizeAttrValue("Polo Ralph Lauren", "brandModel"),
+    "Ralph Lauren"
+  );
+});
+
+test("brandModel Levenshtein-1 prefers META silently on write", function () {
+  var options = ["Ralph Lauren", "Joe Merino", "Rooks & Rocks"];
+  var customs = options.slice();
+  var tip = attrNormalize.matchAttrOption(
+    "Ralph Laurn",
+    options,
+    customs,
+    "brandModel"
+  );
+  assert.equal(tip.action, "silent");
+  assert.equal(tip.normalized, "Ralph Lauren");
+  assert.equal(
+    attrNormalize.canonicalizeAttrValue(
+      "Ralph Laurn",
+      options,
+      customs,
+      "brandModel"
+    ),
+    "Ralph Lauren"
+  );
+  assert.equal(
+    attrNormalize.canonicalizeAttrValue(
+      "Joe Merono",
+      options,
+      customs,
+      "brandModel"
+    ),
+    "Joe Merino"
   );
 });
 

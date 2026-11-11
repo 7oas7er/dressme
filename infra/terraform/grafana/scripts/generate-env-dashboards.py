@@ -379,7 +379,7 @@ def traffic_panel(panel_id: int, cfg: dict, win: dict, grid_pos: dict) -> dict:
                     "refId": "A",
                     "expr": (
                         f'sum(rate(aws_cloudfront_requests_sum{{project="dressme", '
-                        f'Name="{cf_name}"}}[1h]))'
+                        f'tag_Name="{cf_name}"}}[1h]))'
                     ),
                     "legendFormat": "req/s",
                 }
@@ -459,7 +459,7 @@ def errors_panel(panel_id: int, cfg: dict, win: dict, grid_pos: dict) -> dict:
                     "refId": "A",
                     "expr": (
                         f'avg(aws_cloudfront_4xx_error_rate_average{{project="dressme", '
-                        f'Name="{cf_name}"}})'
+                        f'tag_Name="{cf_name}"}})'
                     ),
                     "legendFormat": "4xx %",
                 },
@@ -467,7 +467,7 @@ def errors_panel(panel_id: int, cfg: dict, win: dict, grid_pos: dict) -> dict:
                     "refId": "B",
                     "expr": (
                         f'avg(aws_cloudfront_5xx_error_rate_average{{project="dressme", '
-                        f'Name="{cf_name}"}})'
+                        f'tag_Name="{cf_name}"}})'
                     ),
                     "legendFormat": "5xx %",
                 },
@@ -539,7 +539,7 @@ def latency_panel(panel_id: int, cfg: dict, win: dict, grid_pos: dict) -> dict:
         "datasource": {"type": "prometheus", "uid": "${datasource}"},
         "expr": (
             f'avg(aws_cloudfront_origin_latency_average{{project="dressme", '
-            f'Name="{cf_name}"}})'
+            f'tag_Name="{cf_name}"}})'
         ),
         "legendFormat": "CF OriginLatency",
     }
@@ -811,8 +811,8 @@ def build_dashboard(env_key: str) -> dict:
     # latency rows above stay unchanged (req/s + % conventions).
     lambda_name = cfg["lambda_name"]
     dynamo_name = cfg["dynamo_name"]
-    lambda_sel = f'project="dressme", Name="{lambda_name}"'
-    dynamo_sel = f'project="dressme", Name="{dynamo_name}"'
+    lambda_sel = f'project="dressme", tag_Name="{lambda_name}"'
+    dynamo_sel = f'project="dressme", tag_Name="{dynamo_name}"'
     # Bedrock CW is account+ModelId (no Environment tag); both env boards share series.
     bedrock_sel = 'project="dressme"'
 
@@ -858,18 +858,13 @@ def build_dashboard(env_key: str) -> dict:
             ),
             (
                 "Duration",
-                f"Lambda Duration Average + Maximum ({lambda_name}); timeout is 90s.",
+                f"Lambda Duration Average ({lambda_name}); timeout is 90s. (Maximum not scraped — GMD trim.)",
                 "ms",
                 [
                     {
                         "refId": "A",
                         "expr": f"avg(aws_lambda_duration_average{{{lambda_sel}}})",
                         "legendFormat": "avg",
-                    },
-                    {
-                        "refId": "B",
-                        "expr": f"max(aws_lambda_duration_maximum{{{lambda_sel}}})",
-                        "legendFormat": "max",
                     },
                 ],
             ),
@@ -938,34 +933,7 @@ def build_dashboard(env_key: str) -> dict:
                     }
                 ],
             ),
-            (
-                "Errors / throttles",
-                "Bedrock InvocationClientErrors, InvocationServerErrors, InvocationThrottles.",
-                "short",
-                [
-                    {
-                        "refId": "A",
-                        "expr": (
-                            f"sum(aws_bedrock_invocation_client_errors_sum{{{bedrock_sel}}})"
-                        ),
-                        "legendFormat": "client errors",
-                    },
-                    {
-                        "refId": "B",
-                        "expr": (
-                            f"sum(aws_bedrock_invocation_server_errors_sum{{{bedrock_sel}}})"
-                        ),
-                        "legendFormat": "server errors",
-                    },
-                    {
-                        "refId": "C",
-                        "expr": (
-                            f"sum(aws_bedrock_invocation_throttles_sum{{{bedrock_sel}}})"
-                        ),
-                        "legendFormat": "throttles",
-                    },
-                ],
-            ),
+            # Errors/throttles metrics dropped from scrape (GMD Phase 2 keep-list).
         ]
     ):
         panels.append(
@@ -982,54 +950,20 @@ def build_dashboard(env_key: str) -> dict:
     y += METRIC_PANEL_H * 2
 
     panels.append(
-        row(nid(), "DynamoDB — errors, throttles, consumed capacity", y)
+        row(nid(), "DynamoDB — throttles & consumed capacity", y)
     )
     y += 1
     for idx, (title, desc, unit, targets) in enumerate(
         [
             (
-                "User / system errors",
-                f"DynamoDB UserErrors + SystemErrors Sum ({dynamo_name}).",
-                "short",
-                [
-                    {
-                        "refId": "A",
-                        "expr": f"sum(aws_dynamodb_user_errors_sum{{{dynamo_sel}}})",
-                        "legendFormat": "user errors",
-                    },
-                    {
-                        "refId": "B",
-                        "expr": f"sum(aws_dynamodb_system_errors_sum{{{dynamo_sel}}})",
-                        "legendFormat": "system errors",
-                    },
-                ],
-            ),
-            (
                 "Throttles",
-                (
-                    f"DynamoDB ThrottledRequests + Read/WriteThrottleEvents Sum "
-                    f"({dynamo_name})."
-                ),
+                f"DynamoDB ThrottledRequests Sum ({dynamo_name}).",
                 "short",
                 [
                     {
                         "refId": "A",
                         "expr": f"sum(aws_dynamodb_throttled_requests_sum{{{dynamo_sel}}})",
                         "legendFormat": "throttled requests",
-                    },
-                    {
-                        "refId": "B",
-                        "expr": (
-                            f"sum(aws_dynamodb_read_throttle_events_sum{{{dynamo_sel}}})"
-                        ),
-                        "legendFormat": "read throttle events",
-                    },
-                    {
-                        "refId": "C",
-                        "expr": (
-                            f"sum(aws_dynamodb_write_throttle_events_sum{{{dynamo_sel}}})"
-                        ),
-                        "legendFormat": "write throttle events",
                     },
                 ],
             ),

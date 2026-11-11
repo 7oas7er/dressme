@@ -28,9 +28,9 @@ function item(partial) {
     itemId: partial.itemId || "id",
     type: partial.type || "",
     outfitRole: partial.outfitRole || "",
-    color: partial.color || "",
     pattern: partial.pattern || "",
     brandModel: partial.brandModel || "",
+    wadaColorIds: partial.wadaColorIds || [],
     photos: partial.photos || [photo("https://f.example/a.jpg", "https://t.example/a.jpg")],
     ...partial,
   };
@@ -85,6 +85,7 @@ function installDomStub() {
       this.textContent = "";
       this.attributes = {};
       this._listeners = {};
+      this.style = { cssText: "" };
     }
     setAttribute(key, value) {
       this.attributes[key] = String(value);
@@ -176,14 +177,41 @@ test("catalog layerImageUrl follows photos[0] after primary reorder", () => {
   assert.equal(layerImageUrl(after, { purpose: "catalog" }), "https://f.example/second.jpg");
 });
 
-test("buildLookVisual orders hero by z-index and strip top-down; fills from color", () => {
+test("buildLookVisual orders hero by z-index and strip top-down; Wada fills when set", () => {
   const look = {
     items: [
-      item({ itemId: "sh", outfitRole: "footwear", type: "shoes", color: "brown" }),
-      item({ itemId: "tr", outfitRole: "trousers", type: "pants", color: "grey", pattern: "solid" }),
-      item({ itemId: "si", outfitRole: "shirt", type: "oxford", color: "white", pattern: "stripe" }),
-      item({ itemId: "jk", outfitRole: "outerwear", type: "blazer", color: "navy" }),
-      item({ itemId: "be", outfitRole: "belt", type: "belt", color: "black" }),
+      item({
+        itemId: "sh",
+        outfitRole: "footwear",
+        type: "shoes",
+        wadaColorIds: ["wada:v1:42"],
+      }),
+      item({
+        itemId: "tr",
+        outfitRole: "trousers",
+        type: "pants",
+        pattern: "solid",
+        wadaColorIds: ["wada:v1:7"],
+      }),
+      item({
+        itemId: "si",
+        outfitRole: "shirt",
+        type: "oxford",
+        pattern: "stripe",
+        wadaColorIds: ["wada:v1:0"],
+      }),
+      item({
+        itemId: "jk",
+        outfitRole: "outerwear",
+        type: "blazer",
+        wadaColorIds: ["wada:v1:0"],
+      }),
+      item({
+        itemId: "be",
+        outfitRole: "belt",
+        type: "belt",
+        wadaColorIds: ["wada:v1:42"],
+      }),
     ],
   };
   const visual = buildLookVisual(look, 0);
@@ -198,11 +226,45 @@ test("buildLookVisual orders hero by z-index and strip top-down; fills from colo
   );
   assert.equal(visual.layers[3].imageUrl, "https://f.example/a.jpg");
   assert.equal(visual.strip[0].thumbUrl, "https://t.example/a.jpg");
-  assert.equal(visual.layers.find((l) => l.slotId === "jacket").fillColor, "#1e3a5f");
+  assert.equal(visual.layers.find((l) => l.slotId === "jacket").fillColor, "#f9c1ce");
   assert.equal(visual.layers.find((l) => l.slotId === "shirt").patternHint, "stripe");
   assert.ok(visual.belt);
   assert.equal(visual.belt.itemId, "be");
-  assert.equal(visual.belt.fillColor, "#1a1a1a");
+  assert.equal(visual.belt.fillColor, "#fdd4bd");
+});
+
+test("Option D uses primary Wada hex when set", () => {
+  const look = {
+    items: [
+      item({
+        itemId: "jk",
+        outfitRole: "outerwear",
+        type: "blazer",
+        wadaColorIds: ["wada:v1:0"],
+      }),
+    ],
+  };
+  const visual = buildLookVisual(look, 0);
+  const jacket = visual.layers.find((l) => l.slotId === "jacket");
+  assert.equal(jacket.fillColor, "#f9c1ce");
+  assert.equal(jacket.fillFromWada, true);
+});
+
+test("without Wada, fillFromWada is false and neutral fallback applies", () => {
+  const look = {
+    items: [
+      item({
+        itemId: "jk",
+        outfitRole: "outerwear",
+        type: "blazer",
+        wadaColorIds: [],
+      }),
+    ],
+  };
+  const visual = buildLookVisual(look, 0);
+  const jacket = visual.layers.find((l) => l.slotId === "jacket");
+  assert.equal(jacket.fillColor, "#9aa3ad");
+  assert.equal(jacket.fillFromWada, false);
 });
 
 test("unmapped items are strip-only; duplicate slots keep first for hero", () => {
@@ -229,50 +291,71 @@ test("unmapped items are strip-only; duplicate slots keep first for hero", () =>
   assert.equal(visual.strip.find((l) => l.itemId === "acc").slotId, null);
 });
 
-test("renderLookCard DOM has elongated SVG mannequin + right strip + washes", () => {
+test("renderLookCard DOM is photos-only with Wada plate and tappable pieces", () => {
   installDomStub();
   const look = {
     lookId: "1",
+    title: "Soft Navy Stack",
     rationale: "Navy blazer over a white oxford keeps the lunch formal without black-tie overreach.",
     items: [
-      item({ itemId: "jk", outfitRole: "outerwear", type: "blazer", color: "navy" }),
-      item({ itemId: "si", outfitRole: "shirt", type: "oxford", color: "white", pattern: "stripe" }),
-      item({ itemId: "tr", outfitRole: "trousers", type: "pants", color: "grey" }),
-      item({ itemId: "sh", outfitRole: "footwear", type: "shoes", color: "brown" }),
-      item({ itemId: "be", outfitRole: "belt", type: "belt", color: "black" }),
+      item({
+        itemId: "jk",
+        outfitRole: "outerwear",
+        type: "blazer",
+        wadaColorIds: ["wada:v1:42"],
+      }),
+      item({ itemId: "si", outfitRole: "shirt", type: "oxford", pattern: "stripe" }),
+      item({
+        itemId: "tr",
+        outfitRole: "trousers",
+        type: "pants",
+        wadaColorIds: ["wada:v1:7"],
+      }),
+      item({ itemId: "sh", outfitRole: "footwear", type: "shoes" }),
+      item({ itemId: "be", outfitRole: "belt", type: "belt" }),
     ],
   };
-  const card = renderLookCard(look, 0);
+  let opened = null;
+  const card = renderLookCard(look, 0, {
+    onItemOpen: (piece) => {
+      opened = piece;
+    },
+  });
   assert.equal(card.className, "look-card");
+  assert.match(card.querySelector("h2").textContent || "", /Soft Navy Stack/);
   assert.ok(card.querySelector(".look-body"));
-  assert.ok(card.querySelector(".look-hero"));
-  assert.ok(card.querySelector(".look-strip"));
+  assert.equal(card.querySelector(".look-mannequin"), null);
+  assert.equal(card.querySelector(".look-hero"), null);
+  assert.ok(card.querySelector(".look-pieces--with-plate"));
+  assert.ok(card.querySelectorAll(".look-wada-swatch").length >= 1);
+  assert.ok(card.querySelector(".look-pieces"));
+  assert.equal(card.querySelectorAll(".look-piece-col").length, 5);
+  assert.equal(card.querySelectorAll(".look-piece").length, 5);
+  // Plate columns follow photo strip order (jacket → shirt → trousers → shoes → belt).
+  const cols = [...card.querySelectorAll(".look-piece-col")];
+  const stripIds = cols.map((col) =>
+    col.querySelector(".look-piece")?.getAttribute("data-item-id")
+  );
+  assert.deepEqual(stripIds, ["jk", "si", "tr", "sh", "be"]);
+  const swatchOverJacket = cols[0].querySelector(".look-wada-swatch");
+  assert.ok(swatchOverJacket);
+  assert.doesNotMatch(swatchOverJacket.className || "", /look-wada-swatch--empty/);
+  assert.match(
+    swatchOverJacket.querySelector(".look-wada-name")?.textContent || "",
+    /Seashell Pink|Pink/i
+  );
+  assert.ok(cols[1].querySelector(".look-wada-swatch--empty"));
+  assert.ok(card.querySelectorAll(".look-piece-btn").length >= 1);
   const rationale = card.querySelector(".look-rationale");
   assert.ok(rationale);
   assert.match(rationale.textContent || "", /Navy blazer/);
-  // Rationale is a sibling below look-body, not inside the hero.
-  assert.equal(card.querySelector(".look-hero .look-rationale"), null);
-  const mannequin = card.querySelector(".look-mannequin");
-  assert.ok(mannequin);
-  assert.equal(mannequin.attributes.viewBox, "0 0 100 240");
-  assert.equal(card.querySelectorAll(".mannequin-panel").length >= 4, true);
-  assert.equal(card.querySelectorAll(".look-strip-thumb").length, 5);
-  const body = card.querySelector(".look-body");
-  assert.match(body.children[0].className, /look-hero/);
-  assert.equal(body.children[1].className, "look-strip");
-  const jacket = card.querySelectorAll(".mannequin-panel").find(
-    (n) => (n.attributes["data-slot"] || "") === "jacket"
-  );
-  assert.ok(jacket);
-  // Phase 1: solid panels use soft wash gradients (attr color as stops).
-  assert.equal(jacket.attributes.fill, "url(#mn-wash-0-jacket)");
-  assert.ok(card.querySelector("#mn-wash-0-jacket"));
-  assert.ok(card.querySelector("#mn-grain-0"));
-  const trousers = card.querySelectorAll(".mannequin-panel").find(
-    (n) => (n.attributes["data-slot"] || "") === "trousers"
-  );
-  assert.ok(trousers);
-  assert.match(trousers.attributes.d || "", /208|212|216/);
+  assert.equal(card.querySelector(".look-pieces .look-rationale"), null);
+
+  const btn = card.querySelector(".look-piece-btn");
+  assert.ok(btn && btn._listeners && btn._listeners.click);
+  btn._listeners.click();
+  assert.ok(opened);
+  assert.ok(opened.itemId);
 
   const noRationale = renderLookCard({ lookId: "2", items: look.items }, 1);
   assert.equal(noRationale.querySelector(".look-rationale"), null);

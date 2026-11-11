@@ -56,7 +56,9 @@ jobs:
   test:
     name: App tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 45m: Playwright apt DNS flakes can burn ~10m per install-deps attempt;
+    # the step retries up to 3× before unit/e2e run.
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -92,15 +94,33 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
+      # apt mirror DNS flakes (Temporary failure resolving archive.ubuntu.com)
+      # are common on ubuntu-latest; retry instead of failing the whole App tests job.
       - name: Install Playwright Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: tests
-        run: npx playwright install --with-deps chromium
+        run: |
+          for attempt in 1 2 3; do
+            if npx playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "Playwright install attempt ${attempt} failed; retrying..."
+            sleep $((attempt * 15))
+          done
+          exit 1
 
       - name: Install Playwright OS dependencies
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         working-directory: tests
-        run: npx playwright install-deps chromium
+        run: |
+          for attempt in 1 2 3; do
+            if npx playwright install-deps chromium; then
+              exit 0
+            fi
+            echo "Playwright OS deps attempt ${attempt} failed; retrying..."
+            sleep $((attempt * 15))
+          done
+          exit 1
 
       - name: Run unit and end-to-end tests
         working-directory: tests

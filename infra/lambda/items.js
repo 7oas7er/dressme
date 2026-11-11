@@ -20,10 +20,10 @@ var attributeOptions = require("./attributeOptions");
 var attrNormalize = require("./attrNormalize");
 var cutouts = require("./cutouts");
 var thumbs = require("./thumbs");
+var wadaPalette = require("./wadaPalette");
 
 var ATTR_KEYS = [
   "type",
-  "color",
   "fabric",
   "brandModel",
   "formality",
@@ -114,7 +114,8 @@ function skForItem(itemId) {
 
 /**
  * Phase 1 hygiene: rules 1–4 + silent fold rewrite to seed/custom spelling.
- * Typo (Levenshtein) matches are never auto-applied — SPA chips only.
+ * brandModel also auto-applies Levenshtein-1 / approved aliases; other fields
+ * keep typo matches as SPA chips only.
  */
 async function normalizeAttributes(user, input, partial) {
   var src = input || {};
@@ -136,7 +137,8 @@ async function normalizeAttributes(user, input, partial) {
       out[key] = attrNormalize.canonicalizeAttrValue(
         src[key],
         (catalog.options && catalog.options[key]) || [],
-        (catalog.custom && catalog.custom[key]) || []
+        (catalog.custom && catalog.custom[key]) || [],
+        key
       );
     }
     if (out[key] === undefined) {
@@ -175,11 +177,31 @@ function applyAiContext(target, body, partial) {
   return target;
 }
 
+/**
+ * Apply optional wadaColorIds from create/update body.
+ * Create: omitted → []; Update: omitted → leave existing; [] clears.
+ */
+function applyWadaColorIds(target, body, partial) {
+  if (!body || !Object.prototype.hasOwnProperty.call(body, "wadaColorIds")) {
+    if (!partial) {
+      target.wadaColorIds = [];
+    }
+    return target;
+  }
+  var ids = wadaPalette.normalizeWadaColorIds(body.wadaColorIds);
+  target.wadaColorIds = ids || [];
+  return target;
+}
+
 function buildSearchText(item) {
   return ATTR_KEYS.map(function (key) {
     return item[key] || "";
   })
-    .concat([item.aiContext || "", item.itemId || ""])
+    .concat([
+      item.aiContext || "",
+      wadaPalette.wadaNamesForSearch(item.wadaColorIds),
+      item.itemId || "",
+    ])
     .join(" ")
     .toLowerCase();
 }
@@ -188,13 +210,13 @@ function publicItem(item, photoUrls, thumbUrls, cutoutUrls) {
   var out = {
     itemId: item.itemId,
     type: item.type,
-    color: item.color,
     fabric: item.fabric,
     brandModel: item.brandModel,
     formality: item.formality,
     pattern: item.pattern,
     season: item.season,
     outfitRole: item.outfitRole,
+    wadaColorIds: Array.isArray(item.wadaColorIds) ? item.wadaColorIds.slice() : [],
     photos: (item.photos || []).map(function (photo) {
       var row = {
         photoId: photo.photoId,
@@ -543,6 +565,9 @@ async function createItem(user, body) {
     updatedAt: ts,
   });
   applyAiContext(item, body, false);
+  applyWadaColorIds(item, body, false);
+  // Legacy free-text color dropped — never persist or return it.
+  delete item.color;
   item.searchText = buildSearchText(item);
 
   await docClient().send(
@@ -574,6 +599,7 @@ async function updateItem(user, itemId, body) {
   var attrs = await normalizeAttributes(user, body, true);
   var next = Object.assign({}, existing, attrs, { updatedAt: nowIso() });
   applyAiContext(next, body, true);
+  applyWadaColorIds(next, body, true);
   var uploads = [];
 
   // Removals first so a single PUT can drop photos and request new upload slots.
@@ -726,6 +752,8 @@ async function updateItem(user, itemId, body) {
     }
   }
 
+  // Strip legacy free-text color on write (ignore leftovers on read).
+  delete next.color;
   next.searchText = buildSearchText(next);
   await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
 
@@ -771,6 +799,7 @@ async function confirmPhotos(user, itemId, body) {
     photos: photos,
     updatedAt: nowIso(),
   });
+  delete next.color;
   next.searchText = buildSearchText(next);
   await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
   return {
@@ -892,6 +921,7 @@ async function backfillDerivative(user, kind, options) {
         photos: nextPhotos,
         updatedAt: nowIso(),
       });
+      delete next.color;
       next.searchText = buildSearchText(next);
       await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
       updatedItems += 1;

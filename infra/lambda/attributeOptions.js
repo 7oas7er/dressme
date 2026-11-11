@@ -11,7 +11,6 @@ var attrNormalize = require("./attrNormalize");
 /** Fields that offer suggested values + free text (UC-19), including brand/model. */
 var SUGGESTION_FIELDS = [
   "type",
-  "color",
   "fabric",
   "brandModel",
   "formality",
@@ -23,6 +22,7 @@ var SUGGESTION_FIELDS = [
 /**
  * Classic menswear-oriented seed suggestions per field.
  * brandModel has no fixed seeds — wardrobe brands vary; every free-text value is remembered.
+ * Color is Wada-only (UC-26) — not a free-text suggestion field.
  */
 var SEED_OPTIONS = {
   brandModel: [],
@@ -54,28 +54,6 @@ var SEED_OPTIONS = {
     "socks",
     "cufflinks",
     "watch",
-  ],
-  color: [
-    "navy",
-    "charcoal",
-    "black",
-    "grey",
-    "light grey",
-    "white",
-    "ivory",
-    "cream",
-    "beige",
-    "brown",
-    "olive",
-    "forest green",
-    "burgundy",
-    "wine",
-    "light blue",
-    "mid blue",
-    "pink",
-    "purple",
-    "tan",
-    "camel",
   ],
   fabric: [
     "wool",
@@ -182,8 +160,8 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function normalizeValue(value) {
-  return attrNormalize.normalizeAttrValue(value);
+function normalizeValue(value, field) {
+  return attrNormalize.normalizeAttrValue(value, field);
 }
 
 /**
@@ -207,6 +185,58 @@ function emptyCustomMap() {
   return out;
 }
 
+function customDedupeKey(field, value) {
+  if (field === "brandModel") {
+    return attrNormalize.foldForMatch(value, field);
+  }
+  return normalizeValue(value, field).toLowerCase();
+}
+
+function preferCustomValue(field, current, next) {
+  if (!current) return next;
+  if (field === "brandModel") {
+    var curAmp = String(current).indexOf("&") !== -1;
+    var nextAmp = String(next).indexOf("&") !== -1;
+    if (nextAmp && !curAmp) return next;
+    if (curAmp && !nextAmp) return current;
+  }
+  return current;
+}
+
+/**
+ * brandModel only: find an existing custom that is fold-equal or Levenshtein-1
+ * to `value`, preferring & forms. Prevents typo aliases from burning META slots.
+ */
+function findBrandNearCustom(value, list) {
+  var fold = customDedupeKey("brandModel", value);
+  if (!fold) return -1;
+  var foldIdx = -1;
+  var near = [];
+  for (var j = 0; j < list.length; j++) {
+    var otherFold = customDedupeKey("brandModel", list[j]);
+    if (!otherFold) continue;
+    if (otherFold === fold) {
+      foldIdx = j;
+      break;
+    }
+    if (attrNormalize.levenshtein(fold, otherFold) === 1) {
+      near.push(j);
+    }
+  }
+  if (foldIdx >= 0) return foldIdx;
+  if (!near.length) return -1;
+  near.sort(function (a, b) {
+    var aVal = list[a];
+    var bVal = list[b];
+    var aAmp = String(aVal).indexOf("&") !== -1;
+    var bAmp = String(bVal).indexOf("&") !== -1;
+    if (aAmp !== bAmp) return aAmp ? -1 : 1;
+    if (aVal.length !== bVal.length) return aVal.length - bVal.length;
+    return aVal.localeCompare(bVal);
+  });
+  return near[0];
+}
+
 function normalizeCustomMap(raw) {
   var src = raw && typeof raw === "object" ? raw : {};
   var out = emptyCustomMap();
@@ -216,11 +246,16 @@ function normalizeCustomMap(raw) {
     var seen = Object.create(null);
     var cleaned = [];
     for (var j = 0; j < list.length; j++) {
-      var value = normalizeValue(list[j]);
+      var value = normalizeValue(list[j], key);
       if (!value) continue;
-      var fold = value.toLowerCase();
-      if (seen[fold]) continue;
-      seen[fold] = true;
+      var fold = customDedupeKey(key, value);
+      if (!fold) continue;
+      if (Object.prototype.hasOwnProperty.call(seen, fold)) {
+        var idx = seen[fold];
+        cleaned[idx] = preferCustomValue(key, cleaned[idx], value);
+        continue;
+      }
+      seen[fold] = cleaned.length;
       cleaned.push(value);
       if (cleaned.length >= MAX_CUSTOM_PER_FIELD) break;
     }
@@ -231,7 +266,7 @@ function normalizeCustomMap(raw) {
 
 function isSeedValue(field, value) {
   var seeds = SEED_OPTIONS[field] || [];
-  var fold = normalizeValue(value).toLowerCase();
+  var fold = normalizeValue(value, field).toLowerCase();
   if (!fold) return true;
   for (var i = 0; i < seeds.length; i++) {
     if (seeds[i].toLowerCase() === fold) return true;
@@ -249,13 +284,13 @@ function mergeOptions(customMap) {
     var merged = [];
     for (var s = 0; s < seeds.length; s++) {
       var seed = seeds[s];
-      seen[seed.toLowerCase()] = true;
+      seen[customDedupeKey(key, seed)] = true;
       merged.push(seed);
     }
     var customs = custom[key] || [];
     for (var c = 0; c < customs.length; c++) {
       var value = customs[c];
-      var fold = value.toLowerCase();
+      var fold = customDedupeKey(key, value);
       if (seen[fold]) continue;
       seen[fold] = true;
       merged.push(value);
@@ -299,7 +334,7 @@ async function rememberCustomValues(user, attrs) {
   for (var i = 0; i < SUGGESTION_FIELDS.length; i++) {
     var key = SUGGESTION_FIELDS[i];
     if (!Object.prototype.hasOwnProperty.call(src, key)) continue;
-    var value = normalizeValue(src[key]);
+    var value = normalizeValue(src[key], key);
     if (!value || isSeedValue(key, value)) continue;
     additions[key] = value;
     any = true;
@@ -311,16 +346,34 @@ async function rememberCustomValues(user, attrs) {
   var changed = false;
   for (var field of Object.keys(additions)) {
     var next = additions[field];
-    var fold = next.toLowerCase();
+    var fold = customDedupeKey(field, next);
     var list = custom[field] || [];
-    var found = false;
+    var foundIdx = -1;
     for (var j = 0; j < list.length; j++) {
-      if (list[j].toLowerCase() === fold) {
-        found = true;
+      if (customDedupeKey(field, list[j]) === fold) {
+        foundIdx = j;
         break;
       }
     }
-    if (found) continue;
+    var nearMatch = false;
+    if (foundIdx < 0 && field === "brandModel") {
+      foundIdx = findBrandNearCustom(next, list);
+      nearMatch = foundIdx >= 0;
+    }
+    if (foundIdx >= 0) {
+      // Fold-equal: prefer & form. Levenshtein-1: keep existing META spelling
+      // so a typo emission does not overwrite the canonical slot.
+      var preferred = nearMatch
+        ? list[foundIdx]
+        : preferCustomValue(field, list[foundIdx], next);
+      if (preferred !== list[foundIdx]) {
+        list = list.slice();
+        list[foundIdx] = preferred;
+        custom[field] = list;
+        changed = true;
+      }
+      continue;
+    }
     list = [next].concat(list).slice(0, MAX_CUSTOM_PER_FIELD);
     custom[field] = list;
     changed = true;

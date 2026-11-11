@@ -130,6 +130,7 @@ exports.handler = async function handler(event) {
       suggest_unavailable: true,
       suggest_invalid_model_json: true,
       suggest_invalid_item_ids: true,
+      suggest_incomplete_looks: true,
       suggest_empty_model_response: true,
       suggest_engine_unavailable: true,
     };

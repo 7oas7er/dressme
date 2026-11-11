@@ -85,8 +85,14 @@ variable "bedrock_model_id" {
   default     = "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
 }
 
+variable "suggest_model_id" {
+  description = "Optional Bedrock model/profile for UC-04 Suggest (SUGGEST_MODEL_ID). Empty = use bedrock_model_id (Analyze pin)."
+  type        = string
+  default     = ""
+}
+
 variable "suggest_engine" {
-  description = "Default UC-04 suggest engine: bedrock (Haiku text) or random (TF rollback)."
+  description = "Default UC-04 suggest engine: bedrock (text) or random (TF rollback)."
   type        = string
   default     = "random"
 

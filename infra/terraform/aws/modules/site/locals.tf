@@ -19,6 +19,10 @@ locals {
   # Source of truth for aws_lambda_function.high_scores.timeout; Duration alarm at 80%.
   lambda_timeout_seconds             = 90
   lambda_duration_alarm_threshold_ms = floor(local.lambda_timeout_seconds * 1000 * 0.8)
+  # CloudFront → Lambda Function URL origin read timeout (seconds). Default 30
+  # caused SPA http_504 on Sonnet Suggest while Lambda still finished (~37s).
+  # Max without quota increase is 60; this is the binding edge limit for /api/*.
+  cloudfront_api_origin_read_timeout = 60
   # Geographic CRIS profile IDs are "{eu|us}.<foundation-model-id>"; strip for FM ARNs.
   bedrock_foundation_model_id = (
     startswith(var.bedrock_model_id, "eu.") ? trimprefix(var.bedrock_model_id, "eu.") :
@@ -29,6 +33,18 @@ locals {
     startswith(var.bedrock_model_id, "arn:")
     ? var.bedrock_model_id
     : "arn:aws:bedrock:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.bedrock_model_id}"
+  )
+  # Suggest may pin a different model (e.g. Sonnet trial) via suggest_model_id.
+  suggest_model_id_effective = trimspace(var.suggest_model_id) != "" ? var.suggest_model_id : var.bedrock_model_id
+  suggest_foundation_model_id = (
+    startswith(local.suggest_model_id_effective, "eu.") ? trimprefix(local.suggest_model_id_effective, "eu.") :
+    startswith(local.suggest_model_id_effective, "us.") ? trimprefix(local.suggest_model_id_effective, "us.") :
+    local.suggest_model_id_effective
+  )
+  suggest_inference_profile_arn = (
+    startswith(local.suggest_model_id_effective, "arn:")
+    ? local.suggest_model_id_effective
+    : "arn:aws:bedrock:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:inference-profile/${local.suggest_model_id_effective}"
   )
   # EU geographic profiles may route InvokeModel to any of these FM regions
   # (plus home). Missing one yields AccessDenied → SPA 502 / analyze_unavailable.
@@ -41,6 +57,18 @@ locals {
       "eu-west-3",
       "eu-south-1",
       "eu-south-2",
+    ],
+  ))
+  bedrock_invoke_resources = distinct(concat(
+    [local.bedrock_inference_profile_arn],
+    [
+      for region in local.bedrock_cris_foundation_model_regions :
+      "arn:aws:bedrock:${region}::foundation-model/${local.bedrock_foundation_model_id}"
+    ],
+    [local.suggest_inference_profile_arn],
+    [
+      for region in local.bedrock_cris_foundation_model_regions :
+      "arn:aws:bedrock:${region}::foundation-model/${local.suggest_foundation_model_id}"
     ],
   ))
   high_scores_role_name                 = "${local.name_prefix}-health-role"

@@ -64,8 +64,10 @@ resource "aws_lambda_function" "high_scores" {
       COGNITO_REDIRECT_URI = "https://${var.site_domain_name}/"
       COGNITO_LOGOUT_URL   = "https://${var.site_domain_name}/"
       BEDROCK_REGION       = data.aws_region.current.region
-      # Claude Haiku 4.5 EU inference profile (swap via tf / console if needed).
+      # Claude Haiku 4.5 EU inference profile for Analyze (swap via tf / console if needed).
       BEDROCK_MODEL_ID = var.bedrock_model_id
+      # Suggest model pin (empty → Lambda falls back to BEDROCK_MODEL_ID).
+      SUGGEST_MODEL_ID = local.suggest_model_id_effective
       SUGGEST_ENGINE   = var.suggest_engine
     }
   }

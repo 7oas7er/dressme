@@ -3,11 +3,27 @@ import { matchAttrOption, normalizeAttrValue } from "./attrNormalize.js";
 import { layerImageUrl } from "./lookLayout.js";
 import { renderLookCard } from "./lookCard.js";
 import { rotateImageFromUrl } from "./rotateImage.js";
+import {
+  buildSuggestExportPayload,
+  copyTextToClipboard,
+  downloadTextFile,
+  stringifySuggestExport,
+  suggestExportFilename,
+} from "./suggest.js";
+import { sampleThumb } from "./thumbSample.js";
+import {
+  MAX_WADA_COLORS,
+  getWadaColor,
+  normalizeWadaColorIdsClient,
+  primaryWadaId,
+  resolveWadaName,
+  searchWadaColors,
+} from "./wadaPalette.js";
+import { nearestWadaColor } from "./wadaNearest.js";
 
 /** Fields that use suggested values + free text (UC-19), including brand/model. */
 const SUGGESTION_KEYS = new Set([
   "type",
-  "color",
   "fabric",
   "brandModel",
   "formality",
@@ -16,9 +32,9 @@ const SUGGESTION_KEYS = new Set([
   "outfitRole",
 ]);
 
+/** Add/Edit form fields — color is Wada-only (UC-26), not free text. */
 const ATTR_FIELDS = [
   { key: "type", label: "Type", placeholder: "jacket, shirt, shoes…" },
-  { key: "color", label: "Color", placeholder: "navy" },
   { key: "fabric", label: "Fabric", placeholder: "wool" },
   { key: "brandModel", label: "Brand / model", placeholder: "maker or model" },
   { key: "formality", label: "Formality", placeholder: "business, casual…" },
@@ -27,13 +43,46 @@ const ATTR_FIELDS = [
   { key: "outfitRole", label: "Outfit role", placeholder: "outerwear, base…" },
 ];
 
+/** UC-07 filter categories; `color` = primary Wada English name in the wardrobe. */
+const FILTER_FIELDS = [
+  { key: "type", label: "Type" },
+  { key: "color", label: "Color" },
+  { key: "fabric", label: "Fabric" },
+  { key: "brandModel", label: "Brand / model" },
+  { key: "formality", label: "Formality" },
+  { key: "pattern", label: "Pattern" },
+  { key: "season", label: "Season / climate" },
+  { key: "outfitRole", label: "Outfit role" },
+];
+
+/** Primary Wada English name, or "" when unset / unresolved. */
+function primaryWadaName(item) {
+  const primaryId = primaryWadaId(item && item.wadaColorIds);
+  return primaryId ? resolveWadaName(primaryId) : "";
+}
+
+/**
+ * Catalog card sub line (UC-02): `Brand · color`.
+ * Color = primary Wada English name only (omit segment when unset).
+ * Missing brand → Wada name only; both empty → "".
+ */
+export function catalogCardSubLine(item) {
+  const brand = String((item && item.brandModel) || "").trim();
+  const color = primaryWadaName(item);
+  if (brand && color) return `${brand} · ${color}`;
+  return color || brand || "";
+}
+
 /** Unique non-empty attribute values present in the wardrobe (UC-07). */
 export function collectAttributeFilterValues(items) {
   const out = {};
-  for (const field of ATTR_FIELDS) {
+  for (const field of FILTER_FIELDS) {
     const seen = new Set();
     for (const item of items || []) {
-      const value = String(item[field.key] || "").trim();
+      const value =
+        field.key === "color"
+          ? primaryWadaName(item)
+          : String(item[field.key] || "").trim();
       if (value) seen.add(value);
     }
     out[field.key] = Array.from(seen).sort((a, b) => a.localeCompare(b));
@@ -45,22 +94,26 @@ export function collectAttributeFilterValues(items) {
 export function applyAttributeFilters(items, filters) {
   const active = filters || {};
   return (items || []).filter((item) => {
-    for (const field of ATTR_FIELDS) {
+    for (const field of FILTER_FIELDS) {
       const selected = String(active[field.key] || "").trim();
       if (!selected) continue;
-      if (String(item[field.key] || "").trim() !== selected) return false;
+      const value =
+        field.key === "color"
+          ? primaryWadaName(item)
+          : String(item[field.key] || "").trim();
+      if (value !== selected) return false;
     }
     return true;
   });
 }
 
 function filtersActive(filters) {
-  return ATTR_FIELDS.some((field) => String((filters || {})[field.key] || "").trim());
+  return FILTER_FIELDS.some((field) => String((filters || {})[field.key] || "").trim());
 }
 
 function emptyFilters() {
   const next = {};
-  for (const field of ATTR_FIELDS) next[field.key] = "";
+  for (const field of FILTER_FIELDS) next[field.key] = "";
   return next;
 }
 
@@ -88,7 +141,11 @@ function el(tag, attrs = {}, children = []) {
   for (const [key, value] of Object.entries(attrs)) {
     if (key === "className") node.className = value;
     else if (key === "text") node.textContent = value;
-    else if (key.startsWith("on") && typeof value === "function") {
+    else if (key === "style" && value != null) {
+      // CSP style-src has no 'unsafe-inline' — HTML style="" is blocked on
+      // staging/prod. CSSOM cssText still applies (Wada swatch fills).
+      node.style.cssText = String(value);
+    } else if (key.startsWith("on") && typeof value === "function") {
       node.addEventListener(key.slice(2).toLowerCase(), value);
     } else if (value != null) {
       node.setAttribute(key, value);
@@ -104,6 +161,20 @@ function el(tag, attrs = {}, children = []) {
 function thumbUrl(item) {
   // Option D: catalog uses photographic thumbs/originals (cutouts no longer preferred).
   return layerImageUrl(item, { purpose: "catalog" });
+}
+
+/** Primary Wada true-color circle (catalog + detail). Omit when unset. */
+function wadaPrimarySwatch(wadaColorIds) {
+  const primaryId = primaryWadaId(wadaColorIds);
+  const wada = primaryId ? getWadaColor(primaryId) : null;
+  if (!wada) return null;
+  return el("span", {
+    className: "wada-swatch",
+    // cssText via el() — CSP blocks style="" attributes (#85).
+    style: `background:${wada.hex}`,
+    title: wada.name,
+    "aria-label": `Wada ${wada.name}`,
+  });
 }
 
 /** Catalog entry day from Dynamo `createdAt` (Europe/Berlin calendar date). */
@@ -286,6 +357,9 @@ export function renderCatalogApp(root, { onLogout }) {
     status: "",
     error: "",
     busy: false,
+    /** True while GET /api/items is in flight for the catalog list. */
+    catalogLoading: false,
+    catalogTipIndex: 0,
     /** photoId currently rotating on edit (busy tile highlight). */
     rotatingPhotoId: null,
     attributeOptions: {},
@@ -301,13 +375,125 @@ export function renderCatalogApp(root, { onLogout }) {
     formDraft: emptyFormDraft(),
     /** Local files for create/add-photos; survive paint(); object URLs for the strip. */
     pendingPhotos: [],
+    /** Wada picker search + expanded results (Add/Edit; UC-26). */
+    wadaSearch: "",
+    wadaPickerOpen: false,
+    /** Slice B: client nearest-from-photo in flight (draft only). */
+    wadaProposing: false,
     suggest: {
       context: "",
       looks: null,
       engine: "",
+      modelId: "",
       suggestionId: "",
+      requestedLookCount: 0,
+      returnedLookCount: 0,
+      lookCountShortfall: false,
+      packing: null,
+      packingLimits: null,
+      occasions: null,
+      /** True while POST /api/suggest is in flight (waiting UI). */
+      generating: false,
+      tipIndex: 0,
+      /** Brief “Copied” feedback after export clipboard write. */
+      exportStatus: "",
     },
+    /** Detail opened from a look card — show “Back to looks” (DM-110). */
+    detailFromSuggest: false,
   };
+
+  /**
+   * DM-107: in-app History entries so Back restores view.
+   * Never clear Cognito / call onLogout here — Sign out only.
+   */
+  let applyingHistory = false;
+
+  function historyUrl() {
+    return `${window.location.pathname}${window.location.search}`;
+  }
+
+  function navSnapshot() {
+    const creating = state.view === "form" && !state.editing;
+    const itemId =
+      state.editing && (state.view === "detail" || state.view === "form")
+        ? state.editing.itemId || null
+        : null;
+    return {
+      dressme: 1,
+      view: state.view,
+      itemId,
+      creating: Boolean(creating),
+      fromSuggest: Boolean(
+        state.view === "detail" && state.detailFromSuggest
+      ),
+    };
+  }
+
+  function pushNav() {
+    if (applyingHistory) return;
+    window.history.pushState(navSnapshot(), "", historyUrl());
+  }
+
+  function replaceNav() {
+    if (applyingHistory) return;
+    window.history.replaceState(navSnapshot(), "", historyUrl());
+  }
+
+  async function restoreFromHistory(snap) {
+    applyingHistory = true;
+    try {
+      const view = snap.view || "list";
+      state.error = "";
+      if (view === "suggest") {
+        state.view = "suggest";
+        state.editing = null;
+        state.detailFromSuggest = false;
+        state.status = "";
+        paint();
+      } else if (view === "form" && snap.creating) {
+        await openCreate({ skipHistory: true });
+      } else if (view === "form" && snap.itemId) {
+        const item =
+          state.items.find((entry) => entry.itemId === snap.itemId) || {
+            itemId: snap.itemId,
+          };
+        await openEdit(item, { skipHistory: true });
+      } else if (view === "detail" && snap.itemId) {
+        const item =
+          state.items.find((entry) => entry.itemId === snap.itemId) || {
+            itemId: snap.itemId,
+          };
+        await openDetail(item, {
+          skipHistory: true,
+          fromSuggest: Boolean(snap.fromSuggest),
+        });
+      } else {
+        state.view = "list";
+        state.editing = null;
+        state.assist = emptyAssist();
+        state.formDraft = emptyFormDraft();
+        resetWadaPickerUi();
+        state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
+        updateStatusFromItems();
+        paint();
+      }
+    } finally {
+      applyingHistory = false;
+    }
+    // Re-arm leave-app trap at catalog root (Cognito Hosted UI behind SPA).
+    if (state.view === "list") pushNav();
+  }
+
+  function onPopState(event) {
+    const snap = event.state;
+    if (!snap || snap.dressme !== 1) {
+      window.history.pushState(navSnapshot(), "", historyUrl());
+      return;
+    }
+    void restoreFromHistory(snap);
+  }
+
+  window.addEventListener("popstate", onPopState);
 
   async function loadAttributeOptions() {
     try {
@@ -330,7 +516,8 @@ export function renderCatalogApp(root, { onLogout }) {
     return matchAttrOption(
       raw,
       state.attributeOptions[key] || [],
-      state.attributeCustom[key] || []
+      state.attributeCustom[key] || [],
+      key
     );
   }
 
@@ -376,7 +563,7 @@ export function renderCatalogApp(root, { onLogout }) {
   function keepMineAttr(key) {
     const normalized =
       (state.formDraft && state.formDraft[key]) ||
-      normalizeAttrValue(fieldValue(key));
+      normalizeAttrValue(fieldValue(key), key);
     state.attrChipDismissed[key] = normalized;
     delete state.attrChips[key];
     paint();
@@ -384,7 +571,7 @@ export function renderCatalogApp(root, { onLogout }) {
 
   function pruneStaleFilters() {
     const options = collectAttributeFilterValues(state.items);
-    for (const field of ATTR_FIELDS) {
+    for (const field of FILTER_FIELDS) {
       const selected = String(state.filters[field.key] || "").trim();
       if (selected && !(options[field.key] || []).includes(selected)) {
         state.filters[field.key] = "";
@@ -430,8 +617,12 @@ export function renderCatalogApp(root, { onLogout }) {
 
   async function refresh() {
     state.busy = true;
+    state.catalogLoading = true;
+    state.catalogTipIndex = 0;
     state.error = "";
+    state.status = "Loading your catalog…";
     paint();
+    startCatalogTipRotation();
     try {
       const data = await api.listItems(state.query);
       state.items = data.items || [];
@@ -439,7 +630,10 @@ export function renderCatalogApp(root, { onLogout }) {
       updateStatusFromItems();
     } catch (err) {
       state.error = err.message || "Could not load catalog.";
+      state.status = "";
     } finally {
+      stopCatalogTipRotation();
+      state.catalogLoading = false;
       state.busy = false;
       paint();
     }
@@ -489,16 +683,19 @@ export function renderCatalogApp(root, { onLogout }) {
 
   async function openCreate(options = {}) {
     const keepPrefill = options && options.keepPrefill;
+    const skipHistory = options && options.skipHistory;
     state.view = "form";
     state.editing = null;
     state.assist = emptyAssist();
     clearAttrHygiene();
+    resetWadaPickerUi();
     if (!keepPrefill) {
       state.formDraft = emptyFormDraft();
     }
     state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
     state.error = "";
     paint();
+    if (!skipHistory) pushNav();
     await loadAttributeOptions();
     if (state.view === "form" && !state.editing) paint();
   }
@@ -508,16 +705,19 @@ export function renderCatalogApp(root, { onLogout }) {
     return data.item;
   }
 
-  async function openEdit(item) {
+  async function openEdit(item, options = {}) {
+    const skipHistory = options && options.skipHistory;
     state.view = "form";
     state.editing = item;
     state.assist = emptyAssist();
     clearAttrHygiene();
+    resetWadaPickerUi();
     state.formDraft = emptyFormDraft();
     state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
     state.error = "";
     state.busy = true;
     paint();
+    if (!skipHistory) pushNav();
     try {
       // List payloads use thumbs only; edit needs full-res photo URLs (UC-20).
       const full = await loadFullItem(item.itemId);
@@ -533,12 +733,16 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
-  async function openDetail(item) {
+  async function openDetail(item, options = {}) {
+    const skipHistory = options && options.skipHistory;
+    const fromSuggest = Boolean(options && options.fromSuggest);
     state.view = "detail";
     state.editing = item;
+    state.detailFromSuggest = fromSuggest;
     state.error = "";
     state.busy = true;
     paint();
+    if (!skipHistory) pushNav();
     try {
       // Overview cards use thumbUrl; detail shows full-resolution photos (UC-20).
       const full = await loadFullItem(item.itemId);
@@ -553,15 +757,32 @@ export function renderCatalogApp(root, { onLogout }) {
     }
   }
 
-  function backToList() {
+  /**
+   * Return to the in-memory suggest session without re-running Bedrock.
+   * Prefer History Back when suggest sits under this detail entry.
+   */
+  function backToLooks() {
+    if (state.detailFromSuggest) {
+      window.history.back();
+      return;
+    }
+    openSuggest({ skipHistory: true });
+  }
+
+  function backToList(options = {}) {
+    const skipHistory = options && options.skipHistory;
+    const wasList = state.view === "list" && !state.editing;
     state.view = "list";
     state.editing = null;
+    state.detailFromSuggest = false;
     state.assist = emptyAssist();
     state.formDraft = emptyFormDraft();
+    resetWadaPickerUi();
     state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
     state.error = "";
     updateStatusFromItems();
     paint();
+    if (!skipHistory && !wasList) pushNav();
   }
 
   function fieldValue(key) {
@@ -570,6 +791,75 @@ export function renderCatalogApp(root, { onLogout }) {
     }
     if (state.editing) return state.editing[key] || "";
     return "";
+  }
+
+  function wadaIdsValue() {
+    if (
+      state.formDraft &&
+      Object.prototype.hasOwnProperty.call(state.formDraft, "wadaColorIds")
+    ) {
+      return normalizeWadaColorIdsClient(state.formDraft.wadaColorIds);
+    }
+    if (state.editing) {
+      return normalizeWadaColorIdsClient(state.editing.wadaColorIds);
+    }
+    return [];
+  }
+
+  function setWadaIds(ids) {
+    if (!state.formDraft) state.formDraft = {};
+    state.formDraft.wadaColorIds = normalizeWadaColorIdsClient(ids);
+  }
+
+  function resetWadaPickerUi() {
+    state.wadaSearch = "";
+    state.wadaPickerOpen = false;
+  }
+
+  /** Photo URL for client Lab nearest (pending blob first, else first ready thumb). */
+  function samplePhotoUrlForWada() {
+    if (state.pendingPhotos.length) {
+      return state.pendingPhotos[0].url || "";
+    }
+    if (!state.editing) return "";
+    const ready = (state.editing.photos || []).find(
+      (photo) => photo && photo.status === "ready"
+    );
+    if (!ready) return "";
+    return ready.thumbUrl || ready.url || "";
+  }
+
+  /**
+   * Slice B: sample dominant hex → Lab nearest Wada into draft chips.
+   * Never writes Dynamo. Empty draft → fill top-1; else no-op unless replace.
+   * @returns {Promise<{ applied: boolean, color?: object, reason?: string }>}
+   */
+  async function proposeWadaFromPhoto({ replace = false } = {}) {
+    const url = samplePhotoUrlForWada();
+    if (!url) {
+      return { applied: false, reason: "no_photo" };
+    }
+    const current = wadaIdsValue();
+    if (current.length && !replace) {
+      return { applied: false, reason: "keep_existing" };
+    }
+    state.wadaProposing = true;
+    paint();
+    try {
+      const sample = await sampleThumb(url);
+      if (!sample || !sample.dominantHex) {
+        return { applied: false, reason: "sample_failed" };
+      }
+      const match = nearestWadaColor(sample.dominantHex);
+      if (!match) {
+        return { applied: false, reason: "no_match" };
+      }
+      // Top-1 only into draft; Frank edits / Clear / Save as usual.
+      setWadaIds([match.id]);
+      return { applied: true, color: match };
+    } finally {
+      state.wadaProposing = false;
+    }
   }
 
   function readFormAttributes(form) {
@@ -591,6 +881,8 @@ export function renderCatalogApp(root, { onLogout }) {
     }
     const proposed = String((proposal && proposal.aiContext) || "").trim();
     draft.aiContext = (proposed || fieldValue("aiContext")).slice(0, 2000);
+    // Bedrock does not invent Wada IDs; Slice B fills via client nearest after Appraise.
+    draft.wadaColorIds = wadaIdsValue();
     return draft;
   }
 
@@ -602,7 +894,10 @@ export function renderCatalogApp(root, { onLogout }) {
 
     const attributes = readFormAttributes(form);
     // Survive paint() while analyzing.
-    state.formDraft = Object.assign({}, attributes, { aiContext });
+    state.formDraft = Object.assign({}, attributes, {
+      aiContext,
+      wadaColorIds: wadaIdsValue(),
+    });
 
     // Send current AI context as hints/answers when present (same durable field).
     const payload = {
@@ -651,6 +946,14 @@ export function renderCatalogApp(root, { onLogout }) {
       } else {
         state.status = "Appraise returned no proposal. Fill attributes manually.";
       }
+      // Slice B: client Lab nearest into empty draft chips only (never auto-save).
+      const wadaResult = await proposeWadaFromPhoto({ replace: false });
+      if (wadaResult.applied && wadaResult.color) {
+        const name = wadaResult.color.name;
+        state.status = proposal
+          ? `Filled from photo + Wada “${name}” — tweak, then Save.`
+          : `Proposed Wada “${name}” from photo — tweak, then Save.`;
+      }
     } catch (err) {
       const code = err && err.message ? String(err.message) : "";
       if (
@@ -668,16 +971,134 @@ export function renderCatalogApp(root, { onLogout }) {
     } finally {
       state.assist.analyzing = false;
       state.busy = false;
+      state.wadaProposing = false;
       paint();
     }
   }
 
-  function openSuggest() {
+  function openSuggest(options = {}) {
+    const skipHistory = options && options.skipHistory;
     state.view = "suggest";
     state.editing = null;
+    state.detailFromSuggest = false;
     state.error = "";
     state.status = "";
     paint();
+    if (!skipHistory) pushNav();
+  }
+
+  const SUGGEST_WAIT_TIPS = [
+    "Matching layers to the weather in your context…",
+    "Keeping one shoe, one base, one bottom per look…",
+    "Leaning on Wada colour names when pieces have them…",
+    "Aiming for the look count you asked for…",
+  ];
+
+  const CATALOG_WAIT_TIPS = [
+    "Fetching pieces from your wardrobe…",
+    "Reading attributes and Wada colours…",
+    "Laying out catalog cards…",
+    "Almost ready…",
+  ];
+
+  let suggestTipTimer = null;
+  let catalogTipTimer = null;
+  let suggestExportStatusTimer = null;
+
+  function stopSuggestTipRotation() {
+    if (suggestTipTimer) {
+      clearInterval(suggestTipTimer);
+      suggestTipTimer = null;
+    }
+  }
+
+  function stopCatalogTipRotation() {
+    if (catalogTipTimer) {
+      clearInterval(catalogTipTimer);
+      catalogTipTimer = null;
+    }
+  }
+
+  function startCatalogTipRotation() {
+    stopCatalogTipRotation();
+    catalogTipTimer = setInterval(() => {
+      if (!state.catalogLoading) {
+        stopCatalogTipRotation();
+        return;
+      }
+      state.catalogTipIndex =
+        (state.catalogTipIndex + 1) % CATALOG_WAIT_TIPS.length;
+      const tipEl = root.querySelector("[data-catalog-tip]");
+      if (tipEl) {
+        tipEl.textContent = CATALOG_WAIT_TIPS[state.catalogTipIndex];
+      }
+    }, 4500);
+  }
+
+  function clearSuggestExportStatusSoon() {
+    if (suggestExportStatusTimer) {
+      clearTimeout(suggestExportStatusTimer);
+      suggestExportStatusTimer = null;
+    }
+    suggestExportStatusTimer = setTimeout(() => {
+      suggestExportStatusTimer = null;
+      if (!state.suggest.exportStatus) return;
+      state.suggest.exportStatus = "";
+      paint();
+    }, 2200);
+  }
+
+  function currentSuggestExportText() {
+    const payload = buildSuggestExportPayload(state.suggest);
+    return stringifySuggestExport(payload);
+  }
+
+  async function copySuggestExport() {
+    if (!state.suggest.looks || !state.suggest.looks.length) return;
+    try {
+      await copyTextToClipboard(currentSuggestExportText());
+      state.suggest.exportStatus = "Copied";
+      state.error = "";
+      paint();
+      clearSuggestExportStatusSoon();
+    } catch {
+      state.suggest.exportStatus = "";
+      state.error = "Could not copy JSON — try Download .json instead.";
+      paint();
+    }
+  }
+
+  function downloadSuggestExport() {
+    if (!state.suggest.looks || !state.suggest.looks.length) return;
+    try {
+      const text = currentSuggestExportText();
+      const payload = JSON.parse(text);
+      downloadTextFile(suggestExportFilename(payload.exportedAt), text);
+      state.suggest.exportStatus = "Downloaded";
+      state.error = "";
+      paint();
+      clearSuggestExportStatusSoon();
+    } catch {
+      state.suggest.exportStatus = "";
+      state.error = "Could not download JSON.";
+      paint();
+    }
+  }
+
+  function startSuggestTipRotation() {
+    stopSuggestTipRotation();
+    suggestTipTimer = setInterval(() => {
+      if (!state.suggest.generating) {
+        stopSuggestTipRotation();
+        return;
+      }
+      state.suggest.tipIndex =
+        (state.suggest.tipIndex + 1) % SUGGEST_WAIT_TIPS.length;
+      const tipEl = root.querySelector("[data-suggest-tip]");
+      if (tipEl) {
+        tipEl.textContent = SUGGEST_WAIT_TIPS[state.suggest.tipIndex];
+      }
+    }, 4500);
   }
 
   async function runSuggest(form) {
@@ -689,24 +1110,48 @@ export function renderCatalogApp(root, { onLogout }) {
     }
     state.suggest.context = context;
     state.busy = true;
+    state.suggest.generating = true;
+    state.suggest.tipIndex = 0;
     state.error = "";
-    state.status = "Assembling three looks…";
+    state.status = "Assembling looks from your wardrobe…";
     paint();
+    startSuggestTipRotation();
     try {
       const data = await api.suggestOutfits({ context });
       state.suggest.looks = data.looks || [];
       state.suggest.engine = data.engine || "random";
+      state.suggest.modelId = data.modelId || "";
       state.suggest.suggestionId = data.suggestionId || "";
+      state.suggest.requestedLookCount = Number(data.requestedLookCount) || 0;
+      state.suggest.returnedLookCount =
+        Number(data.returnedLookCount) || (data.looks || []).length;
+      state.suggest.lookCountShortfall = Boolean(data.lookCountShortfall);
+      state.suggest.packing =
+        data.packing && typeof data.packing === "object" ? data.packing : null;
+      state.suggest.packingLimits =
+        data.packingLimits && typeof data.packingLimits === "object"
+          ? data.packingLimits
+          : null;
+      state.suggest.occasions = Array.isArray(data.occasions)
+        ? data.occasions
+        : null;
+      state.suggest.exportStatus = "";
+      const n = state.suggest.looks.length;
       state.status =
-        "Three looks — pick one mentally. Nothing is recorded in the app.";
+        (n === 1 ? "1 look" : `${n} looks`) +
+        " — pick one mentally. Nothing is recorded in the app.";
     } catch (err) {
       const code = err && err.message ? String(err.message) : "";
-      if (
+      if (code === "suggest_incomplete_looks") {
+        state.error =
+          "Couldn’t assemble complete looks (one base + bottom, and shoes when you have them — not two shirts). Try again, or add missing pieces.";
+      } else if (
         code === "suggest_unavailable" ||
         code === "suggest_invalid_model_json" ||
         code === "suggest_invalid_item_ids" ||
         code === "http_502" ||
-        code === "http_503"
+        code === "http_503" ||
+        code === "http_504"
       ) {
         state.error =
           "Outfit suggestions are temporarily unavailable. Try again in a moment.";
@@ -716,7 +1161,17 @@ export function renderCatalogApp(root, { onLogout }) {
         state.error = code || "Could not suggest outfits.";
       }
       state.suggest.looks = null;
+      state.suggest.modelId = "";
+      state.suggest.lookCountShortfall = false;
+      state.suggest.requestedLookCount = 0;
+      state.suggest.returnedLookCount = 0;
+      state.suggest.packing = null;
+      state.suggest.packingLimits = null;
+      state.suggest.occasions = null;
+      state.suggest.exportStatus = "";
     } finally {
+      stopSuggestTipRotation();
+      state.suggest.generating = false;
       state.busy = false;
       paint();
     }
@@ -740,6 +1195,7 @@ export function renderCatalogApp(root, { onLogout }) {
     if (form.elements.aiContext) {
       payload.aiContext = String(form.elements.aiContext.value || "").trim();
     }
+    payload.wadaColorIds = wadaIdsValue();
     // Keep draft if paint() runs mid-save (busy flag re-render).
     state.formDraft = Object.assign({}, payload);
     const files = pendingPhotoFiles();
@@ -765,6 +1221,7 @@ export function renderCatalogApp(root, { onLogout }) {
         state.editing = null;
         state.assist = emptyAssist();
         clearAttrHygiene();
+        resetWadaPickerUi();
         state.formDraft = emptyFormDraft();
         state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
         state.status = "Saved.";
@@ -782,6 +1239,7 @@ export function renderCatalogApp(root, { onLogout }) {
         state.editing = null;
         state.assist = emptyAssist();
         clearAttrHygiene();
+        resetWadaPickerUi();
         state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
         state.formDraft = emptyFormDraft();
         state.view = "form";
@@ -799,6 +1257,7 @@ export function renderCatalogApp(root, { onLogout }) {
       }
       state.busy = false;
       paint();
+      replaceNav();
     } catch (err) {
       state.error = err.message || "Save failed.";
       state.busy = false;
@@ -807,7 +1266,9 @@ export function renderCatalogApp(root, { onLogout }) {
   }
 
   async function removeItem(item) {
-    if (!window.confirm(`Delete ${item.type} (${item.color})?`)) return;
+    const wadaName = primaryWadaName(item);
+    const label = wadaName ? `${item.type} (${wadaName})` : item.type;
+    if (!window.confirm(`Delete ${label}?`)) return;
     state.busy = true;
     paint();
     try {
@@ -818,6 +1279,7 @@ export function renderCatalogApp(root, { onLogout }) {
       state.formDraft = emptyFormDraft();
       state.pendingPhotos = clearPendingPhotos(state.pendingPhotos);
       await refresh();
+      replaceNav();
     } catch (err) {
       state.error = err.message || "Delete failed.";
       state.busy = false;
@@ -1031,7 +1493,7 @@ export function renderCatalogApp(root, { onLogout }) {
   }
 
   function renderFilters() {
-    const activeCount = ATTR_FIELDS.filter((field) =>
+    const activeCount = FILTER_FIELDS.filter((field) =>
       String(state.filters[field.key] || "").trim()
     ).length;
     const open = state.filtersOpen;
@@ -1067,7 +1529,7 @@ export function renderCatalogApp(root, { onLogout }) {
       "aria-label": "Filter catalog by attributes",
     });
     const grid = el("div", { className: "filter-grid" });
-    for (const field of ATTR_FIELDS) {
+    for (const field of FILTER_FIELDS) {
       const values = options[field.key] || [];
       const select = el("select", {
         name: `filter-${field.key}`,
@@ -1119,7 +1581,7 @@ export function renderCatalogApp(root, { onLogout }) {
         className: "search",
         type: "search",
         name: "q",
-        placeholder: "Search color, type, brand…",
+        placeholder: "Search type, brand, Wada…",
         value: state.query,
         onInput: (event) => {
           state.query = event.target.value;
@@ -1138,6 +1600,38 @@ export function renderCatalogApp(root, { onLogout }) {
     ]);
     panel.append(searchRow);
     panel.append(renderFilters());
+
+    if (state.catalogLoading) {
+      const wait = el("div", {
+        className: "catalog-progress",
+        role: "status",
+        "aria-live": "polite",
+        "aria-busy": "true",
+      });
+      wait.append(
+        el("p", {
+          className: "catalog-progress-status",
+          text: "Loading your catalog…",
+        })
+      );
+      wait.append(
+        el("div", {
+          className: "catalog-progress-track",
+          "aria-hidden": "true",
+        }, [
+          el("div", { className: "catalog-progress-bar" }),
+        ])
+      );
+      wait.append(
+        el("p", {
+          className: "muted catalog-progress-tip",
+          "data-catalog-tip": "1",
+          text: CATALOG_WAIT_TIPS[state.catalogTipIndex] || CATALOG_WAIT_TIPS[0],
+        })
+      );
+      panel.append(wait);
+      return panel;
+    }
 
     const visible = visibleItems();
     const grid = el("div", { className: "catalog-grid" });
@@ -1169,15 +1663,21 @@ export function renderCatalogApp(root, { onLogout }) {
             url
               ? el("img", {
                   src: url,
-                  alt: `${item.type} ${item.color}`,
+                  alt: (() => {
+                    const wadaName = primaryWadaName(item);
+                    return wadaName ? `${item.type} ${wadaName}` : item.type;
+                  })(),
                 })
               : el("div", { className: "thumb", text: "No photo" }),
             el("div", { className: "meta" }, [
               el("p", { className: "title", text: item.type }),
-              el("p", {
-                className: "sub",
-                text: `${item.color} · ${item.outfitRole}`,
-              }),
+              el("div", { className: "sub-row" }, [
+                el("p", {
+                  className: "sub",
+                  text: catalogCardSubLine(item),
+                }),
+                wadaPrimarySwatch(item.wadaColorIds),
+              ]),
             ]),
           ]
         );
@@ -1208,6 +1708,233 @@ export function renderCatalogApp(root, { onLogout }) {
     } else {
       state.formDraft = { aiContext: next };
     }
+  }
+
+  async function onProposeWadaFromPhoto({ replace }) {
+    if (state.busy || state.wadaProposing) return;
+    state.error = "";
+    const result = await proposeWadaFromPhoto({ replace: !!replace });
+    if (result.applied && result.color) {
+      state.status = replace
+        ? `Replaced Wada with “${result.color.name}” from photo — tweak, then Save.`
+        : `Proposed Wada “${result.color.name}” from photo — tweak, then Save.`;
+    } else if (result.reason === "sample_failed" || result.reason === "no_match") {
+      state.error =
+        "Could not sample a colour from this photo. Pick a Wada colour manually.";
+    } else if (result.reason === "no_photo") {
+      state.error = "Add a photo first to propose a Wada colour.";
+    }
+    paint();
+  }
+
+  function renderWadaField() {
+    const selected = wadaIdsValue();
+    const atMax = selected.length >= MAX_WADA_COLORS;
+    const canSample = Boolean(samplePhotoUrlForWada());
+    const results = state.wadaPickerOpen
+      ? searchWadaColors(state.wadaSearch, { excludeIds: selected }).slice(0, 40)
+      : [];
+
+    const chips = el("div", {
+      className: "wada-chips",
+      role: "list",
+      "aria-label": "Selected Wada colours",
+    });
+    if (selected.length) {
+      selected.forEach((id, index) => {
+        const color = getWadaColor(id);
+        if (!color) return;
+        const chip = el(
+          "div",
+          {
+            className: "wada-chip",
+            role: "listitem",
+          },
+          [
+            el("span", {
+              className: "wada-chip-swatch",
+              style: `background:${color.hex}`,
+              "aria-hidden": "true",
+            }),
+            el("span", {
+              className: "wada-chip-name",
+              text: index === 0 ? `${color.name} (primary)` : color.name,
+            }),
+            index > 0
+              ? el("button", {
+                  type: "button",
+                  className: "secondary wada-chip-primary",
+                  text: "Primary",
+                  disabled: state.busy || state.wadaProposing ? "disabled" : null,
+                  "aria-label": `Make ${color.name} primary`,
+                  onClick: () => {
+                    const next = [id, ...selected.filter((x) => x !== id)];
+                    setWadaIds(next);
+                    paint();
+                  },
+                })
+              : null,
+            el("button", {
+              type: "button",
+              className: "secondary wada-chip-remove",
+              text: "Remove",
+              disabled: state.busy || state.wadaProposing ? "disabled" : null,
+              "aria-label": `Remove ${color.name}`,
+              onClick: () => {
+                setWadaIds(selected.filter((x) => x !== id));
+                paint();
+              },
+            }),
+          ]
+        );
+        chips.append(chip);
+      });
+    }
+
+    const search = el("input", {
+      type: "search",
+      className: "wada-search",
+      name: "wadaSearch",
+      placeholder: "Search Wada colour…",
+      value: state.wadaSearch,
+      autocomplete: "off",
+      disabled: state.busy || state.wadaProposing || atMax ? "disabled" : null,
+      onFocus: () => {
+        if (!state.wadaPickerOpen) {
+          state.wadaPickerOpen = true;
+          paint();
+          const again = document.querySelector("input.wada-search");
+          if (again) again.focus();
+        }
+      },
+      onInput: (event) => {
+        const start = event.target.selectionStart;
+        const end = event.target.selectionEnd;
+        state.wadaSearch = String(event.target.value || "");
+        state.wadaPickerOpen = true;
+        paint();
+        const again = document.querySelector("input.wada-search");
+        if (again) {
+          again.focus();
+          try {
+            again.setSelectionRange(start, end);
+          } catch {
+            /* some browsers reject selection on type=search */
+          }
+        }
+      },
+    });
+
+    const resultList = el("div", {
+      className: "wada-results",
+      role: "listbox",
+      "aria-label": "Wada colour matches",
+    });
+    if (state.wadaPickerOpen) {
+      if (!results.length) {
+        resultList.append(
+          el("p", {
+            className: "muted",
+            text: atMax
+              ? `At most ${MAX_WADA_COLORS} Wada colours.`
+              : "No matches.",
+          })
+        );
+      } else {
+        for (const color of results) {
+          resultList.append(
+            el(
+              "button",
+              {
+                type: "button",
+                className: "wada-result",
+                role: "option",
+                disabled:
+                  state.busy || state.wadaProposing || atMax ? "disabled" : null,
+                onClick: () => {
+                  if (atMax) return;
+                  setWadaIds([...selected, color.id]);
+                  state.wadaSearch = "";
+                  paint();
+                },
+              },
+              [
+                el("span", {
+                  className: "wada-result-swatch",
+                  style: `background:${color.hex}`,
+                  "aria-hidden": "true",
+                }),
+                el("span", { className: "wada-result-name", text: color.name }),
+              ]
+            )
+          );
+        }
+      }
+    }
+
+    const fromPhotoLabel = state.wadaProposing
+      ? "Sampling…"
+      : selected.length
+        ? "Replace from photo"
+        : "From photo";
+    const fromPhotoBtn = el("button", {
+      type: "button",
+      className: "secondary wada-from-photo",
+      text: fromPhotoLabel,
+      disabled:
+        state.busy || state.wadaProposing || !canSample ? "disabled" : null,
+      "aria-label": selected.length
+        ? "Replace Wada colours from photo sample"
+        : "Propose Wada colour from photo sample",
+      onClick: () => onProposeWadaFromPhoto({ replace: selected.length > 0 }),
+    });
+
+    return el("div", { className: "wada-field stack" }, [
+      el("div", { className: "wada-field-head" }, [
+        el("span", { className: "field-title", text: "Wada reference" }),
+        el("div", { className: "wada-field-actions" }, [
+          fromPhotoBtn,
+          el("button", {
+            type: "button",
+            className: "secondary wada-clear",
+            text: "Clear",
+            disabled:
+              state.busy || state.wadaProposing || !selected.length
+                ? "disabled"
+                : null,
+            "aria-label": "Clear Wada colours",
+            onClick: () => {
+              setWadaIds([]);
+              resetWadaPickerUi();
+              paint();
+            },
+          }),
+        ]),
+      ]),
+      chips,
+      search,
+      state.wadaPickerOpen ? resultList : null,
+      state.wadaPickerOpen
+        ? el("button", {
+            type: "button",
+            className: "secondary wada-collapse",
+            text: "Hide palette",
+            onClick: () => {
+              state.wadaPickerOpen = false;
+              paint();
+            },
+          })
+        : el("button", {
+            type: "button",
+            className: "secondary wada-expand",
+            text: atMax ? "Palette full" : "Browse palette",
+            disabled: state.busy || state.wadaProposing || atMax ? "disabled" : null,
+            onClick: () => {
+              state.wadaPickerOpen = true;
+              paint();
+            },
+          }),
+    ]);
   }
 
   function renderAiContextField() {
@@ -1587,31 +2314,47 @@ export function renderCatalogApp(root, { onLogout }) {
       grid.append(el("label", {}, children));
     }
     form.append(grid);
+    form.append(renderWadaField());
     form.append(renderFormStickyActions(editing));
     panel.append(form);
     return panel;
   }
 
   function renderDetail(item) {
+    const attrParts = [
+      primaryWadaName(item),
+      item.fabric,
+      item.formality,
+      item.season,
+      item.brandModel || "—",
+      item.outfitRole,
+      item.pattern,
+    ].filter((part) => String(part || "").trim());
     const panel = el("section", { className: "panel stack" }, [
-      el("h1", { text: item.type }),
-      el("p", {
-        className: "lede",
-        text: `${item.color} · ${item.fabric} · ${item.formality} · ${item.season}`,
-      }),
-      item.aiContext
-        ? el("div", { className: "stack ai-context-block" }, [
-            el("p", { className: "field-label", text: "AI context" }),
-            el("p", {
-              className: "ai-context",
-              text: item.aiContext,
+      state.detailFromSuggest
+        ? el("div", { className: "row detail-back-looks" }, [
+            el("button", {
+              type: "button",
+              className: "secondary",
+              text: "Back to looks",
+              onClick: backToLooks,
             }),
           ])
         : null,
-      el("p", {
-        className: "muted",
-        text: `${item.brandModel || "—"} · role: ${item.outfitRole} · pattern: ${item.pattern}`,
-      }),
+      el("h1", { text: item.type }),
+      el("div", { className: "lede-row" }, [
+        el("p", {
+          className: "lede",
+          text: attrParts.join(" · "),
+        }),
+        wadaPrimarySwatch(item.wadaColorIds),
+      ]),
+      item.aiContext
+        ? el("p", {
+            className: "ai-context",
+            text: item.aiContext,
+          })
+        : null,
     ]);
 
     const photos = el("div", { className: "detail-photos" });
@@ -1669,7 +2412,7 @@ export function renderCatalogApp(root, { onLogout }) {
           name: "context",
           required: "required",
           maxlength: "480",
-          placeholder: "e.g. client lunch, cool and dry",
+          placeholder: "e.g. client lunch, cool and dry — or ‘5 looks please’",
           value: state.suggest.context || "",
           autocomplete: "off",
         }),
@@ -1679,18 +2422,47 @@ export function renderCatalogApp(root, { onLogout }) {
       el("div", { className: "row" }, [
         el("button", {
           type: "submit",
-          text: state.busy
-            ? "Working…"
+          text: state.suggest.generating
+            ? "Generating looks…"
             : state.suggest.looks
               ? "Suggest again"
               : "Dress me",
-          disabled: state.busy ? "disabled" : null,
+          disabled: state.busy || state.suggest.generating ? "disabled" : null,
         }),
       ])
     );
     panel.append(form);
 
-    if (state.suggest.looks) {
+    if (state.suggest.generating) {
+      const wait = el("div", {
+        className: "suggest-progress",
+        role: "status",
+        "aria-live": "polite",
+        "aria-busy": "true",
+      });
+      wait.append(
+        el("p", {
+          className: "suggest-progress-status",
+          text: "Assembling looks from your wardrobe…",
+        })
+      );
+      wait.append(
+        el("div", {
+          className: "suggest-progress-track",
+          "aria-hidden": "true",
+        }, [
+          el("div", { className: "suggest-progress-bar" }),
+        ])
+      );
+      wait.append(
+        el("p", {
+          className: "muted suggest-progress-tip",
+          "data-suggest-tip": "1",
+          text: SUGGEST_WAIT_TIPS[state.suggest.tipIndex] || SUGGEST_WAIT_TIPS[0],
+        })
+      );
+      panel.append(wait);
+    } else if (state.suggest.looks) {
       const results = el("div", {
         className: "looks-grid",
         "aria-live": "polite",
@@ -1708,8 +2480,72 @@ export function renderCatalogApp(root, { onLogout }) {
           })
         );
       }
+      if (
+        state.suggest.lookCountShortfall &&
+        state.suggest.requestedLookCount > 0
+      ) {
+        const requested = state.suggest.requestedLookCount;
+        const returned =
+          state.suggest.returnedLookCount || state.suggest.looks.length;
+        results.append(
+          el("p", {
+            className: "muted suggest-shortfall",
+            role: "status",
+            text: `Could assemble ${returned} of ${requested} complete looks from your closet.`,
+          })
+        );
+      }
+      const exportRow = el("div", {
+        className: "row suggest-export",
+      });
+      exportRow.append(
+        el("button", {
+          type: "button",
+          className: "secondary",
+          text:
+            state.suggest.exportStatus === "Copied"
+              ? "Copied"
+              : "Copy JSON",
+          title: "Copy this suggest session as JSON for hillclimb / Cursor",
+          onClick: () => {
+            copySuggestExport();
+          },
+        })
+      );
+      exportRow.append(
+        el("button", {
+          type: "button",
+          className: "linkish",
+          text:
+            state.suggest.exportStatus === "Downloaded"
+              ? "Downloaded"
+              : "Download .json",
+          title: "Download this suggest session as a .json file",
+          onClick: () => {
+            downloadSuggestExport();
+          },
+        })
+      );
+      if (
+        state.suggest.exportStatus &&
+        state.suggest.exportStatus !== "Copied" &&
+        state.suggest.exportStatus !== "Downloaded"
+      ) {
+        exportRow.append(
+          el("span", {
+            className: "muted suggest-export-status",
+            role: "status",
+            text: state.suggest.exportStatus,
+          })
+        );
+      }
+      results.append(exportRow);
       state.suggest.looks.forEach((look, index) => {
-        results.append(renderLookCard(look, index));
+        results.append(
+          renderLookCard(look, index, {
+            onItemOpen: (piece) => openDetail(piece, { fromSuggest: true }),
+          })
+        );
       });
       panel.append(results);
     } else if (!state.items.length) {
@@ -1724,6 +2560,9 @@ export function renderCatalogApp(root, { onLogout }) {
     return panel;
   }
 
+  // Seed History + one buffer entry so the first Back does not hit Cognito.
+  replaceNav();
+  pushNav();
   refresh();
   return { refresh };
 }

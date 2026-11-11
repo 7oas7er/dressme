@@ -65,7 +65,6 @@ function attrs(overrides) {
   return Object.assign(
     {
       type: "jacket",
-      color: "navy",
       fabric: "wool",
       brandModel: "Example Co. Blazer",
       formality: "business",
@@ -87,9 +86,11 @@ test("attribute options returns classic menswear seeds", async function () {
   var body = JSON.parse(res.body);
   assert.ok(body.fields.includes("fabric"));
   assert.ok(body.fields.includes("brandModel"));
+  assert.ok(!body.fields.includes("color"));
   assert.ok(body.options.type.includes("blazer"));
   assert.ok(body.options.fabric.includes("tweed"));
   assert.ok(body.options.formality.includes("smart casual"));
+  assert.equal(body.options.color, undefined);
   assert.deepEqual(body.options.brandModel, []);
   assert.deepEqual(body.custom.fabric, []);
   assert.deepEqual(body.custom.brandModel, []);
@@ -105,7 +106,6 @@ test("create/update remembers free-text values for later dropdowns", async funct
     body: JSON.stringify(
       attrs({
         fabric: "vintage hopsack",
-        color: "petrol",
         brandModel: "Drake's Donegal",
       })
     ),
@@ -119,12 +119,13 @@ test("create/update remembers free-text values for later dropdowns", async funct
   assert.equal(options.statusCode, 200);
   var body = JSON.parse(options.body);
   assert.ok(body.options.fabric.includes("vintage hopsack"));
-  assert.ok(body.options.color.includes("petrol"));
   assert.ok(body.options.brandModel.includes("Drake's Donegal"));
   assert.ok(body.custom.fabric.includes("vintage hopsack"));
   assert.ok(body.custom.brandModel.includes("Drake's Donegal"));
   // Seed values are not stored as custom.
   assert.ok(!body.custom.type.includes("jacket"));
+  // Free-text color is no longer a suggestion field.
+  assert.equal(body.options.color, undefined);
 
   var itemId = JSON.parse(created.body).item.itemId;
   var updated = await api.handler({
@@ -146,8 +147,8 @@ test("create/update remembers free-text values for later dropdowns", async funct
   // Prior customs still present; new brand/model remembered.
   assert.ok(againBody.options.fabric.includes("vintage hopsack"));
   assert.ok(againBody.options.brandModel.includes("Drake's Donegal"));
-  // Phase 1 hygiene: `&` delimiter-unifies to `, ` before remember.
-  assert.ok(againBody.options.brandModel.includes("Crockett, Jones Audley"));
+  // brandModel keeps `&` (other fields still unify & → , ).
+  assert.ok(againBody.options.brandModel.includes("Crockett & Jones Audley"));
 });
 
 test("seed match is case-insensitive and does not duplicate customs", async function () {
@@ -161,4 +162,59 @@ test("seed match is case-insensitive and does not duplicate customs", async func
   assert.equal(listed.body.custom.fabric[0], "my custom weave");
   assert.ok(listed.body.options.fabric.includes("wool"));
   assert.ok(listed.body.options.fabric.includes("my custom weave"));
+});
+
+test("brandModel custom dedupes and/ampersand folds and prefers &", async function () {
+  items.resetDepsForTests(makeMemoryDeps());
+  var user = { sub: "local-dev-user" };
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Rooks and Rocks",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Rooks & Rocks",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Mey and Edlich",
+  });
+  var listed = await attributeOptions.listAttributeOptions(user);
+  var brands = listed.body.custom.brandModel;
+  assert.equal(brands.filter(function (v) {
+    return /rooks/i.test(v);
+  }).length, 1);
+  assert.ok(brands.includes("Rooks & Rocks"));
+  assert.ok(!brands.includes("Rooks and Rocks"));
+  assert.ok(brands.includes("Mey & Edlich"));
+  assert.ok(!brands.includes("Mey and Edlich"));
+});
+
+test("brandModel remember folds aliases and Levenshtein-1 into one META slot", async function () {
+  items.resetDepsForTests(makeMemoryDeps());
+  var user = { sub: "local-dev-user" };
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Joe Merino",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Joe Marino",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Joe Merono",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Ruffs and Rocks",
+  });
+  await attributeOptions.rememberCustomValues(user, {
+    brandModel: "Suit Supply",
+  });
+  var listed = await attributeOptions.listAttributeOptions(user);
+  var brands = listed.body.custom.brandModel;
+  assert.equal(brands.filter(function (v) {
+    return /joe mer/i.test(v);
+  }).length, 1);
+  assert.ok(brands.includes("Joe Merino"));
+  assert.ok(!brands.includes("Joe Marino"));
+  assert.ok(!brands.includes("Joe Merono"));
+  assert.ok(brands.includes("Rooks & Rocks"));
+  assert.ok(!brands.includes("Ruffs and Rocks"));
+  assert.ok(brands.includes("Suitsupply"));
+  assert.ok(!brands.includes("Suit Supply"));
 });
