@@ -354,15 +354,16 @@ test("syncLookCopy rewrites title/rationale after ID change or foreign copy", fu
   );
   assert.ok(!/cardigan/i.test(afterDrop.title));
   assert.ok(!/cardigan/i.test(afterDrop.rationale));
-  assert.match(afterDrop.title, /Schott|leather jacket/i);
-  assert.match(afterDrop.rationale, /leather jacket|Schott/i);
+  // Occasion-led titles (not Wada/brand dumps); jacket remains in the look copy.
+  assert.match(afterDrop.title, /garden|jacket|layered/i);
+  assert.match(afterDrop.rationale, /leather jacket|Schott|jacket/i);
   assert.ok(!/cardigan/i.test(afterDrop.rationale));
   // Verbose advice tone — not a one-line "Pairs A with B" stub.
   var sentences = afterDrop.rationale
     .split(/(?<=\.)\s+/)
     .filter(Boolean);
   assert.ok(sentences.length >= 2, afterDrop.rationale);
-  assert.match(afterDrop.rationale, /garden|chill|cool|layer/i);
+  assert.match(afterDrop.rationale, /garden|chill|cool|layer|For /i);
   assert.ok(afterDrop.rationale.length > 80);
 
   var foreignOnly = suggest.syncLookCopy(
@@ -405,6 +406,194 @@ test("systemPrompt asks for verbose titles and 2–4 sentence rationales", funct
   assert.match(prompt, /2–4 sentences|2-4 sentences/i);
   assert.match(prompt, /catchy but full/i);
   assert.match(prompt, /Wada\/palette|palette/i);
+  assert.match(prompt, /occasion-led|Board-day|luggage|capsule/i);
+});
+
+test("rewriteLookCopy is occasion-led and never pastes raw session context", function () {
+  var catalog = [
+    {
+      itemId: "shirt1",
+      outfitRole: "shirt",
+      type: "dress shirt",
+      brandModel: "Eterna",
+      fabric: "cotton",
+      formality: "business",
+      wadaColorIds: ["wada:v1:153"],
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "trousers",
+      brandModel: "Suitsupply",
+      fabric: "wool",
+      formality: "business",
+      wadaColorIds: ["wada:v1:157"],
+    },
+    {
+      itemId: "jacket1",
+      outfitRole: "jacket",
+      type: "blazer",
+      brandModel: "Rooks & Rocks",
+      fabric: "wool",
+      formality: "business",
+      wadaColorIds: ["wada:v1:129"],
+    },
+    {
+      itemId: "shoe1",
+      outfitRole: "footwear",
+      type: "shoes",
+      brandModel: "Lloyd",
+      fabric: "leather",
+      formality: "business",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var ctx =
+    "I would like you to create three outfits for me because I'm traveling next week. - Day 1: I would like something that works when traveling on a train but also when having dinner with colleagues in the evening. - Day 2: I have a board meeting to attend. - Day 3: I have some casual meetings and will travel back on a train in the evening. For luggage, I don't want to have more than two pairs of shoes, trousers, and jackets.";
+  var brief = suggest.parseTripBrief(ctx, 3);
+  assert.equal(brief.occasions.length, 3);
+  assert.match(brief.occasions[1].shortTitle, /board/i);
+  assert.equal(brief.occasions[1].formalityHint, "business");
+  assert.deepEqual(brief.packing, { footwear: 2, trousers: 2, outer: 2 });
+
+  var rewritten = suggest.rewriteLookCopy(
+    {
+      lookId: "2",
+      title: "Dark Tyrian Blue Rooks & Rocks I would",
+      rationale:
+        "Dark Tyrian Blue Rooks & Rocks in wool anchors the look for I would like you to create for me because I'm traveling next wee, with White Eterna in cotton.",
+      itemIds: ["shirt1", "pants1", "jacket1", "shoe1"],
+    },
+    byId,
+    ctx,
+    { brief: brief, index: 1 }
+  );
+  assert.ok(!/I would/i.test(rewritten.title));
+  assert.ok(!/I would like you to create/i.test(rewritten.rationale));
+  assert.ok(!/^Dark Tyrian Blue Rooks/i.test(rewritten.title));
+  assert.match(rewritten.title, /board/i);
+  assert.match(rewritten.rationale, /board|For /i);
+  var sentences = rewritten.rationale.split(/(?<=\.)\s+/).filter(Boolean);
+  assert.ok(sentences.length >= 2, rewritten.rationale);
+  assert.ok(sentences.length <= 4, rewritten.rationale);
+});
+
+test("parsePackingLimits defaults for trip language and parses bundled luggage", function () {
+  assert.equal(suggest.parsePackingLimits("client lunch"), null);
+  assert.deepEqual(suggest.parsePackingLimits("traveling next week"), {
+    footwear: 2,
+    trousers: 2,
+    outer: 2,
+  });
+  assert.deepEqual(
+    suggest.parsePackingLimits(
+      "For luggage, I don't want to have more than two pairs of shoes, trousers, and jackets."
+    ),
+    { footwear: 2, trousers: 2, outer: 2 }
+  );
+});
+
+test("repairCrossLookPacking reuses capsule pieces when unique counts exceed limits", function () {
+  var catalog = [
+    { itemId: "s1", outfitRole: "shirt", type: "shirt", formality: "business" },
+    { itemId: "s2", outfitRole: "shirt", type: "shirt", formality: "smart casual" },
+    { itemId: "s3", outfitRole: "shirt", type: "shirt", formality: "casual" },
+    {
+      itemId: "t1",
+      outfitRole: "trousers",
+      type: "trousers",
+      formality: "business",
+    },
+    {
+      itemId: "t2",
+      outfitRole: "trousers",
+      type: "trousers",
+      formality: "business",
+    },
+    {
+      itemId: "t3",
+      outfitRole: "trousers",
+      type: "chinos",
+      formality: "smart casual",
+    },
+    {
+      itemId: "j1",
+      outfitRole: "jacket",
+      type: "blazer",
+      formality: "business",
+    },
+    {
+      itemId: "j2",
+      outfitRole: "jacket",
+      type: "blazer",
+      formality: "smart casual",
+    },
+    {
+      itemId: "f1",
+      outfitRole: "footwear",
+      type: "shoes",
+      formality: "business",
+    },
+    {
+      itemId: "f2",
+      outfitRole: "footwear",
+      type: "shoes",
+      formality: "business",
+    },
+    {
+      itemId: "f3",
+      outfitRole: "footwear",
+      type: "shoes",
+      formality: "smart casual",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var looks = [
+    {
+      lookId: "1",
+      title: "A",
+      rationale: "",
+      itemIds: ["s1", "t1", "j1", "f1"],
+    },
+    {
+      lookId: "2",
+      title: "B",
+      rationale: "",
+      itemIds: ["s2", "t2", "j1", "f2"],
+    },
+    {
+      lookId: "3",
+      title: "C",
+      rationale: "",
+      itemIds: ["s3", "t3", "j2", "f3"],
+    },
+  ];
+  var before = suggest.packingSummary(looks, byId);
+  assert.equal(before.footwear.length, 3);
+  assert.equal(before.trousers.length, 3);
+  assert.equal(before.outer.length, 2);
+
+  var repaired = suggest.repairCrossLookPacking(looks, byId, {
+    footwear: 2,
+    trousers: 2,
+    outer: 2,
+  });
+  assert.ok(repaired.repairs >= 2, "expected packing swaps, got " + repaired.repairs);
+  assert.ok(repaired.packing.footwear.length <= 2);
+  assert.ok(repaired.packing.trousers.length <= 2);
+  assert.ok(repaired.packing.outer.length <= 2);
+  // Capsule keeps first-seen uniques; later looks reuse them.
+  assert.deepEqual(repaired.packing.footwear.sort(), ["f1", "f2"]);
+  assert.ok(repaired.looks[2].itemIds.indexOf("f3") < 0);
+  assert.ok(repaired.looks[2].itemIds.indexOf("t3") < 0);
 });
 
 test("extractLookCount defaults, parses digits/words, and clamps 1–8", function () {

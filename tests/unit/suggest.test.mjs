@@ -132,6 +132,15 @@ test("buildSuggestExportPayload shapes session for hillclimb paste", () => {
     suggestExportFilename(payload.exportedAt),
     /^dressme-suggest-20261111-120000Z\.json$/
   );
+
+  const withPacking = buildSuggestExportPayload({
+    context: "trip",
+    looks: [],
+    packing: { footwear: ["f1"], trousers: ["t1"], outer: ["j1"] },
+    packingLimits: { footwear: 2, trousers: 2, outer: 2 },
+  });
+  assert.deepEqual(withPacking.packing.footwear, ["f1"]);
+  assert.equal(withPacking.packingLimits.outer, 2);
 });
 
 test("suggestOutfits posts context and dual-writes occasion for deploy window", async () => {
