@@ -388,6 +388,7 @@ export function renderCatalogApp(root, { onLogout }) {
       lookCountShortfall: false,
       packing: null,
       packingLimits: null,
+      occasions: null,
       /** True while POST /api/suggest is in flight (waiting UI). */
       generating: false,
       tipIndex: 0,
@@ -1090,6 +1091,9 @@ export function renderCatalogApp(root, { onLogout }) {
         data.packingLimits && typeof data.packingLimits === "object"
           ? data.packingLimits
           : null;
+      state.suggest.occasions = Array.isArray(data.occasions)
+        ? data.occasions
+        : null;
       state.suggest.exportStatus = "";
       const n = state.suggest.looks.length;
       state.status =
@@ -1122,6 +1126,7 @@ export function renderCatalogApp(root, { onLogout }) {
       state.suggest.returnedLookCount = 0;
       state.suggest.packing = null;
       state.suggest.packingLimits = null;
+      state.suggest.occasions = null;
       state.suggest.exportStatus = "";
     } finally {
       stopSuggestTipRotation();

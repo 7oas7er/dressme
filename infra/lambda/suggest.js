@@ -53,11 +53,11 @@ var STYLE_PACK_V1 = [
   "- Completeness: every look needs base + bottom (+ footwear when shoes exist). Accessories when context warrants.",
   "- Slot uniqueness: at most one base, one bottom, one footwear, and one outer/mid-layer per look — never two shoes or two jackets.",
   "- Cold or outdoor evening / garden / patio: prefer a warm layer (coat, blazer, cardigan, knit overshirt) when the catalog has one.",
-  "- Waist finish: looped trousers need a belt, or suspenders/braces when the trousers' aiContext supports them; side-adjuster / beltless trousers are exempt. Prefer belt for casual; suspenders OK when dressy or trousers only support suspenders. Match belt to footwear when using a belt. At most one belt (or one suspenders).",
+  "- Waist finish: looped trousers need a belt, or suspenders/braces when the trousers' aiContext supports them; side-adjuster / beltless trousers are exempt. Prefer belt for casual; suspenders OK when dressy or trousers only support suspenders. Match belt leather tone to footwear (black with black; brown/tan/cognac with brown shoes) — never brown belt with black shoes when a matching belt exists. At most one belt (or one suspenders).",
   "- Honor Frank's session context and each item's aiContext. Diversify the N looks. Closet-only — never invent IDs.",
   "- Multi-day / multi-occasion briefs: one look per named day or occasion when N matches; put that day/occasion in the title and the first rationale sentence. Soft-align formality (board → business; casual train → smart casual).",
   "- Luggage / trip reuse: when packing limits are implied, plan a shared capsule first (≤N unique footwear, trousers, jackets) and reuse across looks.",
-  "- Title and rationale must describe only the itemIds in that look (attrs + Wada names) — never name a piece that is not listed. Titles are catchy occasion-led phrases — never lead with Wada name + brand, never paste session context, never end mid-phrase. Rationales are 2–4 thoughtful sentences (lead with this look's occasion, then materials/palette), not telegraphic one-liners.",
+  "- Title and rationale must describe only the itemIds in that look (attrs + Wada names) — never name a piece that is not listed. Titles are catchy occasion-led phrases — never lead with Wada name + brand, never paste session context, never end mid-phrase. Rationales are 2–4 thoughtful sentences (lead with this look's occasion, then materials/palette), varied voice — never reuse the same anchors/Materials stay honest/Palette-wise skeleton every look.",
 ].join("\n");
 
 /** Core (+ waist) slots that may appear at most once per look. */
@@ -84,8 +84,37 @@ var TRIP_LUGGAGE_RE =
 var DEFAULT_PACKING_LIMIT = 2;
 var COLOR_WORD_RE =
   /\b(navy|blue|grey|gray|green|black|brown|white|cream|beige|tan|olive|burgundy|charcoal|slate|cognac|wine|red|khaki)\b/i;
+/** Classic menswear leather-tone buckets for belt ↔ shoe matching. */
+var LEATHER_TONE_FAMILIES = {
+  black: "black",
+  charcoal: "black",
+  slate: "black",
+  grey: "black",
+  gray: "black",
+  brown: "brown",
+  tan: "brown",
+  cognac: "brown",
+  beige: "brown",
+  khaki: "brown",
+  cream: "brown",
+  olive: "brown",
+  burgundy: "burgundy",
+  wine: "burgundy",
+  red: "burgundy",
+  navy: "navy",
+  blue: "navy",
+};
 var BROKEN_COPY_RE =
   /\bI would(?: like)?\b|\bcreate for me\b|\btraveling next wee\b/i;
+/** Deterministic template fingerprints — Bedrock rewrite should beat these. */
+var FORMULAIC_COPY_RES = [
+  /anchors the look/i,
+  /Materials stay honest/i,
+  /Palette-wise,/i,
+  /keep the true-color story tidy/i,
+  /Primary Wada /i,
+  /Shoe–trouser formality and the base layer stay aligned/i,
+];
 
 var WORD_COUNTS = {
   one: 1,
@@ -955,6 +984,75 @@ function copyLooksBroken(title, rationale) {
   return false;
 }
 
+/** True when rationale shows the old deterministic template skeleton. */
+function copyLooksFormulaic(title, rationale) {
+  var blob = String(rationale || "") || String(title || "");
+  var hits = 0;
+  for (var i = 0; i < FORMULAIC_COPY_RES.length; i++) {
+    if (FORMULAIC_COPY_RES[i].test(blob)) hits += 1;
+  }
+  return hits >= 2;
+}
+
+function itemColorBlob(item) {
+  return [
+    itemPrimaryWadaName(item),
+    item && item.fabric,
+    item && item.aiContext,
+    item && item.type,
+    item && item.brandModel,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** Leather / colour family for belt↔footwear matching (empty when unknown). */
+function leatherToneFamily(item) {
+  var blob = itemColorBlob(item);
+  var m = blob.match(COLOR_WORD_RE);
+  if (!m) return "";
+  var key = String(m[1] || "").toLowerCase();
+  return LEATHER_TONE_FAMILIES[key] || "";
+}
+
+/**
+ * Higher is better. Unknown tones score neutral (1); same family 10; mismatch 0.
+ */
+function beltFootwearMatchScore(belt, footwear) {
+  var beltTone = leatherToneFamily(belt);
+  var shoeTone = leatherToneFamily(footwear);
+  if (!beltTone || !shoeTone) return 1;
+  if (beltTone === shoeTone) return 10;
+  return 0;
+}
+
+function findLookFootwear(ids, byId) {
+  for (var i = 0; i < (ids || []).length; i++) {
+    var record = byId.get(ids[i]);
+    if (classifySlot(record || {}) === "footwear") return record;
+  }
+  return null;
+}
+
+function findLookBelt(ids, byId) {
+  for (var i = 0; i < (ids || []).length; i++) {
+    var record = byId.get(ids[i]);
+    if (record && isBeltItem(record)) return record;
+  }
+  return null;
+}
+
+function publicOccasions(brief) {
+  return ((brief && brief.occasions) || []).map(function (o) {
+    return {
+      day: o.day != null ? o.day : null,
+      label: o.label || "",
+      shortTitle: o.shortTitle || "",
+      formalityHint: o.formalityHint || "",
+    };
+  });
+}
+
 function lookAnchorPiece(pieces) {
   for (var i = 0; i < (pieces || []).length; i++) {
     if (classifySlot(pieces[i]) === "outer") return pieces[i];
@@ -994,6 +1092,8 @@ function uniqueNonEmpty(values) {
 /**
  * Deterministic title + rationale from structured occasion + piece attrs/Wada.
  * Never pastes raw session context. Titles are occasion-led (not Wada+brand).
+ * Voice rotates by look index so fallback copy is not identical boilerplate.
+ * Prefer Bedrock rewrite when budget allows — this is the true fallback.
  */
 function rewriteLookCopy(look, byId, context, opts) {
   opts = opts || {};
@@ -1011,6 +1111,11 @@ function rewriteLookCopy(look, byId, context, opts) {
   var cold = brief.cold || contextNeedsColdLayer(context);
   var color = colorCueFromItem(anchor);
   var typeWord = shortTypeWord(anchor);
+  var variant =
+    (opts.index != null
+      ? opts.index
+      : Math.max(0, (parseInt(String((look && look.lookId) || "1"), 10) || 1) - 1)) %
+    3;
   var titleSeed;
   if (cue && color) titleSeed = cue + " " + color;
   else if (cue && typeWord) titleSeed = cue + " " + typeWord;
@@ -1041,69 +1146,117 @@ function rewriteLookCopy(look, byId, context, opts) {
     : cold
       ? "cool outdoor air"
       : "this occasion";
+  var support = pieces
+    .filter(function (p) {
+      return p !== anchor;
+    })
+    .map(pieceDetail)
+    .slice(0, 3);
   var sentences = [];
   if (details.length === 1) {
     sentences.push(
-      "For " + occasionLead + ", this set keeps " + details[0] + " working as one coherent line."
+      occasionLead +
+        " keeps " +
+        details[0] +
+        " working alone as a clean, wearable line."
+    );
+  } else if (anchor && variant === 0) {
+    sentences.push(
+      occasionLead +
+        " leans on " +
+        pieceDetail(anchor) +
+        (support.length
+          ? ", backed by " + support.join(", ") + "."
+          : ".")
+    );
+  } else if (anchor && variant === 1) {
+    sentences.push(
+      "Built for " +
+        occasionLead +
+        ": " +
+        pieceDetail(anchor) +
+        (support.length
+          ? " with " + support.slice(0, 2).join(" and ") + "."
+          : ".")
     );
   } else if (anchor) {
-    var support = pieces
-      .filter(function (p) {
-        return p !== anchor;
-      })
-      .map(pieceDetail)
-      .slice(0, 3);
     sentences.push(
-      "For " +
+      pieceDetail(anchor) +
+        " carries " +
         occasionLead +
-        ", " +
-        pieceDetail(anchor) +
-        " anchors the look" +
         (support.length
-          ? ", with " + support.join(", ") + " keeping the line coherent."
+          ? " while " + support[0] + " keeps the rest grounded."
           : ".")
     );
   } else {
     sentences.push(
-      "For " +
-        occasionLead +
-        ", this set keeps " +
+      occasionLead +
+        " holds together with " +
         details.slice(0, Math.min(3, details.length)).join(", ") +
-        " working as one coherent line."
+        "."
     );
   }
 
   if (fabrics.length) {
-    sentences.push(
-      "Materials stay honest for the brief: " +
-        fabrics.slice(0, 3).join(", ") +
-        " read as classic menswear rather than costume."
-    );
+    if (variant === 0) {
+      sentences.push(
+        fabrics.slice(0, 3).join(" / ") +
+          " keep the hand practical for classic menswear, not costume."
+      );
+    } else if (variant === 1) {
+      sentences.push(
+        "Cloths stay honest — " +
+          fabrics.slice(0, 3).join(", ") +
+          " — so the set reads wearable rather than styled-for-show."
+      );
+    } else {
+      sentences.push(
+        "Fabric weight and finish (" +
+          fabrics.slice(0, 3).join(", ") +
+          ") suit the day's demands without fighting each other."
+      );
+    }
   } else if (cold && anchor && classifySlot(anchor) === "outer") {
     sentences.push(
-      "The outer layer earns its place against the chill without turning the rest of the closet theatrical."
+      "The outer layer earns its place against the chill without theatrical extras."
+    );
+  } else if (variant === 1) {
+    sentences.push(
+      "Shoe and trouser formality stay in step so the base can sit quietly underneath."
     );
   } else {
     sentences.push(
-      "Shoe–trouser formality and the base layer stay aligned so nothing fights the day."
+      "Nothing fights the day: formality between shoe, trouser, and base stays aligned."
     );
   }
 
   if (wadaNames.length >= 2) {
-    sentences.push(
-      "Palette-wise, " +
+    if (variant === 0) {
+      sentences.push(
         wadaNames.slice(0, 3).join(", ") +
-        " keep the true-color story tidy across the pieces you actually wear."
-    );
+          " lock a true-colour story across the worn pieces."
+      );
+    } else if (variant === 1) {
+      sentences.push(
+        "Colour centres on " +
+          wadaNames.slice(0, 3).join(" and ") +
+          " without inventing hues."
+      );
+    } else {
+      sentences.push(
+        "Wada names " +
+          wadaNames.slice(0, 3).join(", ") +
+          " keep the palette coherent from shoe to outer."
+      );
+    }
   } else if (wadaNames.length === 1) {
     sentences.push(
-      "Primary Wada " +
-        wadaNames[0] +
+      wadaNames[0] +
         " gives the set a clear colour centre without inventing hues."
     );
   } else if (details.length >= 3) {
     sentences.push(
-      "Each listed piece pulls weight: nothing ornamental, nothing missing from the photos."
+      "Each listed piece pulls weight — nothing ornamental, nothing missing."
     );
   }
 
@@ -1115,7 +1268,7 @@ function rewriteLookCopy(look, byId, context, opts) {
     sentences.push(
       "Formality stays near " +
         occasion.formalityHint +
-        " so the look matches the day's role."
+        " for the day's role."
     );
   }
 
@@ -1393,7 +1546,9 @@ function copyRewriteSystemPrompt(lookCount) {
       clampLookCount(lookCount) +
       " looks.",
     'Titles: catchy occasion-led phrases (about 3–7 words, ≤48 chars). Never lead with Wada colour name + brand. Never paste session context. Never end mid-phrase (no trailing "I would").',
-    "Rationales: 2–4 sentences. First sentence names this look's occasion/day. Then materials and Wada/palette harmony. Describe only the listed pieces.",
+    "Rationales: 2–4 sentences with varied voice across looks. First sentence names this look's occasion/day. Then why these pieces fit that day, materials, and Wada/palette harmony — keep Wada quality without identical boilerplate.",
+    'Forbidden skeleton phrases: "anchors the look", "Materials stay honest", "Palette-wise,". Do not reuse the same sentence pattern on every look.',
+    "Describe only the listed pieces.",
   ].join("\n");
 }
 
@@ -1454,7 +1609,11 @@ async function rewriteLooksCopyWithBedrock(looks, byId, brief, callBedrock) {
       if (!row) return look;
       var title = clampTitle(row.title);
       var rationale = clampText(row.rationale, MAX_RATIONALE);
-      if (!title || copyLooksBroken(title, rationale)) {
+      if (
+        !title ||
+        copyLooksBroken(title, rationale) ||
+        copyLooksFormulaic(title, rationale)
+      ) {
         return rewriteLookCopy(look, byId, "", {
           brief: brief,
           occasion: occasionForLook(brief, look, index),
@@ -1610,6 +1769,7 @@ function pickWaistFinish(catalog, usedIds, trousers, ids, byId, context) {
     if (suspenders) return suspenders;
   }
   var shoeFormality = footwearFormality(ids, byId);
+  var footwear = findLookFootwear(ids, byId);
   var belts = [];
   for (var i = 0; i < (catalog || []).length; i++) {
     if (isBeltItem(catalog[i])) belts.push(catalog[i]);
@@ -1618,6 +1778,11 @@ function pickWaistFinish(catalog, usedIds, trousers, ids, byId, context) {
     var aFresh = usedIds.has(String(a.itemId)) ? 1 : 0;
     var bFresh = usedIds.has(String(b.itemId)) ? 1 : 0;
     if (aFresh !== bFresh) return aFresh - bFresh;
+    if (footwear) {
+      var aTone = beltFootwearMatchScore(a, footwear);
+      var bTone = beltFootwearMatchScore(b, footwear);
+      if (aTone !== bTone) return bTone - aTone;
+    }
     if (shoeFormality) {
       var aMatch =
         String(a.formality || "")
@@ -1640,6 +1805,102 @@ function pickWaistFinish(catalog, usedIds, trousers, ids, byId, context) {
     return pickUnusedCandidate(catalog, usedIds, isSuspendersItem);
   }
   return null;
+}
+
+/**
+ * Hard belt ↔ footwear leather-tone repair. Prefer a better-matching belt from
+ * the closet unused in this look; drop belt only when trousers do not need a
+ * waist finish (existing side-adjuster / beltless rules).
+ */
+function repairBeltFootwearMatch(looks, byId, catalog) {
+  var repairs = 0;
+  var nextLooks = (looks || []).map(function (look) {
+    return Object.assign({}, look, { itemIds: lookItemIds(look).slice() });
+  });
+
+  for (var li = 0; li < nextLooks.length; li++) {
+    var ids = nextLooks[li].itemIds;
+    var footwear = findLookFootwear(ids, byId);
+    var belt = findLookBelt(ids, byId);
+    if (!footwear || !belt) continue;
+    var currentScore = beltFootwearMatchScore(belt, footwear);
+    if (currentScore >= 10) continue;
+
+    var usedInLook = {};
+    for (var u = 0; u < ids.length; u++) usedInLook[String(ids[u])] = true;
+
+    var best = null;
+    var bestScore = currentScore;
+    for (var c = 0; c < (catalog || []).length; c++) {
+      var candidate = catalog[c];
+      if (!candidate || !candidate.itemId || !isBeltItem(candidate)) continue;
+      var cid = String(candidate.itemId);
+      if (usedInLook[cid]) continue;
+      var score = beltFootwearMatchScore(candidate, footwear);
+      if (score > bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
+
+    if (best && bestScore > currentScore) {
+      var fromId = String(belt.itemId);
+      var toId = String(best.itemId);
+      for (var k = 0; k < ids.length; k++) {
+        if (String(ids[k]) === fromId) {
+          ids[k] = toId;
+          repairs += 1;
+          console.warn(
+            JSON.stringify({
+              event: "suggest_belt_footwear_repair",
+              lookId: nextLooks[li].lookId,
+              action: "swap",
+              from: fromId,
+              to: toId,
+              shoeTone: leatherToneFamily(footwear),
+              beltTone: leatherToneFamily(best),
+            })
+          );
+          break;
+        }
+      }
+      nextLooks[li].itemIds = ids;
+      continue;
+    }
+
+    if (currentScore > 0) continue;
+    var trousers = findLookTrousers(ids, byId);
+    if (trousers && trousersNeedWaistFinish(trousers)) continue;
+    var dropId = String(belt.itemId);
+    nextLooks[li].itemIds = ids.filter(function (id) {
+      return String(id) !== dropId;
+    });
+    repairs += 1;
+    console.warn(
+      JSON.stringify({
+        event: "suggest_belt_footwear_repair",
+        lookId: nextLooks[li].lookId,
+        action: "drop",
+        from: dropId,
+        shoeTone: leatherToneFamily(footwear),
+        beltTone: leatherToneFamily(belt),
+      })
+    );
+  }
+
+  for (var i = 0; i < nextLooks.length; i++) {
+    var look = nextLooks[i];
+    if (look.items && !looks[i].itemIds) {
+      look.items = look.itemIds
+        .map(function (id) {
+          return byId.get(id);
+        })
+        .filter(Boolean);
+      delete look.itemIds;
+    }
+  }
+
+  return { looks: nextLooks, repairs: repairs };
 }
 
 /**
@@ -2089,10 +2350,11 @@ function systemPrompt(lookCount) {
     "Outerwear may layer over a single base. Distinct accessory types (hat, scarf, etc.) may co-exist; still at most one belt or suspenders.",
     "When context is cold / cool / outdoor evening / garden / patio, include a warm outer or mid layer when the catalog has candidates.",
     "When trousers need a waist finish (not side-adjuster/beltless), include a belt — or suspenders/braces when the trousers' aiContext supports them.",
+    "Match belt leather tone to footwear (black belt with black shoes; brown/tan/cognac belt with brown shoes). Never pair a brown belt with black shoes when a matching belt exists in the catalog.",
     "Accessories beyond waist finish remain optional — hat, scarf, jewelry, bag, neckwear, etc. Add them when they improve the look or fit the occasion.",
     "Title and rationale must name only pieces present in that look's itemIds (use type / brandModel / Wada colour). Never describe a cardigan if the look's outer is a leather jacket.",
     "Titles: catchy occasion-led phrases (e.g. Board-day navy, Train-to-dinner grey). Never lead with Wada name + brand. Never paste or truncate session context into titles. Never end mid-phrase.",
-    "Rationales: 2–4 sentences; first sentence names this look's occasion/day; then materials and palette. Do not paste session context.",
+    "Rationales: 2–4 sentences with varied voice; first sentence names this look's occasion/day; then why pieces fit that day, materials, and palette. Do not paste session context. Do not reuse an anchors/Materials stay honest/Palette-wise skeleton on every look.",
     "When the context lists Day 1 / Day 2 / … or distinct occasions and asks for that many looks, return one look per day/occasion in order with matching formality (board → business; casual train → smart casual).",
     "When luggage/trip limits appear (or a multi-day trip implies packing), plan a shared capsule first and reuse footwear/trousers/jackets across looks so unique counts stay within the stated (or default ≤2) limits.",
     "Never return a look that is only tops, only bottoms, or missing a bottom when trousers/jeans/shorts exist in the catalog.",
@@ -2538,11 +2800,29 @@ async function assembleWithBedrock(catalog, input) {
   packingRepairs = packingResult.repairs || 0;
   completeLooks = packingResult.looks;
   completeLooks = enforceSlotUniqueness(completeLooks, byId);
+
+  // Belt ↔ footwear leather-tone repair after packing (shoes may have swapped).
+  var beltResult = repairBeltFootwearMatch(completeLooks, byId, catalog);
+  var beltRepairs = beltResult.repairs || 0;
+  completeLooks = beltResult.looks;
+  completeLooks = enforceSlotUniqueness(completeLooks, byId);
   softFormalityMismatches(completeLooks, brief, byId);
 
-  // Prefer short Bedrock copy rewrite after slot/packing repair when budget allows.
+  // Prefer Bedrock copy rewrite after slot/packing/belt repair when budget allows.
+  // Template is the true fallback — detect formulaic skeletons so occasion-led
+  // titles alone cannot skip the rewrite pass.
+  var localRepairs =
+    ((local.repairCounts && local.repairCounts.layer) || 0) +
+    ((local.repairCounts && local.repairCounts.waist) || 0) +
+    ((local.repairCounts && local.repairCounts.core) || 0);
+  var formulaicCopy = completeLooks.some(function (look) {
+    return copyLooksFormulaic(look && look.title, look && look.rationale);
+  });
   var needsCopyPass =
     packingRepairs > 0 ||
+    beltRepairs > 0 ||
+    localRepairs > 0 ||
+    formulaicCopy ||
     completeLooks.some(function (look, index) {
       if (copyLooksBroken(look && look.title, look && look.rationale)) {
         return true;
@@ -2586,7 +2866,10 @@ async function assembleWithBedrock(catalog, input) {
       byId,
       catalog,
       context,
-      { brief: brief, force: packingRepairs > 0 || needsCopyPass }
+      {
+        brief: brief,
+        force: packingRepairs > 0 || beltRepairs > 0 || needsCopyPass,
+      }
     );
   }
 
@@ -2623,7 +2906,9 @@ async function assembleWithBedrock(catalog, input) {
 
   var repairCounts = Object.assign({}, local.repairCounts, {
     packing: packingRepairs,
+    belt: beltRepairs,
   });
+  var occasions = publicOccasions(brief);
 
   return {
     looks: looks,
@@ -2637,6 +2922,7 @@ async function assembleWithBedrock(catalog, input) {
     bedrockCalls: bedrockCalls,
     packing: brief.packing ? packing : null,
     packingLimits: brief.packing || null,
+    occasions: occasions.length ? occasions : null,
   };
 }
 
@@ -2750,6 +3036,7 @@ async function suggestLooks(user, body) {
         bedrockCalls: assembled.bedrockCalls,
         packing: assembled.packing || null,
         packingLimits: assembled.packingLimits || null,
+        occasions: assembled.occasions || null,
       };
       countMeta.requestedLookCount = assembled.requestedLookCount;
       countMeta.returnedLookCount = assembled.returnedLookCount;
@@ -2844,6 +3131,9 @@ async function suggestLooks(user, body) {
   if (bedrockMeta && bedrockMeta.packingLimits) {
     responseBody.packingLimits = bedrockMeta.packingLimits;
   }
+  if (bedrockMeta && bedrockMeta.occasions) {
+    responseBody.occasions = bedrockMeta.occasions;
+  }
 
   return {
     statusCode: 200,
@@ -2873,6 +3163,11 @@ exports.parseOccasions = parseOccasions;
 exports.parsePackingLimits = parsePackingLimits;
 exports.parseTripBrief = parseTripBrief;
 exports.repairCrossLookPacking = repairCrossLookPacking;
+exports.repairBeltFootwearMatch = repairBeltFootwearMatch;
+exports.beltFootwearMatchScore = beltFootwearMatchScore;
+exports.leatherToneFamily = leatherToneFamily;
+exports.copyLooksFormulaic = copyLooksFormulaic;
+exports.publicOccasions = publicOccasions;
 exports.packingSummary = packingSummary;
 exports.contextCue = contextCue;
 exports.assembleRandomLooks = assembleRandomLooks;
