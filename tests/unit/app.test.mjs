@@ -383,6 +383,19 @@ test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   assert.match(useCases, /UC-09 — Short rationale per look/);
 });
 
+test("catalog list load shows Suggest-style staged progress", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  assert.match(catalog, /catalogLoading/);
+  assert.match(catalog, /CATALOG_WAIT_TIPS|Loading your catalog/);
+  assert.match(catalog, /catalog-progress|data-catalog-tip/);
+  assert.match(catalog, /startCatalogTipRotation|stopCatalogTipRotation/);
+  // Progress replaces the empty/grid body while GET /api/items is in flight.
+  assert.match(catalog, /if \(state\.catalogLoading\)/);
+  assert.match(styles, /\.catalog-progress/);
+  assert.match(styles, /catalog-progress-bar|suggest-progress-slide/);
+});
+
 test("Wada Slice A: picker, catalog swatch, API ids, attribution (UC-26/27)", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");

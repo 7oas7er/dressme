@@ -357,6 +357,9 @@ export function renderCatalogApp(root, { onLogout }) {
     status: "",
     error: "",
     busy: false,
+    /** True while GET /api/items is in flight for the catalog list. */
+    catalogLoading: false,
+    catalogTipIndex: 0,
     /** photoId currently rotating on edit (busy tile highlight). */
     rotatingPhotoId: null,
     attributeOptions: {},
@@ -614,8 +617,12 @@ export function renderCatalogApp(root, { onLogout }) {
 
   async function refresh() {
     state.busy = true;
+    state.catalogLoading = true;
+    state.catalogTipIndex = 0;
     state.error = "";
+    state.status = "Loading your catalog…";
     paint();
+    startCatalogTipRotation();
     try {
       const data = await api.listItems(state.query);
       state.items = data.items || [];
@@ -623,7 +630,10 @@ export function renderCatalogApp(root, { onLogout }) {
       updateStatusFromItems();
     } catch (err) {
       state.error = err.message || "Could not load catalog.";
+      state.status = "";
     } finally {
+      stopCatalogTipRotation();
+      state.catalogLoading = false;
       state.busy = false;
       paint();
     }
@@ -984,7 +994,15 @@ export function renderCatalogApp(root, { onLogout }) {
     "Aiming for the look count you asked for…",
   ];
 
+  const CATALOG_WAIT_TIPS = [
+    "Fetching pieces from your wardrobe…",
+    "Reading attributes and Wada colours…",
+    "Laying out catalog cards…",
+    "Almost ready…",
+  ];
+
   let suggestTipTimer = null;
+  let catalogTipTimer = null;
   let suggestExportStatusTimer = null;
 
   function stopSuggestTipRotation() {
@@ -992,6 +1010,29 @@ export function renderCatalogApp(root, { onLogout }) {
       clearInterval(suggestTipTimer);
       suggestTipTimer = null;
     }
+  }
+
+  function stopCatalogTipRotation() {
+    if (catalogTipTimer) {
+      clearInterval(catalogTipTimer);
+      catalogTipTimer = null;
+    }
+  }
+
+  function startCatalogTipRotation() {
+    stopCatalogTipRotation();
+    catalogTipTimer = setInterval(() => {
+      if (!state.catalogLoading) {
+        stopCatalogTipRotation();
+        return;
+      }
+      state.catalogTipIndex =
+        (state.catalogTipIndex + 1) % CATALOG_WAIT_TIPS.length;
+      const tipEl = root.querySelector("[data-catalog-tip]");
+      if (tipEl) {
+        tipEl.textContent = CATALOG_WAIT_TIPS[state.catalogTipIndex];
+      }
+    }, 4500);
   }
 
   function clearSuggestExportStatusSoon() {
@@ -1559,6 +1600,38 @@ export function renderCatalogApp(root, { onLogout }) {
     ]);
     panel.append(searchRow);
     panel.append(renderFilters());
+
+    if (state.catalogLoading) {
+      const wait = el("div", {
+        className: "catalog-progress",
+        role: "status",
+        "aria-live": "polite",
+        "aria-busy": "true",
+      });
+      wait.append(
+        el("p", {
+          className: "catalog-progress-status",
+          text: "Loading your catalog…",
+        })
+      );
+      wait.append(
+        el("div", {
+          className: "catalog-progress-track",
+          "aria-hidden": "true",
+        }, [
+          el("div", { className: "catalog-progress-bar" }),
+        ])
+      );
+      wait.append(
+        el("p", {
+          className: "muted catalog-progress-tip",
+          "data-catalog-tip": "1",
+          text: CATALOG_WAIT_TIPS[state.catalogTipIndex] || CATALOG_WAIT_TIPS[0],
+        })
+      );
+      panel.append(wait);
+      return panel;
+    }
 
     const visible = visibleItems();
     const grid = el("div", { className: "catalog-grid" });
