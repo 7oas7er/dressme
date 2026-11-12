@@ -53,6 +53,7 @@ exports.syncLooksCopy = copy.syncLooksCopy;
 exports.copyMentionsForeignPieces = copy.copyMentionsForeignPieces;
 exports.copyLooksBroken = copy.copyLooksBroken;
 exports.copyLooksFormulaic = copy.copyLooksFormulaic;
+exports.titleLooksFlat = copy.titleLooksFlat;
 exports.enforceSlotUniqueness = repair.enforceSlotUniqueness;
 exports.salvageCompetingBases = repair.salvageCompetingBases;
 exports.repairCrossLookPacking = repair.repairCrossLookPacking;

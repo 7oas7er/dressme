@@ -78,6 +78,7 @@ var colorCueFromItem = copy.colorCueFromItem;
 var copyLooksBroken = copy.copyLooksBroken;
 var copyLooksFormulaic = copy.copyLooksFormulaic;
 var copyMentionsForeignPieces = copy.copyMentionsForeignPieces;
+var titleLooksFlat = copy.titleLooksFlat;
 var copyRewriteSystemPrompt = copy.copyRewriteSystemPrompt;
 var copyRewriteUserPrompt = copy.copyRewriteUserPrompt;
 var itemLabel = copy.itemLabel;
@@ -434,7 +435,7 @@ function systemPrompt(lookCount) {
     "Match belt leather tone to footwear (black belt with black shoes; brown/tan/cognac belt with brown shoes). Never pair a brown belt with black shoes when a matching belt exists in the catalog.",
     "Accessories beyond waist finish remain optional — hat, scarf, jewelry, bag, neckwear, etc. Add them when they improve the look or fit the occasion.",
     "Title and rationale must name only pieces present in that look's itemIds (use type / brandModel / Wada colour). Never describe a cardigan if the look's outer is a leather jacket.",
-    "Titles: catchy occasion-led phrases (e.g. Board-day navy, Train-to-dinner grey). Never lead with Wada name + brand. Never paste or truncate session context into titles. Never end mid-phrase.",
+    'Titles: catchy occasion-led phrases with personality (e.g. "Soft power for the board", "Charcoal that travels", "Garden-evening layers"). Never bare "{occasion} {color}" stubs like "Board day blue" or "Board-day navy". Never lead with Wada name + brand. Never paste or truncate session context into titles. Never end mid-phrase.',
     "Rationales: 2–4 sentences with varied voice; first sentence names this look's occasion/day; then why pieces fit that day, materials, and palette. Do not paste session context. Do not reuse an anchors/Materials stay honest/Palette-wise skeleton on every look.",
     "When the context lists Day 1 / Day 2 / … or distinct occasions and asks for that many looks, return one look per day/occasion in order with matching formality (board → business; casual train → smart casual).",
     "When luggage/trip limits appear (or a multi-day trip implies packing), plan a shared capsule first and reuse footwear/trousers/jackets across looks so unique counts stay within the stated (or default ≤2) limits.",
@@ -899,11 +900,18 @@ async function assembleWithBedrock(catalog, input) {
   var formulaicCopy = completeLooks.some(function (look) {
     return copyLooksFormulaic(look && look.title, look && look.rationale);
   });
+  var flatTitles = completeLooks.some(function (look, index) {
+    return titleLooksFlat(
+      look && look.title,
+      occasionForLook(brief, look, index)
+    );
+  });
   var needsCopyPass =
     packingRepairs > 0 ||
     beltRepairs > 0 ||
     localRepairs > 0 ||
     formulaicCopy ||
+    flatTitles ||
     completeLooks.some(function (look, index) {
       if (copyLooksBroken(look && look.title, look && look.rationale)) {
         return true;
