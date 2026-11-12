@@ -10,6 +10,8 @@ updates:
       day: monday
     target-branch: staging
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - github-actions
@@ -25,6 +27,8 @@ updates:
       day: monday
     target-branch: staging
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - javascript
@@ -41,6 +45,8 @@ updates:
       day: monday
     target-branch: staging
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - javascript
@@ -57,6 +63,8 @@ updates:
       day: monday
     target-branch: staging
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - javascript
@@ -74,6 +82,8 @@ updates:
       day: monday
     target-branch: staging
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - terraform
@@ -85,6 +95,8 @@ updates:
       day: monday
     target-branch: staging
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - terraform
@@ -96,6 +108,8 @@ updates:
       day: monday
     target-branch: staging
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - terraform
@@ -107,6 +121,8 @@ updates:
       day: monday
     target-branch: staging
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - terraform
@@ -118,6 +134,8 @@ updates:
       day: monday
     target-branch: staging
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - terraform
