@@ -389,6 +389,9 @@ export function renderCatalogApp(root, { onLogout }) {
       requestedLookCount: 0,
       returnedLookCount: 0,
       lookCountShortfall: false,
+      catalogCapped: false,
+      catalogTotal: 0,
+      catalogUsed: 0,
       packing: null,
       packingLimits: null,
       occasions: null,
@@ -1126,6 +1129,9 @@ export function renderCatalogApp(root, { onLogout }) {
       state.suggest.returnedLookCount =
         Number(data.returnedLookCount) || (data.looks || []).length;
       state.suggest.lookCountShortfall = Boolean(data.lookCountShortfall);
+      state.suggest.catalogCapped = Boolean(data.catalogCapped);
+      state.suggest.catalogTotal = Number(data.catalogTotal) || 0;
+      state.suggest.catalogUsed = Number(data.catalogUsed) || 0;
       state.suggest.packing =
         data.packing && typeof data.packing === "object" ? data.packing : null;
       state.suggest.packingLimits =
@@ -1163,6 +1169,9 @@ export function renderCatalogApp(root, { onLogout }) {
       state.suggest.looks = null;
       state.suggest.modelId = "";
       state.suggest.lookCountShortfall = false;
+      state.suggest.catalogCapped = false;
+      state.suggest.catalogTotal = 0;
+      state.suggest.catalogUsed = 0;
       state.suggest.requestedLookCount = 0;
       state.suggest.returnedLookCount = 0;
       state.suggest.packing = null;
@@ -1175,6 +1184,31 @@ export function renderCatalogApp(root, { onLogout }) {
       state.busy = false;
       paint();
     }
+  }
+
+  /** Attach optimistic-concurrency token from the item currently being edited. */
+  function withExpectedUpdatedAt(body) {
+    const next = Object.assign({}, body || {});
+    if (state.editing && state.editing.updatedAt) {
+      next.updatedAt = state.editing.updatedAt;
+    }
+    return next;
+  }
+
+  async function reloadEditingItem() {
+    if (!state.editing || !state.editing.itemId) return;
+    const fresh = await api.getItem(state.editing.itemId);
+    state.editing = fresh.item;
+    state.items = state.items.map((item) =>
+      item.itemId === fresh.item.itemId ? fresh.item : item
+    );
+  }
+
+  function conflictMessage(err, fallback) {
+    if (err && err.status === 409) {
+      return "This item changed in another tab. Reloaded — review and save again.";
+    }
+    return (err && err.message) || fallback;
   }
 
   async function saveItem(form) {
@@ -1206,7 +1240,7 @@ export function renderCatalogApp(root, { onLogout }) {
     paint();
     try {
       if (state.editing) {
-        const body = Object.assign({}, payload);
+        const body = withExpectedUpdatedAt(payload);
         if (files.length) {
           body.addPhotos = files.map((file) => ({
             contentType: file.type || "image/jpeg",
@@ -1259,7 +1293,14 @@ export function renderCatalogApp(root, { onLogout }) {
       paint();
       replaceNav();
     } catch (err) {
-      state.error = err.message || "Save failed.";
+      if (err && err.status === 409) {
+        try {
+          await reloadEditingItem();
+        } catch {
+          // Keep conflict copy even if reload fails.
+        }
+      }
+      state.error = conflictMessage(err, "Save failed.");
       state.busy = false;
       paint();
     }
@@ -1295,16 +1336,24 @@ export function renderCatalogApp(root, { onLogout }) {
     state.status = "Removing photo…";
     paint();
     try {
-      const updated = await api.updateItem(state.editing.itemId, {
-        removePhotoIds: [photoId],
-      });
+      const updated = await api.updateItem(
+        state.editing.itemId,
+        withExpectedUpdatedAt({ removePhotoIds: [photoId] })
+      );
       state.editing = updated.item;
       state.items = state.items.map((item) =>
         item.itemId === updated.item.itemId ? updated.item : item
       );
       state.status = "Photo removed.";
     } catch (err) {
-      state.error = err.message || "Could not remove photo.";
+      if (err && err.status === 409) {
+        try {
+          await reloadEditingItem();
+        } catch {
+          // ignore
+        }
+      }
+      state.error = conflictMessage(err, "Could not remove photo.");
     } finally {
       state.busy = false;
       paint();
@@ -1331,9 +1380,10 @@ export function renderCatalogApp(root, { onLogout }) {
     state.editing = Object.assign({}, state.editing, { photos: reordered });
     paint();
     try {
-      const updated = await api.updateItem(state.editing.itemId, {
-        primaryPhotoId: photoId,
-      });
+      const updated = await api.updateItem(
+        state.editing.itemId,
+        withExpectedUpdatedAt({ primaryPhotoId: photoId })
+      );
       state.editing = updated.item;
       state.items = state.items.map((item) =>
         item.itemId === updated.item.itemId ? updated.item : item
@@ -1341,17 +1391,13 @@ export function renderCatalogApp(root, { onLogout }) {
       state.status = "Catalog photo updated.";
     } catch (err) {
       try {
-        const fresh = await api.getItem(state.editing.itemId);
-        state.editing = fresh.item;
-        state.items = state.items.map((item) =>
-          item.itemId === fresh.item.itemId ? fresh.item : item
-        );
+        await reloadEditingItem();
       } catch {
         state.editing = Object.assign({}, state.editing, {
           photos: previousPhotos,
         });
       }
-      state.error = err.message || "Could not set catalog photo.";
+      state.error = conflictMessage(err, "Could not set catalog photo.");
     } finally {
       state.busy = false;
       paint();
@@ -1392,9 +1438,12 @@ export function renderCatalogApp(root, { onLogout }) {
       const file = new File([rotatedBlob], "rotated.jpg", {
         type: "image/jpeg",
       });
-      const updated = await api.updateItem(state.editing.itemId, {
-        replacePhotos: [{ photoId, contentType: "image/jpeg" }],
-      });
+      const updated = await api.updateItem(
+        state.editing.itemId,
+        withExpectedUpdatedAt({
+          replacePhotos: [{ photoId, contentType: "image/jpeg" }],
+        })
+      );
       if (!updated.uploads || !updated.uploads.length) {
         throw new Error("upload_slot_missing");
       }
@@ -2492,6 +2541,20 @@ export function renderCatalogApp(root, { onLogout }) {
             className: "muted suggest-shortfall",
             role: "status",
             text: `Could assemble ${returned} of ${requested} complete looks from your closet.`,
+          })
+        );
+      }
+      if (state.suggest.catalogCapped) {
+        const used = state.suggest.catalogUsed || 0;
+        const total = state.suggest.catalogTotal || 0;
+        results.append(
+          el("p", {
+            className: "muted suggest-shortfall",
+            role: "status",
+            text:
+              total > 0 && used > 0
+                ? `Closet is large — suggestions used ${used} of ${total} pieces (attrs-complete first).`
+                : "Closet is large — suggestions used a capped subset of your catalog.",
           })
         );
       }
