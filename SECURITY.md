@@ -40,3 +40,4 @@ Tokens that only exist for Terraform (Grafana Cloud access policy, Cloud Provide
 - Browser headers (CSP / Permissions-Policy): [`docs/security-headers.md`](docs/security-headers.md)
 - CodeQL SAST: [`docs/codeql.md`](docs/codeql.md)
 - Pen-test remediation follow-up (topics only, no open-vuln detail): [`docs/security/`](docs/security/)
+- Strix security reviews (incl. Nov 2026 white-box / black-box): [`docs/security-reviews/`](docs/security-reviews/)

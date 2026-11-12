@@ -13,7 +13,7 @@ Point-in-time ledger after a **staging** pen-test of DressMe solo v1. Safe for t
 
 **Outcome (high level):** no emergency auth or tenant-isolation hotfixes required for solo v1. Remaining work is hygiene already merged, optional later hardening, and operator applies still pending for Terraform.
 
-Private raw review notes are **not** committed. Treat any local copies under `docs/security-reviews/` as private input only unless a curated, non-disclosing summary is explicitly intended for git.
+Curated entry + dumps: [`../security-reviews/2026-11-11-strix.md`](../security-reviews/2026-11-11-strix.md) (white-box and black-box linked from there). Keep **this** file free of exploit steps and open-finding catalogs.
 
 ## Remediations landed
 
@@ -46,6 +46,7 @@ Track as backlog themes when multi-user, public share, compliance, or abuse make
 
 ## Related
 
+- Curated Strix review + dumps: [`../security-reviews/2026-11-11-strix.md`](../security-reviews/2026-11-11-strix.md)
 - Root reporting / secret rotation: [`SECURITY.md`](../../SECURITY.md)
 - Browser headers: [`docs/security-headers.md`](../security-headers.md)
 - GitHub security floor: [`docs/github-branch-protection.md`](../github-branch-protection.md)
