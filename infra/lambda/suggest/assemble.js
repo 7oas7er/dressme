@@ -1,5 +1,6 @@
 "use strict";
 
+var { ConverseCommand } = require("@aws-sdk/client-bedrock-runtime");
 var core = require("./core");
 var brief = require("./brief");
 var copy = require("./copy");
