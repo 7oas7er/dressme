@@ -408,6 +408,7 @@ test("systemPrompt asks for verbose titles and 2–4 sentence rationales", funct
   assert.match(prompt, /Wada\/palette|palette/i);
   assert.match(prompt, /occasion-led|Soft power|luggage|capsule/i);
   assert.match(prompt, /Board day blue|bare.*occasion.*color/i);
+  assert.match(prompt, /blue for Dinner look|color.*for.*occasion/i);
 });
 
 test("rewriteLookCopy is occasion-led and never pastes raw session context", function () {
@@ -508,10 +509,20 @@ test("rewriteLookCopy is occasion-led and never pastes raw session context", fun
 
 test("titleLooksFlat catches occasion+color stubs; sync preserves catchy titles", function () {
   var board = { shortTitle: "Board day", formalityHint: "business" };
+  var dinner = { shortTitle: "Dinner look", formalityHint: "smart casual" };
   assert.equal(suggest.titleLooksFlat("Board day blue", board), true);
   assert.equal(suggest.titleLooksFlat("Board day black", board), true);
   assert.equal(suggest.titleLooksFlat("Board-day navy", board), true);
   assert.equal(suggest.titleLooksFlat("Board day blazer", board), true);
+  assert.equal(suggest.titleLooksFlat("blue for Dinner look", dinner), true);
+  assert.equal(suggest.titleLooksFlat("Blue for Dinner look", dinner), true);
+  assert.equal(suggest.titleLooksFlat("navy for Dinner", dinner), true);
+  assert.equal(suggest.titleLooksFlat("Soft blue for Dinner look", dinner), true);
+  assert.equal(suggest.titleLooksFlat("blue blazer for Dinner look", dinner), true);
+  assert.equal(
+    suggest.titleLooksFlat("blue for Dinner look", null),
+    true
+  );
   assert.equal(
     suggest.titleLooksFlat("Soft power for the board", board),
     false
@@ -520,6 +531,10 @@ test("titleLooksFlat catches occasion+color stubs; sync preserves catchy titles"
     suggest.titleLooksFlat("Charcoal that travels", {
       shortTitle: "Train-to-dinner",
     }),
+    false
+  );
+  assert.equal(
+    suggest.titleLooksFlat("blue that carries Dinner", dinner),
     false
   );
 
@@ -588,6 +603,46 @@ test("titleLooksFlat catches occasion+color stubs; sync preserves catchy titles"
   assert.notEqual(flat.title, "Board day blue");
   assert.equal(suggest.titleLooksFlat(flat.title, board), false, flat.title);
   assert.match(flat.title, /board/i);
+
+  var dinnerFlat = suggest.syncLookCopy(
+    {
+      lookId: "1",
+      title: "blue for Dinner look",
+      rationale:
+        "Dinner look leans on a navy blazer, backed by a white oxford and chinos.",
+      itemIds: ids,
+    },
+    ids,
+    byId,
+    catalog,
+    "Suggest one colorful outfit for a dinner with my wife.",
+    { occasion: dinner, index: 0, force: true }
+  );
+  assert.notEqual(dinnerFlat.title, "blue for Dinner look");
+  assert.ok(!/^blue for\b/i.test(dinnerFlat.title), dinnerFlat.title);
+  assert.equal(
+    suggest.titleLooksFlat(dinnerFlat.title, dinner),
+    false,
+    dinnerFlat.title
+  );
+
+  var dinnerRewrite = suggest.rewriteLookCopy(
+    {
+      lookId: "1",
+      title: "",
+      rationale: "",
+      itemIds: ids,
+    },
+    byId,
+    "Suggest one colorful outfit for a dinner with my wife.",
+    { occasion: dinner, index: 0 }
+  );
+  assert.ok(!/^blue for\b/i.test(dinnerRewrite.title), dinnerRewrite.title);
+  assert.equal(
+    suggest.titleLooksFlat(dinnerRewrite.title, dinner),
+    false,
+    dinnerRewrite.title
+  );
 });
 
 test("formalityRank treats black-tie like black tie (seed spelling)", function () {
