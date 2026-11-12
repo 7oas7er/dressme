@@ -499,6 +499,17 @@ test("rewriteLookCopy is occasion-led and never pastes raw session context", fun
   );
 });
 
+test("formalityRank treats black-tie like black tie (seed spelling)", function () {
+  assert.equal(suggest.formalityRank("black tie"), 5);
+  assert.equal(suggest.formalityRank("black-tie"), 5);
+  assert.equal(suggest.formalityRank("blacktie"), 5);
+  assert.equal(suggest.formalityRank("Black-Tie"), 5);
+  assert.equal(suggest.formalityRank("formal"), 4);
+  assert.equal(suggest.formalityRank("business"), 3);
+  assert.ok(suggest.formalityRank("black-tie") > suggest.formalityRank("casual"));
+  assert.equal(suggest.formalityRank("black-tie"), suggest.formalityRank("black tie"));
+});
+
 test("beltFootwearMatchScore prefers matching leather tones", function () {
   var blackShoes = {
     itemId: "bugatti",

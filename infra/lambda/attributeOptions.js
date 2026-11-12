@@ -74,7 +74,7 @@ var SEED_OPTIONS = {
     "jersey",
   ],
   formality: [
-    "black-tie",
+    "black tie",
     "formal",
     "business",
     "smart casual",

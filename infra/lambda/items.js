@@ -968,18 +968,19 @@ async function deleteItem(user, itemId) {
   if (!existing) {
     return { statusCode: 404, body: { error: "not_found" } };
   }
-  for (var i = 0; i < (existing.photos || []).length; i++) {
-    var photo = existing.photos[i];
-    await deleteMediaKey(photo.key);
-    await deleteMediaKey(photo.thumbKey);
-    await deleteMediaKey(photo.cutoutKey);
-  }
+  // Dynamo first: prefer orphan S3 objects over a living row with dead media.
   await docClient().send(
     new DeleteCommand({
       TableName: tableName(),
       Key: { pk: pkForUser(user.sub), sk: skForItem(itemId) },
     })
   );
+  for (var i = 0; i < (existing.photos || []).length; i++) {
+    var photo = existing.photos[i];
+    await deleteMediaKey(photo.key);
+    await deleteMediaKey(photo.thumbKey);
+    await deleteMediaKey(photo.cutoutKey);
+  }
   return { statusCode: 204, body: {} };
 }
 

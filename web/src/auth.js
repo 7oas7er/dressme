@@ -1,4 +1,10 @@
 const STORAGE_KEY = "dressme.auth.v1";
+const EXPIRY_SKEW_MS = 30_000;
+
+/** Cognito public client config from /api/config (needed for refresh). */
+let cognitoConfig = null;
+/** In-flight refresh so concurrent API calls share one token exchange. */
+let refreshPromise = null;
 
 function bufferToBase64Url(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -21,19 +27,39 @@ function randomString(bytes = 32) {
   return bufferToBase64Url(array);
 }
 
-export function loadSession() {
+function readRawSession() {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || !parsed.idToken) return null;
-    if (parsed.expiresAt && Date.now() > parsed.expiresAt - 30_000) {
-      return parsed.refreshToken ? parsed : null;
-    }
     return parsed;
   } catch {
     return null;
   }
+}
+
+function isNearExpiry(session, now = Date.now()) {
+  return Boolean(session && session.expiresAt && now > session.expiresAt - EXPIRY_SKEW_MS);
+}
+
+/**
+ * Cache Cognito client settings so API calls can refresh without re-fetching config.
+ */
+export function configureAuth(cognito) {
+  cognitoConfig = cognito || null;
+}
+
+/**
+ * Sync session read for a still-valid ID token.
+ * Never returns an expired (or near-expiry) session as if it were usable —
+ * call ensureSession() to redeem refresh_token.
+ */
+export function loadSession() {
+  const parsed = readRawSession();
+  if (!parsed) return null;
+  if (isNearExpiry(parsed)) return null;
+  return parsed;
 }
 
 export function saveSession(session) {
@@ -42,11 +68,90 @@ export function saveSession(session) {
 
 export function clearSession() {
   sessionStorage.removeItem(STORAGE_KEY);
+  refreshPromise = null;
 }
 
+/** Sync helper: only a non-expired idToken (may be null near expiry). */
 export function getIdToken() {
   const session = loadSession();
   return session && session.idToken ? session.idToken : null;
+}
+
+async function exchangeRefreshToken(cognito, refreshToken) {
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    client_id: cognito.clientId,
+    refresh_token: refreshToken,
+  });
+  const res = await fetch(`${cognito.authDomain}/oauth2/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  if (!res.ok) {
+    throw new Error("refresh_failed");
+  }
+  const tokens = await res.json();
+  if (!tokens.id_token) {
+    throw new Error("refresh_failed");
+  }
+  const previous = readRawSession() || {};
+  return {
+    idToken: tokens.id_token,
+    accessToken: tokens.access_token || previous.accessToken || null,
+    // Cognito often omits refresh_token on refresh; keep the existing one.
+    refreshToken: tokens.refresh_token || refreshToken || previous.refreshToken || null,
+    expiresAt: Date.now() + (tokens.expires_in || 3600) * 1000,
+  };
+}
+
+/**
+ * Return a usable session: redeem refresh_token when near ID-token expiry.
+ * On refresh failure, clears the session and returns null.
+ */
+export async function ensureSession(cognito = cognitoConfig) {
+  const parsed = readRawSession();
+  if (!parsed) return null;
+  if (!isNearExpiry(parsed)) return parsed;
+
+  if (!parsed.refreshToken) {
+    clearSession();
+    return null;
+  }
+  if (!cognito || !cognito.clientId || !cognito.authDomain) {
+    clearSession();
+    return null;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = exchangeRefreshToken(cognito, parsed.refreshToken)
+      .then((session) => {
+        saveSession(session);
+        return session;
+      })
+      .catch(() => {
+        clearSession();
+        return null;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+/** Async: refresh if needed, then return a non-expired idToken (or null). */
+export async function getValidIdToken(cognito = cognitoConfig) {
+  const session = await ensureSession(cognito);
+  return session && session.idToken ? session.idToken : null;
+}
+
+/** Clear stored tokens and send the user to the Sign-in gate. */
+export function forceSignIn() {
+  clearSession();
+  if (typeof window !== "undefined" && window.location) {
+    window.location.assign("/");
+  }
 }
 
 export async function beginLogin(cognito) {
@@ -70,9 +175,10 @@ export async function beginLogin(cognito) {
 }
 
 export async function completeLoginIfNeeded(cognito) {
+  if (cognito) configureAuth(cognito);
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
-  if (!code) return loadSession();
+  if (!code) return ensureSession(cognito);
 
   const raw = sessionStorage.getItem("dressme.pkce");
   const pkce = raw ? JSON.parse(raw) : null;
