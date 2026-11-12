@@ -1886,3 +1886,23 @@ test("Bedrock shortfall flags when closet cannot reach requested N", async funct
   assert.equal(body.looks.length, body.returnedLookCount);
   assert.ok(call >= 1);
 });
+
+test("catalogCapMeta flags when closet exceeds soft cap", function () {
+  var cap = suggest.SOFT_CATALOG_CAP;
+  assert.ok(cap >= 80);
+  var under = [];
+  for (var i = 0; i < cap; i++) under.push({ itemId: "i" + i });
+  var metaUnder = suggest.catalogCapMeta(under);
+  assert.equal(metaUnder.catalogCapped, false);
+  assert.equal(metaUnder.catalogTotal, cap);
+  assert.equal(metaUnder.catalogUsed, cap);
+
+  var over = under.concat([{ itemId: "extra" }]);
+  var metaOver = suggest.catalogCapMeta(over);
+  assert.equal(metaOver.catalogCapped, true);
+  assert.equal(metaOver.catalogTotal, cap + 1);
+  assert.equal(metaOver.catalogUsed, cap);
+
+  var rows = suggest.serializeCatalogForPrompt(over);
+  assert.equal(rows.length, cap);
+});

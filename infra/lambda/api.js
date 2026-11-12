@@ -54,22 +54,6 @@ exports.handler = async function handler(event) {
       return http.json(405, { error: "method_not_allowed" });
     }
 
-    if (
-      path === "/api/photos/backfill-cutouts" ||
-      path === "/photos/backfill-cutouts"
-    ) {
-      var cutoutBackfillUser = await auth.requireUser(event);
-      if (method === "POST") {
-        return respond(
-          await items.backfillCutouts(
-            cutoutBackfillUser,
-            http.parseBody(event)
-          )
-        );
-      }
-      return http.json(405, { error: "method_not_allowed" });
-    }
-
     if (path === "/api/suggest" || path === "/suggest") {
       var suggestUser = await auth.requireUser(event);
       if (method === "POST") {
