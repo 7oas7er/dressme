@@ -61,27 +61,38 @@ function clampLookCount(n) {
 
 /**
  * Deterministic look-count extract from free-text context.
- * Digits or word numbers next to look/outfit synonyms; default 3; clamp 1–8.
+ * Digits or word numbers near look/outfit synonyms; default 3; clamp 1–8.
+ * Allows a few intervening adjectives ("one colorful outfit", "two smart looks").
  * Never 400s — out-of-range values clamp and still suggest.
  */
 function extractLookCount(context) {
   var text = String(context || "").toLowerCase();
   if (!text.trim()) return DEFAULT_LOOK_COUNT;
 
+  // Short modifiers between count and noun ("one colorful outfit").
+  var adj = "(?:[a-z]+(?:-[a-z]+)?\\s+){0,3}";
+
   var patterns = [
-    // "5 looks", "5 outfits please"
-    new RegExp("\\b(\\d{1,2})\\s*" + LOOK_NOUN + "\\b", "i"),
+    // "5 looks", "5 colorful outfits please"
+    new RegExp("\\b(\\d{1,2})\\s*" + adj + LOOK_NOUN + "\\b", "i"),
     // "looks: 5", "outfits = 4"
     new RegExp("\\b" + LOOK_NOUN + "\\s*[:=]?\\s*(\\d{1,2})\\b", "i"),
-    // "five looks", "two outfits"
+    // "five looks", "two smart outfits", "one colorful outfit", "just one look"
     new RegExp(
-      "\\b(one|two|three|four|five|six|seven|eight|nine|ten)\\s*" +
+      "\\b(one|two|three|four|five|six|seven|eight|nine|ten)\\s+" +
+        adj +
         LOOK_NOUN +
         "\\b",
       "i"
     ),
-    // "a look" / "an outfit" → 1
-    new RegExp("\\b(?:a|an)\\s+" + LOOK_NOUN + "\\b", "i"),
+    // "a look" / "an outfit" / "a single colorful look" / "single outfit" → 1
+    new RegExp(
+      "\\b(?:(?:a|an)\\s+(?:(?:single|sole)\\s+)?|(?:single|sole)\\s+)" +
+        adj +
+        LOOK_NOUN +
+        "\\b",
+      "i"
+    ),
   ];
 
   for (var i = 0; i < patterns.length; i++) {

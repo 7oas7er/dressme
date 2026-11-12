@@ -928,6 +928,20 @@ test("extractLookCount defaults, parses digits/words, and clamps 1–8", functio
   assert.equal(suggest.extractLookCount("99 looks"), 8);
   assert.equal(suggest.extractLookCount("0 outfits"), 1);
   assert.equal(suggest.extractLookCount("ten looks"), 8);
+  // Intervening adjectives / singular phrasing (regression: defaulted to 3).
+  assert.equal(suggest.extractLookCount("Suggest one colorful outfit"), 1);
+  assert.equal(
+    suggest.extractLookCount("Suggest one colorful outfit for dinner"),
+    1
+  );
+  assert.equal(suggest.extractLookCount("just one colorful outfit please"), 1);
+  assert.equal(suggest.extractLookCount("a single outfit"), 1);
+  assert.equal(suggest.extractLookCount("a single colorful look"), 1);
+  assert.equal(suggest.extractLookCount("single smart outfit tonight"), 1);
+  assert.equal(suggest.extractLookCount("give me two smart outfits"), 2);
+  assert.equal(suggest.extractLookCount("three casual looks"), 3);
+  assert.equal(suggest.extractLookCount("4 colorful suggestions"), 4);
+  assert.equal(suggest.extractLookCount("five bold options"), 5);
   assert.equal(suggest.maxTokensForLookCount(3), 512 + 3 * 280);
   assert.equal(suggest.maxTokensForLookCount(8), 512 + 8 * 280);
   assert.ok(suggest.maxTokensForLookCount(8) > suggest.maxTokensForLookCount(3));
