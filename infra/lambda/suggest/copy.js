@@ -1,0 +1,728 @@
+"use strict";
+
+var core = require("./core");
+var brief = require("./brief");
+
+var BELT_ITEM_RE = core.BELT_ITEM_RE;
+var BROKEN_COPY_RE = core.BROKEN_COPY_RE;
+var COLD_OUTDOOR_RE = core.COLD_OUTDOOR_RE;
+var COLOR_WORD_RE = core.COLOR_WORD_RE;
+var DEFAULT_LOOK_COUNT = core.DEFAULT_LOOK_COUNT;
+var DEFAULT_MODEL_ID = core.DEFAULT_MODEL_ID;
+var DEFAULT_PACKING_LIMIT = core.DEFAULT_PACKING_LIMIT;
+var FORMALITY_RANK = core.FORMALITY_RANK;
+var FORMULAIC_COPY_RES = core.FORMULAIC_COPY_RES;
+var LEATHER_TONE_FAMILIES = core.LEATHER_TONE_FAMILIES;
+var LOOK_COUNT = core.LOOK_COUNT;
+var LOOK_NOUN = core.LOOK_NOUN;
+var MAX_AI_CONTEXT_PROMPT = core.MAX_AI_CONTEXT_PROMPT;
+var MAX_CONTEXT = core.MAX_CONTEXT;
+var MAX_LEGACY_FIELD = core.MAX_LEGACY_FIELD;
+var MAX_LOOK_COUNT = core.MAX_LOOK_COUNT;
+var MAX_RATIONALE = core.MAX_RATIONALE;
+var MAX_TITLE = core.MAX_TITLE;
+var MIN_LOOK_COUNT = core.MIN_LOOK_COUNT;
+var SECOND_PASS_DEADLINE_MS = core.SECOND_PASS_DEADLINE_MS;
+var SIDE_ADJUSTER_RE = core.SIDE_ADJUSTER_RE;
+var SLOT_DEFS = core.SLOT_DEFS;
+var SOFT_CATALOG_CAP = core.SOFT_CATALOG_CAP;
+var STYLE_PACK_V1 = core.STYLE_PACK_V1;
+var SUSPENDERS_ITEM_RE = core.SUSPENDERS_ITEM_RE;
+var SUSPENDER_CAPABLE_RE = core.SUSPENDER_CAPABLE_RE;
+var TRIP_LUGGAGE_RE = core.TRIP_LUGGAGE_RE;
+var UNIQUE_SLOTS = core.UNIQUE_SLOTS;
+var WORD_COUNTS = core.WORD_COUNTS;
+var bedrockClient = core.bedrockClient;
+var classifySlot = core.classifySlot;
+var deps = core.deps;
+var formalityRank = core.formalityRank;
+var isUniqueSlot = core.isUniqueSlot;
+var itemRoleTypeText = core.itemRoleTypeText;
+var itemSearchText = core.itemSearchText;
+var lookTargetFormality = core.lookTargetFormality;
+var modelId = core.modelId;
+var nowMs = core.nowMs;
+var resetDepsForTests = core.resetDepsForTests;
+var slotDefById = core.slotDefById;
+var contextNeedsColdLayer = core.contextNeedsColdLayer;
+var lookItemIds = core.lookItemIds;
+var catalogById = core.catalogById;
+var parseJsonObject = core.parseJsonObject;
+var itemPrimaryWadaName = core.itemPrimaryWadaName;
+var buildOccasionMeta = brief.buildOccasionMeta;
+var clampLookCount = brief.clampLookCount;
+var clampText = brief.clampText;
+var contextCue = brief.contextCue;
+var extractLookCount = brief.extractLookCount;
+var formalityHintFromText = brief.formalityHintFromText;
+var inferOccasionFromText = brief.inferOccasionFromText;
+var maxTokensForLookCount = brief.maxTokensForLookCount;
+var occasionForLook = brief.occasionForLook;
+var parseCountToken = brief.parseCountToken;
+var parseOccasions = brief.parseOccasions;
+var parsePackingLimits = brief.parsePackingLimits;
+var parseTripBrief = brief.parseTripBrief;
+var publicOccasions = brief.publicOccasions;
+var resolveContext = brief.resolveContext;
+var resolveEngine = brief.resolveEngine;
+var shortTitleFromOccasionBody = brief.shortTitleFromOccasionBody;
+var softFormalityMismatches = brief.softFormalityMismatches;
+var tripBriefPromptNote = brief.tripBriefPromptNote;
+function clampTitle(value) {
+  var raw = String(value == null ? "" : value)
+    .replace(/[`*_~]/g, "")
+    .trim()
+    .replace(/^["']+|["']+$/g, "")
+    .trim();
+  return clampText(raw, MAX_TITLE);
+}
+
+function sameIdList(a, b) {
+  var left = (a || []).map(String);
+  var right = (b || []).map(String);
+  if (left.length !== right.length) return false;
+  for (var i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) return false;
+  }
+  return true;
+}
+
+function itemLabel(item) {
+  var row = item || {};
+  var wada = itemPrimaryWadaName(row);
+  var brand = String(row.brandModel || "").trim();
+  var type = String(row.type || row.outfitRole || "piece").trim();
+  if (brand && type && brand.toLowerCase() !== type.toLowerCase()) {
+    return (wada ? wada + " " : "") + brand;
+  }
+  if (wada && type) return wada + " " + type;
+  return brand || type || "piece";
+}
+
+function significantTokens(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/[\s/-]+/)
+    .filter(function (tok) {
+      return (
+        tok.length >= 4 &&
+        [
+          "with",
+          "from",
+          "this",
+          "that",
+          "look",
+          "pair",
+          "pairs",
+          "piece",
+          "pieces",
+          "outfit",
+          "classic",
+          "navy", // too common alone; still caught via full phrases below
+        ].indexOf(tok) < 0
+      );
+    });
+}
+
+function itemMentionTokens(item) {
+  var row = item || {};
+  var bits = [
+    row.brandModel,
+    row.type,
+    row.outfitRole,
+    itemPrimaryWadaName(row),
+  ];
+  var out = [];
+  var seen = {};
+  for (var i = 0; i < bits.length; i++) {
+    var tokens = significantTokens(bits[i]);
+    for (var t = 0; t < tokens.length; t++) {
+      if (seen[tokens[t]]) continue;
+      seen[tokens[t]] = true;
+      out.push(tokens[t]);
+    }
+  }
+  // Multi-word brand/type phrases (e.g. "leather jacket", "cardigan").
+  var phrases = [row.brandModel, row.type]
+    .map(function (v) {
+      return String(v || "")
+        .toLowerCase()
+        .trim();
+    })
+    .filter(function (v) {
+      return v.length >= 5;
+    });
+  return { tokens: out, phrases: phrases };
+}
+
+/**
+ * True when title/rationale names catalog pieces (or their distinctive labels)
+ * that are not in the final look — classic cardigan-copy / jacket-photo miss.
+ */
+function copyMentionsForeignPieces(title, rationale, finalIds, byId, catalog) {
+  var finalSet = {};
+  for (var i = 0; i < (finalIds || []).length; i++) {
+    finalSet[String(finalIds[i])] = true;
+  }
+  var copy = String(title || "") + " " + String(rationale || "");
+  var lower = copy.toLowerCase();
+  if (!lower.trim()) return false;
+
+  // Explicit catalog IDs in copy that are not final.
+  for (var c = 0; c < (catalog || []).length; c++) {
+    var item = catalog[c];
+    if (!item || !item.itemId) continue;
+    var id = String(item.itemId);
+    if (finalSet[id]) continue;
+    if (lower.indexOf(id.toLowerCase()) >= 0) return true;
+    var mentions = itemMentionTokens(item);
+    for (var p = 0; p < mentions.phrases.length; p++) {
+      if (lower.indexOf(mentions.phrases[p]) >= 0) return true;
+    }
+  }
+  return false;
+}
+
+/** Parse "two"/"2" style counts for packing limits. */
+function colorCueFromItem(item) {
+  var wada = itemPrimaryWadaName(item);
+  if (wada) {
+    var known = wada.match(COLOR_WORD_RE);
+    if (known) return known[1].toLowerCase();
+  }
+  var fabric = String((item && item.fabric) || "").toLowerCase();
+  var fabColor = fabric.match(COLOR_WORD_RE);
+  return fabColor ? fabColor[1].toLowerCase() : "";
+}
+
+function shortTypeWord(item) {
+  var type = String((item && (item.type || item.outfitRole)) || "")
+    .toLowerCase()
+    .trim();
+  if (/\bblazer\b/.test(type)) return "blazer";
+  if (/\bcoat\b/.test(type)) return "coat";
+  if (/\bjacket\b/.test(type)) return "jacket";
+  if (/\bcardigan\b/.test(type)) return "cardigan";
+  if (/\bshirt\b/.test(type)) return "shirt";
+  if (/\btrousers?\b|\bpants\b|\bchinos?\b/.test(type)) return "trousers";
+  if (/\bshoe|\bboot|\bloafer|\bderby/.test(type)) return "shoes";
+  var bits = type.split(/\s+/).filter(Boolean);
+  return bits.length ? bits[bits.length - 1] : "";
+}
+
+function pieceTypeLabel(item) {
+  var brand = String((item && item.brandModel) || "").trim();
+  var type = String((item && (item.type || item.outfitRole)) || "piece").trim();
+  if (brand && type && brand.toLowerCase() !== type.toLowerCase()) {
+    return brand + " " + type;
+  }
+  return brand || type || "piece";
+}
+
+function copyLooksBroken(title, rationale) {
+  var blob = String(title || "") + " " + String(rationale || "");
+  if (BROKEN_COPY_RE.test(blob)) return true;
+  if (/\bI would\s*$/i.test(String(title || "").trim())) return true;
+  if (/anchors the look for I would/i.test(blob)) return true;
+  return false;
+}
+
+/** True when rationale shows the old deterministic template skeleton. */
+function copyLooksFormulaic(title, rationale) {
+  var blob = String(rationale || "") || String(title || "");
+  var hits = 0;
+  for (var i = 0; i < FORMULAIC_COPY_RES.length; i++) {
+    if (FORMULAIC_COPY_RES[i].test(blob)) hits += 1;
+  }
+  return hits >= 2;
+}
+
+/**
+ * True when the title is a bare "{shortTitle} {color|type}" stub
+ * (e.g. "Board day blue") — occasion-led but personality-free.
+ */
+function titleLooksFlat(title, occasion) {
+  var raw = String(title || "")
+    .toLowerCase()
+    .replace(/[`*_~"']/g, "")
+    .replace(/[-–—]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return true;
+  var cue = String(
+    (occasion && (occasion.shortTitle || occasion.label)) || ""
+  )
+    .toLowerCase()
+    .replace(/[-–—]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cue) {
+    // No structured occasion — still flat if it's only a color or type word.
+    return (
+      COLOR_WORD_RE.test(raw) &&
+      raw.split(/\s+/).length <= 2 &&
+      !/\b(for|with|ready|meets|soft|sharp|quiet|bold)\b/.test(raw)
+    );
+  }
+  if (raw === cue) return true;
+  if (raw.indexOf(cue) !== 0) return false;
+  var rest = raw.slice(cue.length).trim();
+  if (!rest) return true;
+  var toks = rest.split(/\s+/).filter(Boolean);
+  if (toks.length > 2) return false;
+  // "{cue} {color}" / "{cue} {type}" / "{cue} {color} {type}"
+  var typeOnly =
+    /^(blazer|coat|jacket|cardigan|shirt|trousers|shoes|look|navy|line)$/i;
+  var allSimple = toks.every(function (tok) {
+    return COLOR_WORD_RE.test(tok) || typeOnly.test(tok);
+  });
+  return allSimple;
+}
+
+function lookAnchorPiece(pieces) {
+  for (var i = 0; i < (pieces || []).length; i++) {
+    if (classifySlot(pieces[i]) === "outer") return pieces[i];
+  }
+  for (var b = 0; b < (pieces || []).length; b++) {
+    if (classifySlot(pieces[b]) === "base") return pieces[b];
+  }
+  return (pieces && pieces[0]) || null;
+}
+
+function pieceDetail(item) {
+  var label = itemLabel(item);
+  var fabric = String((item && item.fabric) || "").trim();
+  if (
+    fabric &&
+    label.toLowerCase().indexOf(fabric.toLowerCase()) < 0
+  ) {
+    return label + " in " + fabric;
+  }
+  return label;
+}
+
+function uniqueNonEmpty(values) {
+  var out = [];
+  var seen = {};
+  for (var i = 0; i < (values || []).length; i++) {
+    var v = String(values[i] || "").trim();
+    if (!v) continue;
+    var key = v.toLowerCase();
+    if (seen[key]) continue;
+    seen[key] = true;
+    out.push(v);
+  }
+  return out;
+}
+
+/**
+ * Deterministic title + rationale from structured occasion + piece attrs/Wada.
+ * Never pastes raw session context. Titles are occasion-led (not Wada+brand).
+ * Voice rotates by look index so fallback copy is not identical boilerplate.
+ * Prefer Bedrock rewrite when budget allows — this is the true fallback.
+ */
+function rewriteLookCopy(look, byId, context, opts) {
+  opts = opts || {};
+  var brief = opts.brief || parseTripBrief(context, null);
+  var occasion =
+    opts.occasion || occasionForLook(brief, look, opts.index);
+  var ids = lookItemIds(look);
+  var pieces = ids
+    .map(function (id) {
+      return byId && typeof byId.get === "function" ? byId.get(id) : null;
+    })
+    .filter(Boolean);
+  var anchor = lookAnchorPiece(pieces);
+  var cue = contextCue(context, occasion);
+  var cold = brief.cold || contextNeedsColdLayer(context);
+  var color = colorCueFromItem(anchor);
+  var typeWord = shortTypeWord(anchor);
+  var variant =
+    (opts.index != null
+      ? opts.index
+      : Math.max(0, (parseInt(String((look && look.lookId) || "1"), 10) || 1) - 1)) %
+    3;
+  // Structured fallback titles — occasion-led, rotated voice, never bare
+  // "{shortTitle} {color}" (that pattern reads as a stub, not a look name).
+  var titleSeed;
+  if (cue && color && variant === 0) {
+    titleSeed = color + " for " + cue;
+  } else if (cue && typeWord && variant === 1) {
+    titleSeed = cue + "-ready " + typeWord;
+  } else if (cue && color && typeWord) {
+    titleSeed = color + " " + typeWord + " for " + cue;
+  } else if (cue && color) {
+    titleSeed = color + " for " + cue;
+  } else if (cue && typeWord) {
+    titleSeed = cue + "-ready " + typeWord;
+  } else if (cue) {
+    titleSeed = cue;
+  } else if (color && typeWord) {
+    titleSeed = color + " " + typeWord;
+  } else if (typeWord) {
+    titleSeed = typeWord + " look";
+  } else {
+    titleSeed = "Closet look";
+  }
+  if (cold && !cue && titleSeed.indexOf("Layered") < 0) {
+    titleSeed = clampTitle("Layered " + titleSeed);
+  }
+  var title = clampTitle(titleSeed);
+  // Guard mid-phrase / first-person leftovers.
+  title = clampTitle(title.replace(/\bI would\b.*$/i, "").trim() || "Closet look");
+
+  var details = pieces.map(pieceDetail);
+  var wadaNames = uniqueNonEmpty(pieces.map(itemPrimaryWadaName));
+  var fabrics = uniqueNonEmpty(
+    pieces.map(function (p) {
+      return p && p.fabric;
+    })
+  );
+  if (!details.length) {
+    return Object.assign({}, look, { title: title, rationale: "" });
+  }
+
+  var occasionLead = cue
+    ? cue
+    : cold
+      ? "cool outdoor air"
+      : "this occasion";
+  var support = pieces
+    .filter(function (p) {
+      return p !== anchor;
+    })
+    .map(pieceDetail)
+    .slice(0, 3);
+  var sentences = [];
+  if (details.length === 1) {
+    sentences.push(
+      occasionLead +
+        " keeps " +
+        details[0] +
+        " working alone as a clean, wearable line."
+    );
+  } else if (anchor && variant === 0) {
+    sentences.push(
+      occasionLead +
+        " leans on " +
+        pieceDetail(anchor) +
+        (support.length
+          ? ", backed by " + support.join(", ") + "."
+          : ".")
+    );
+  } else if (anchor && variant === 1) {
+    sentences.push(
+      "Built for " +
+        occasionLead +
+        ": " +
+        pieceDetail(anchor) +
+        (support.length
+          ? " with " + support.slice(0, 2).join(" and ") + "."
+          : ".")
+    );
+  } else if (anchor) {
+    sentences.push(
+      pieceDetail(anchor) +
+        " carries " +
+        occasionLead +
+        (support.length
+          ? " while " + support[0] + " keeps the rest grounded."
+          : ".")
+    );
+  } else {
+    sentences.push(
+      occasionLead +
+        " holds together with " +
+        details.slice(0, Math.min(3, details.length)).join(", ") +
+        "."
+    );
+  }
+
+  if (fabrics.length) {
+    if (variant === 0) {
+      sentences.push(
+        fabrics.slice(0, 3).join(" / ") +
+          " keep the hand practical for classic menswear, not costume."
+      );
+    } else if (variant === 1) {
+      sentences.push(
+        "Cloths stay honest — " +
+          fabrics.slice(0, 3).join(", ") +
+          " — so the set reads wearable rather than styled-for-show."
+      );
+    } else {
+      sentences.push(
+        "Fabric weight and finish (" +
+          fabrics.slice(0, 3).join(", ") +
+          ") suit the day's demands without fighting each other."
+      );
+    }
+  } else if (cold && anchor && classifySlot(anchor) === "outer") {
+    sentences.push(
+      "The outer layer earns its place against the chill without theatrical extras."
+    );
+  } else if (variant === 1) {
+    sentences.push(
+      "Shoe and trouser formality stay in step so the base can sit quietly underneath."
+    );
+  } else {
+    sentences.push(
+      "Nothing fights the day: formality between shoe, trouser, and base stays aligned."
+    );
+  }
+
+  if (wadaNames.length >= 2) {
+    if (variant === 0) {
+      sentences.push(
+        wadaNames.slice(0, 3).join(", ") +
+          " lock a true-colour story across the worn pieces."
+      );
+    } else if (variant === 1) {
+      sentences.push(
+        "Colour centres on " +
+          wadaNames.slice(0, 3).join(" and ") +
+          " without inventing hues."
+      );
+    } else {
+      sentences.push(
+        "Wada names " +
+          wadaNames.slice(0, 3).join(", ") +
+          " keep the palette coherent from shoe to outer."
+      );
+    }
+  } else if (wadaNames.length === 1) {
+    sentences.push(
+      wadaNames[0] +
+        " gives the set a clear colour centre without inventing hues."
+    );
+  } else if (details.length >= 3) {
+    sentences.push(
+      "Each listed piece pulls weight — nothing ornamental, nothing missing."
+    );
+  }
+
+  if (
+    occasion &&
+    occasion.formalityHint &&
+    sentences.length < 4
+  ) {
+    sentences.push(
+      "Formality stays near " +
+        occasion.formalityHint +
+        " for the day's role."
+    );
+  }
+
+  var rationale = clampText(sentences.slice(0, 4).join(" "), MAX_RATIONALE);
+  return Object.assign({}, look, { title: title, rationale: rationale });
+}
+
+/**
+ * After salvage/repair, rewrite title/rationale when IDs changed, copy names
+ * foreign pieces, or title/rationale still pastes raw context / mid-phrase junk.
+ */
+function syncLookCopy(look, priorIds, byId, catalog, context, opts) {
+  opts = opts || {};
+  var finalIds = lookItemIds(look);
+  var changed = !sameIdList(priorIds, finalIds);
+  var foreign = copyMentionsForeignPieces(
+    look && look.title,
+    look && look.rationale,
+    finalIds,
+    byId,
+    catalog
+  );
+  var broken = copyLooksBroken(look && look.title, look && look.rationale);
+  var flat = titleLooksFlat(look && look.title, opts.occasion);
+  var formulaic = copyLooksFormulaic(
+    look && look.title,
+    look && look.rationale
+  );
+  var force = Boolean(opts.force);
+  // Preserve catchy first-pass AI titles when IDs/copy are still valid.
+  // force=true after packing must not collapse personality to cue+color stubs.
+  if (!changed && !foreign && !broken && !flat && !formulaic && !force) {
+    return look;
+  }
+  if (
+    !changed &&
+    !foreign &&
+    !broken &&
+    !flat &&
+    !formulaic &&
+    force
+  ) {
+    return look;
+  }
+  var reason = changed
+    ? "ids_changed"
+    : foreign
+      ? "foreign_copy"
+      : broken
+        ? "broken_copy"
+        : flat
+          ? "flat_title"
+          : formulaic
+            ? "formulaic_copy"
+            : "force";
+  console.warn(
+    JSON.stringify({
+      event: "suggest_copy_rewrite",
+      lookId: look && look.lookId,
+      reason: reason,
+    })
+  );
+  return rewriteLookCopy(look, byId, context, {
+    brief: opts.brief,
+    occasion: opts.occasion,
+    index: opts.index,
+  });
+}
+
+function syncLooksCopy(looks, priorIdLists, byId, catalog, context, opts) {
+  opts = opts || {};
+  var brief =
+    opts.brief ||
+    parseTripBrief(context, (looks && looks.length) || DEFAULT_LOOK_COUNT);
+  var out = [];
+  for (var i = 0; i < (looks || []).length; i++) {
+    out.push(
+      syncLookCopy(
+        looks[i],
+        (priorIdLists && priorIdLists[i]) || lookItemIds(looks[i]),
+        byId,
+        catalog,
+        context,
+        {
+          brief: brief,
+          occasion: occasionForLook(brief, looks[i], i),
+          index: i,
+          force: opts.force,
+        }
+      )
+    );
+  }
+  return out;
+}
+
+function copyRewriteSystemPrompt(lookCount) {
+  return [
+    "You rewrite outfit look titles and rationales for a menswear wardrobe app.",
+    'Return JSON only: {"looks":[{"lookId":"1","title":"...","rationale":"..."}]} with exactly ' +
+      clampLookCount(lookCount) +
+      " looks.",
+    'Titles: catchy occasion-led phrases with personality (about 3–7 words, ≤48 chars) — e.g. "Soft power for the board", "Charcoal that travels", "Garden-evening layers". Never bare "{occasion} {color}" stubs like "Board day blue" or "Board day navy". Never lead with Wada colour name + brand. Never paste session context. Never end mid-phrase (no trailing "I would").',
+    "Rationales: 2–4 sentences with varied voice across looks. First sentence names this look's occasion/day. Then why these pieces fit that day, materials, and Wada/palette harmony — keep Wada quality without identical boilerplate.",
+    'Forbidden skeleton phrases: "anchors the look", "Materials stay honest", "Palette-wise,". Do not reuse the same sentence pattern on every look.',
+    "Describe only the listed pieces.",
+  ].join("\n");
+}
+
+function copyRewriteUserPrompt(looks, byId, brief) {
+  var payload = (looks || []).map(function (look, index) {
+    var occ = occasionForLook(brief, look, index);
+    var ids = lookItemIds(look);
+    return {
+      lookId: String((look && look.lookId) || index + 1),
+      occasion: occ
+        ? {
+            shortTitle: occ.shortTitle,
+            formalityHint: occ.formalityHint || "",
+          }
+        : null,
+      pieces: ids.map(function (id) {
+        var item = byId.get(id) || {};
+        return {
+          id: id,
+          type: item.type || "",
+          brandModel: item.brandModel || "",
+          fabric: item.fabric || "",
+          formality: item.formality || "",
+          wada: itemPrimaryWadaName(item) || "",
+        };
+      }),
+    };
+  });
+  return (
+    "Rewrite title + rationale for each look from occasion + pieces only.\n" +
+    JSON.stringify({ looks: payload })
+  );
+}
+
+/**
+ * Optional short Bedrock pass after slot/packing repair. Falls back to null
+ * when the model fails — caller keeps deterministic rewrite.
+ */
+async function rewriteLooksCopyWithBedrock(looks, byId, brief, callBedrock) {
+  if (!looks || !looks.length || typeof callBedrock !== "function") return null;
+  try {
+    var result = await callBedrock(
+      copyRewriteUserPrompt(looks, byId, brief),
+      copyRewriteSystemPrompt(looks.length)
+    );
+    var parsed = parseJsonObject(result.text);
+    var rows = parsed && Array.isArray(parsed.looks) ? parsed.looks : null;
+    if (!rows || !rows.length) return null;
+    var byLookId = {};
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i] || {};
+      var id = String(row.lookId || i + 1);
+      byLookId[id] = row;
+    }
+    return (looks || []).map(function (look, index) {
+      var id = String((look && look.lookId) || index + 1);
+      var row = byLookId[id] || rows[index];
+      if (!row) return look;
+      var title = clampTitle(row.title);
+      var rationale = clampText(row.rationale, MAX_RATIONALE);
+      var occ = occasionForLook(brief, look, index);
+      if (
+        !title ||
+        copyLooksBroken(title, rationale) ||
+        copyLooksFormulaic(title, rationale) ||
+        titleLooksFlat(title, occ)
+      ) {
+        return rewriteLookCopy(look, byId, "", {
+          brief: brief,
+          occasion: occ,
+          index: index,
+        });
+      }
+      return Object.assign({}, look, { title: title, rationale: rationale });
+    });
+  } catch (_err) {
+    console.warn(
+      JSON.stringify({
+        event: "suggest_copy_bedrock_rewrite_failed",
+      })
+    );
+    return null;
+  }
+}
+
+/**
+ * Catalog has ≥1 footwear item → footwear is mandatory core for every look.
+ */
+
+exports.clampTitle = clampTitle;
+exports.colorCueFromItem = colorCueFromItem;
+exports.copyLooksBroken = copyLooksBroken;
+exports.copyLooksFormulaic = copyLooksFormulaic;
+exports.copyMentionsForeignPieces = copyMentionsForeignPieces;
+exports.titleLooksFlat = titleLooksFlat;
+exports.copyRewriteSystemPrompt = copyRewriteSystemPrompt;
+exports.copyRewriteUserPrompt = copyRewriteUserPrompt;
+exports.itemLabel = itemLabel;
+exports.itemMentionTokens = itemMentionTokens;
+exports.lookAnchorPiece = lookAnchorPiece;
+exports.pieceDetail = pieceDetail;
+exports.pieceTypeLabel = pieceTypeLabel;
+exports.rewriteLookCopy = rewriteLookCopy;
+exports.rewriteLooksCopyWithBedrock = rewriteLooksCopyWithBedrock;
+exports.sameIdList = sameIdList;
+exports.shortTypeWord = shortTypeWord;
+exports.significantTokens = significantTokens;
+exports.syncLookCopy = syncLookCopy;
+exports.syncLooksCopy = syncLooksCopy;
+exports.uniqueNonEmpty = uniqueNonEmpty;

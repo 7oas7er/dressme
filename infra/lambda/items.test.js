@@ -21,7 +21,31 @@ function makeMemoryDeps() {
         var name = command.constructor.name;
         if (name === "PutCommand") {
           var item = command.input.Item;
-          store.set(item.pk + "|" + item.sk, JSON.parse(JSON.stringify(item)));
+          var key = item.pk + "|" + item.sk;
+          var condition = command.input.ConditionExpression || "";
+          if (condition.indexOf("updatedAt = :expected") >= 0) {
+            var expected =
+              command.input.ExpressionAttributeValues &&
+              command.input.ExpressionAttributeValues[":expected"];
+            var current = store.get(key);
+            if (
+              !current ||
+              String(current.updatedAt || "") !== String(expected || "")
+            ) {
+              var conflict = new Error("The conditional request failed");
+              conflict.name = "ConditionalCheckFailedException";
+              conflict.code = "ConditionalCheckFailedException";
+              throw conflict;
+            }
+          } else if (condition.indexOf("attribute_not_exists(pk)") >= 0) {
+            if (store.has(key)) {
+              var exists = new Error("The conditional request failed");
+              exists.name = "ConditionalCheckFailedException";
+              exists.code = "ConditionalCheckFailedException";
+              throw exists;
+            }
+          }
+          store.set(key, JSON.parse(JSON.stringify(item)));
           return {};
         }
         if (name === "GetCommand") {
@@ -63,6 +87,15 @@ function makeMemoryDeps() {
           }
           return { Body: body };
         }
+        if (name === "HeadObjectCommand") {
+          if (!objects.has(command.input.Key)) {
+            var missing = new Error("NotFound");
+            missing.name = "NotFound";
+            missing.$metadata = { httpStatusCode: 404 };
+            throw missing;
+          }
+          return { ContentLength: objects.get(command.input.Key).length };
+        }
         if (name === "DeleteObjectCommand") {
           objects.delete(command.input.Key);
           return {};
@@ -79,9 +112,6 @@ function makeMemoryDeps() {
     },
     makeThumb: async function (_buf) {
       return Buffer.from("thumb-bytes");
-    },
-    makeCutout: async function (_buf) {
-      return Buffer.from("cutout-bytes");
     },
   };
 }
@@ -592,34 +622,8 @@ test("backfill generates thumbs for ready photos missing thumbKey", async functi
   assert.ok(photoId);
 });
 
-test("cutout backfill noops while CUTOUTS_ENABLED=false", async function () {
-  var memory = makeMemoryDeps();
-  items.resetDepsForTests(memory);
-
-  var created = await api.handler({
-    rawPath: "/api/items",
-    requestContext: { http: { method: "POST", path: "/api/items" } },
-    body: JSON.stringify(
-      Object.assign(attrs(), {
-        photos: [{ contentType: "image/jpeg" }],
-      })
-    ),
-  });
-  var createdBody = JSON.parse(created.body);
-  var itemId = createdBody.item.itemId;
-  var photoId = createdBody.uploads[0].photoId;
-  var photoKey = createdBody.uploads[0].uploadUrl.replace("https://upload.example/", "");
-  memory.objects.set(photoKey, Buffer.from("legacy-full-cutout"));
-
-  // Simulate a ready photo with thumb but no cutout (legacy).
-  var itemKey = "USER#test-user|ITEM#" + itemId;
-  var stored = memory.store.get(itemKey);
-  stored.photos[0].status = "ready";
-  stored.photos[0].thumbKey = photoKey.replace(/\.[^.]+$/, "") + ".thumb.jpg";
-  memory.objects.set(stored.photos[0].thumbKey, Buffer.from("thumb"));
-  delete stored.photos[0].cutoutKey;
-  memory.store.set(itemKey, stored);
-
+test("cutout backfill route removed (404)", async function () {
+  items.resetDepsForTests(makeMemoryDeps());
   var backfill = await api.handler({
     rawPath: "/api/photos/backfill-cutouts",
     requestContext: {
@@ -627,26 +631,8 @@ test("cutout backfill noops while CUTOUTS_ENABLED=false", async function () {
     },
     body: JSON.stringify({}),
   });
-  assert.equal(backfill.statusCode, 200);
-  var body = JSON.parse(backfill.body);
-  assert.equal(body.processed, 0);
-  assert.equal(body.disabled, true);
-  assert.equal(
-    memory.objects.has(photoKey.replace(/\.[^.]+$/, "") + ".cutout.webp"),
-    false
-  );
-  assert.ok(photoId);
-
-  var forced = await api.handler({
-    rawPath: "/api/photos/backfill-cutouts",
-    requestContext: {
-      http: { method: "POST", path: "/api/photos/backfill-cutouts" },
-    },
-    body: JSON.stringify({ force: true }),
-  });
-  assert.equal(forced.statusCode, 200);
-  assert.equal(JSON.parse(forced.body).processed, 0);
-  assert.equal(JSON.parse(forced.body).disabled, true);
+  assert.equal(backfill.statusCode, 404);
+  assert.equal(JSON.parse(backfill.body).error, "not_found");
 });
 
 test("legacy rotate route is gone (404 not_found)", async function () {
@@ -679,9 +665,6 @@ test("legacy rotate route is gone (404 not_found)", async function () {
 
 test("photos/complete still succeeds without cutouts", async function () {
   var memory = makeMemoryDeps();
-  memory.makeCutout = async function () {
-    throw new Error("matte_boom");
-  };
   items.resetDepsForTests(memory);
 
   var created = await api.handler({
@@ -790,4 +773,78 @@ test("wadaColorIds reject unknown ids and over-long lists", async function () {
   });
   assert.equal(tooMany.statusCode, 400);
   assert.equal(JSON.parse(tooMany.body).error, "too_many_wada_colors");
+});
+
+test("updateItem returns 409 on stale updatedAt", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+
+  var created = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(attrs()),
+  });
+  assert.equal(created.statusCode, 201);
+  var item = JSON.parse(created.body).item;
+  var itemId = item.itemId;
+  var stale = item.updatedAt;
+
+  // Bump stored updatedAt so the next Put cannot race same-ms ISO timestamps.
+  var itemKey = "USER#test-user|ITEM#" + itemId;
+  var stored = memory.store.get(itemKey);
+  stored.updatedAt = "2020-01-01T00:00:00.000Z";
+  memory.store.set(itemKey, stored);
+  stale = stored.updatedAt;
+
+  var first = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({ fabric: "linen", updatedAt: stale }),
+  });
+  assert.equal(first.statusCode, 200);
+  var firstBody = JSON.parse(first.body).item;
+  assert.equal(firstBody.fabric, "linen");
+  assert.notEqual(firstBody.updatedAt, stale);
+
+  var second = await api.handler({
+    rawPath: "/api/items/" + itemId,
+    requestContext: { http: { method: "PUT", path: "/api/items/" + itemId } },
+    body: JSON.stringify({ fabric: "silk", updatedAt: stale }),
+  });
+  assert.equal(second.statusCode, 409);
+  assert.equal(JSON.parse(second.body).error, "conflict");
+});
+
+test("photos/complete returns 409 when S3 object missing", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+
+  var created = await api.handler({
+    rawPath: "/api/items",
+    requestContext: { http: { method: "POST", path: "/api/items" } },
+    body: JSON.stringify(
+      Object.assign(attrs(), {
+        photos: [{ contentType: "image/jpeg" }],
+      })
+    ),
+  });
+  var createdBody = JSON.parse(created.body);
+  var itemId = createdBody.item.itemId;
+  var photoId = createdBody.uploads[0].photoId;
+  // Intentionally do not put the object in memory.objects.
+
+  var confirmed = await api.handler({
+    rawPath: "/api/items/" + itemId + "/photos/complete",
+    requestContext: {
+      http: { method: "POST", path: "/api/items/" + itemId + "/photos/complete" },
+    },
+    body: JSON.stringify({ photoIds: [photoId] }),
+  });
+  assert.equal(confirmed.statusCode, 409);
+  var body = JSON.parse(confirmed.body);
+  assert.equal(body.error, "photo_object_missing");
+  assert.deepEqual(body.photoIds, [photoId]);
+
+  var stored = memory.store.get("USER#test-user|ITEM#" + itemId);
+  assert.equal(stored.photos[0].status, "pending");
 });

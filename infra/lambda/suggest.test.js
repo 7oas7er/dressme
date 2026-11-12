@@ -406,7 +406,8 @@ test("systemPrompt asks for verbose titles and 2–4 sentence rationales", funct
   assert.match(prompt, /2–4 sentences|2-4 sentences/i);
   assert.match(prompt, /catchy but full/i);
   assert.match(prompt, /Wada\/palette|palette/i);
-  assert.match(prompt, /occasion-led|Board-day|luggage|capsule/i);
+  assert.match(prompt, /occasion-led|Soft power|luggage|capsule/i);
+  assert.match(prompt, /Board day blue|bare.*occasion.*color/i);
 });
 
 test("rewriteLookCopy is occasion-led and never pastes raw session context", function () {
@@ -476,6 +477,12 @@ test("rewriteLookCopy is occasion-led and never pastes raw session context", fun
   assert.ok(!/I would like you to create/i.test(rewritten.rationale));
   assert.ok(!/^Dark Tyrian Blue Rooks/i.test(rewritten.title));
   assert.match(rewritten.title, /board/i);
+  // Fallback must not collapse to bare "{shortTitle} {color}".
+  assert.equal(
+    suggest.titleLooksFlat(rewritten.title, brief.occasions[1]),
+    false,
+    rewritten.title
+  );
   assert.match(rewritten.rationale, /board/i);
   assert.ok(!/anchors the look/i.test(rewritten.rationale));
   assert.ok(!/Materials stay honest/i.test(rewritten.rationale));
@@ -497,6 +504,101 @@ test("rewriteLookCopy is occasion-led and never pastes raw session context", fun
     ),
     false
   );
+});
+
+test("titleLooksFlat catches occasion+color stubs; sync preserves catchy titles", function () {
+  var board = { shortTitle: "Board day", formalityHint: "business" };
+  assert.equal(suggest.titleLooksFlat("Board day blue", board), true);
+  assert.equal(suggest.titleLooksFlat("Board day black", board), true);
+  assert.equal(suggest.titleLooksFlat("Board-day navy", board), true);
+  assert.equal(suggest.titleLooksFlat("Board day blazer", board), true);
+  assert.equal(
+    suggest.titleLooksFlat("Soft power for the board", board),
+    false
+  );
+  assert.equal(
+    suggest.titleLooksFlat("Charcoal that travels", {
+      shortTitle: "Train-to-dinner",
+    }),
+    false
+  );
+
+  var catalog = [
+    {
+      itemId: "shirt1",
+      outfitRole: "shirt",
+      type: "oxford",
+      brandModel: "TM Lewin",
+      fabric: "cotton",
+      wadaColorIds: ["wada:v1:42"],
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "chinos",
+      fabric: "cotton twill",
+      wadaColorIds: ["wada:v1:7"],
+    },
+    { itemId: "shoe1", outfitRole: "footwear", type: "loafers" },
+    {
+      itemId: "jacket1",
+      outfitRole: "outerwear",
+      type: "blazer",
+      brandModel: "Rooks & Rocks",
+      fabric: "wool",
+      wadaColorIds: ["wada:v1:129"],
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var ids = ["shirt1", "pants1", "shoe1", "jacket1"];
+  var catchy = suggest.syncLookCopy(
+    {
+      lookId: "2",
+      title: "Soft power for the board",
+      rationale:
+        "Board day leans on a navy blazer, backed by a white oxford and chinos.",
+      itemIds: ids,
+    },
+    ids,
+    byId,
+    catalog,
+    "Day 2: board meeting",
+    { occasion: board, index: 1, force: true }
+  );
+  assert.equal(catchy.title, "Soft power for the board");
+
+  var flat = suggest.syncLookCopy(
+    {
+      lookId: "2",
+      title: "Board day blue",
+      rationale:
+        "Board day leans on a navy blazer, backed by a white oxford and chinos.",
+      itemIds: ids,
+    },
+    ids,
+    byId,
+    catalog,
+    "Day 2: board meeting",
+    { occasion: board, index: 1, force: true }
+  );
+  assert.notEqual(flat.title, "Board day blue");
+  assert.equal(suggest.titleLooksFlat(flat.title, board), false, flat.title);
+  assert.match(flat.title, /board/i);
+});
+
+test("formalityRank treats black-tie like black tie (seed spelling)", function () {
+  assert.equal(suggest.formalityRank("black tie"), 5);
+  assert.equal(suggest.formalityRank("black-tie"), 5);
+  assert.equal(suggest.formalityRank("blacktie"), 5);
+  assert.equal(suggest.formalityRank("Black-Tie"), 5);
+  assert.equal(suggest.formalityRank("formal"), 4);
+  assert.equal(suggest.formalityRank("business"), 3);
+  assert.ok(suggest.formalityRank("black-tie") > suggest.formalityRank("casual"));
+  assert.equal(suggest.formalityRank("black-tie"), suggest.formalityRank("black tie"));
 });
 
 test("beltFootwearMatchScore prefers matching leather tones", function () {
@@ -1484,6 +1586,41 @@ test("Bedrock failure returns suggest_unavailable without random fallback", asyn
   assert.equal(JSON.parse(res.body).error, "suggest_unavailable");
 });
 
+test("Bedrock path constructs ConverseCommand when deps.converse is unset", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedClassicCatalog(memory);
+
+  var sent = [];
+  suggest.resetDepsForTests({
+    bedrock: {
+      send: async function (command) {
+        sent.push(command);
+        assert.equal(command.constructor.name, "ConverseCommand");
+        return mockBedrockLooks();
+      },
+    },
+  });
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({
+        context: "board meeting tomorrow morning",
+        engine: "bedrock",
+      }),
+    });
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(sent.length >= 1, true);
+  assert.equal(JSON.parse(res.body).looks.length, 3);
+});
+
 test("Bedrock empty catalog skips model and returns empty looks", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);
@@ -1874,4 +2011,138 @@ test("Bedrock shortfall flags when closet cannot reach requested N", async funct
   assert.equal(body.lookCountShortfall, true);
   assert.equal(body.looks.length, body.returnedLookCount);
   assert.ok(call >= 1);
+});
+
+test("catalogCapMeta flags when closet exceeds soft cap", function () {
+  var cap = suggest.SOFT_CATALOG_CAP;
+  // Headroom for ~200+ closet + ties/hats without always truncating.
+  assert.ok(cap >= 240);
+  var under = [];
+  for (var i = 0; i < cap; i++) under.push({ itemId: "i" + i });
+  var metaUnder = suggest.catalogCapMeta(under);
+  assert.equal(metaUnder.catalogCapped, false);
+  assert.equal(metaUnder.catalogTotal, cap);
+  assert.equal(metaUnder.catalogUsed, cap);
+
+  var over = under.concat([{ itemId: "extra" }]);
+  var metaOver = suggest.catalogCapMeta(over);
+  assert.equal(metaOver.catalogCapped, true);
+  assert.equal(metaOver.catalogTotal, cap + 1);
+  assert.equal(metaOver.catalogUsed, cap);
+
+  var rows = suggest.serializeCatalogForPrompt(over);
+  assert.equal(rows.length, cap);
+});
+
+test("formalityHintFromText ranks black-tie / formal above business board", function () {
+  assert.equal(suggest.formalityHintFromText("black-tie gala"), "black tie");
+  assert.equal(suggest.formalityHintFromText("opera night"), "black tie");
+  assert.equal(suggest.formalityHintFromText("formal dinner"), "formal");
+  assert.equal(suggest.formalityHintFromText("board meeting"), "business");
+  assert.ok(
+    suggest.formalityRank(suggest.formalityHintFromText("black tie event")) >
+      suggest.formalityRank(suggest.formalityHintFromText("board meeting"))
+  );
+});
+
+test("selectCatalogForPrompt prefers formal pieces for formal requests", function () {
+  var cap = suggest.SOFT_CATALOG_CAP;
+  var catalog = [];
+  // Flood the closet with casual pieces so a naive slice would drown formal ones.
+  for (var i = 0; i < cap + 40; i++) {
+    catalog.push({
+      itemId: "casual-" + i,
+      type: "polo",
+      formality: "casual",
+      outfitRole: "base",
+      createdAt: "2020-01-" + String((i % 28) + 1).padStart(2, "0"),
+    });
+  }
+  var formalIds = [
+    "bt-jacket",
+    "bt-trouser",
+    "bt-shoe",
+    "bt-shirt",
+    "formal-tie",
+  ];
+  formalIds.forEach(function (id, idx) {
+    catalog.push({
+      itemId: id,
+      type: idx === 4 ? "tie" : idx === 2 ? "oxford" : idx === 1 ? "trouser" : "jacket",
+      formality: idx < 4 ? "black-tie" : "formal",
+      // Tie may lack outfitRole — type/slot fallback must still keep it.
+      outfitRole: idx === 4 ? "" : idx === 2 ? "footwear" : idx === 1 ? "trousers" : "jacket",
+      createdAt: "2024-06-0" + (idx + 1),
+    });
+  });
+  // Incomplete attrs should not crash subsetting; low priority vs formal match.
+  catalog.push({
+    itemId: "mystery",
+    type: "",
+    formality: "",
+    outfitRole: "",
+    createdAt: "2025-01-01",
+  });
+
+  assert.equal(suggest.targetFormalityRankFromContext("black-tie gala, 3 looks"), 5);
+
+  var selected = suggest.selectCatalogForPrompt(catalog, "black-tie gala");
+  assert.equal(selected.length, cap);
+  var selectedIds = {};
+  for (var s = 0; s < selected.length; s++) {
+    selectedIds[selected[s].itemId] = true;
+  }
+  for (var f = 0; f < formalIds.length; f++) {
+    assert.equal(
+      selectedIds[formalIds[f]],
+      true,
+      "expected formal piece in subset: " + formalIds[f]
+    );
+  }
+  // Mystery incomplete row should lose to request-matched pieces when over cap.
+  assert.equal(selectedIds.mystery, undefined);
+
+  var serialized = suggest.serializeCatalogForPrompt(catalog, "formal black-tie dinner");
+  assert.equal(serialized.length, cap);
+  var serIds = serialized.map(function (r) {
+    return r.id;
+  });
+  assert.ok(serIds.indexOf("bt-jacket") >= 0);
+  assert.ok(serIds.indexOf("bt-shoe") >= 0);
+});
+
+test("selectCatalogForPrompt falls back when context has no formality hint", function () {
+  var cap = suggest.SOFT_CATALOG_CAP;
+  var catalog = [];
+  for (var i = 0; i < cap + 5; i++) {
+    catalog.push({
+      itemId: "bare-" + i,
+      type: "",
+      formality: "",
+      outfitRole: "",
+      createdAt: "2021-01-" + String((i % 28) + 1).padStart(2, "0"),
+    });
+  }
+  // Attrs-complete-ish rows should still win without a formality cue.
+  catalog.push({
+    itemId: "role-only",
+    type: "chino",
+    formality: "",
+    outfitRole: "trousers",
+    createdAt: "2022-01-01",
+  });
+  catalog.push({
+    itemId: "formality-only",
+    type: "loafer",
+    formality: "smart casual",
+    outfitRole: "",
+    createdAt: "2022-01-02",
+  });
+
+  var selected = suggest.selectCatalogForPrompt(catalog, "pick something nice");
+  assert.equal(selected.length, cap);
+  var ids = {};
+  for (var j = 0; j < selected.length; j++) ids[selected[j].itemId] = true;
+  assert.equal(ids["role-only"], true);
+  assert.equal(ids["formality-only"], true);
 });

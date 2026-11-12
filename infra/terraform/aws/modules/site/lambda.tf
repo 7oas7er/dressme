@@ -21,10 +21,11 @@ data "archive_file" "high_scores" {
     "suggest.test.js",
     "analyze.test.js",
     "thumbs.test.js",
-    "cutouts.test.js",
+    "attrNormalize.test.js",
     "package.json",
     "package-lock.json",
     "README.md",
+    "quarantine",
   ]
 }
 

@@ -14,11 +14,11 @@ var {
   DeleteObjectCommand,
   PutObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
 } = require("@aws-sdk/client-s3");
 var { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 var attributeOptions = require("./attributeOptions");
 var attrNormalize = require("./attrNormalize");
-var cutouts = require("./cutouts");
 var thumbs = require("./thumbs");
 var wadaPalette = require("./wadaPalette");
 
@@ -33,9 +33,8 @@ var ATTR_KEYS = [
 ];
 
 /**
- * Option D spike: stop generating / backfilling cutouts.
- * Existing *.cutout.webp + Dynamo cutoutKey values are left in place (no delete).
- * SPA prefers originals/thumbs; may revisit cutouts later for AI categorization.
+ * Cutout generate/backfill quarantined (Option D). Existing Dynamo cutoutKey
+ * values are still signed for reads; Sharp remains for thumbs only.
  */
 var CUTOUTS_ENABLED = false;
 
@@ -50,7 +49,6 @@ var deps = {
   s3: null,
   sign: getSignedUrl,
   makeThumb: thumbs.makeThumbWithSharp,
-  makeCutout: cutouts.makeCutoutWithSharp,
 };
 
 function resetDepsForTests(next) {
@@ -59,8 +57,6 @@ function resetDepsForTests(next) {
   deps.sign = next && next.sign ? next.sign : getSignedUrl;
   deps.makeThumb =
     next && next.makeThumb ? next.makeThumb : thumbs.makeThumbWithSharp;
-  deps.makeCutout =
-    next && next.makeCutout ? next.makeCutout : cutouts.makeCutoutWithSharp;
   attributeOptions.resetDepsForTests(next);
 }
 
@@ -254,42 +250,94 @@ async function signKey(key) {
   );
 }
 
+function isMissingObjectError(err) {
+  if (!err) return false;
+  var name = String(err.name || "");
+  var code = String(err.Code || err.code || "");
+  var status =
+    err.$metadata && err.$metadata.httpStatusCode
+      ? err.$metadata.httpStatusCode
+      : 0;
+  return (
+    name === "NotFound" ||
+    name === "NoSuchKey" ||
+    code === "NotFound" ||
+    code === "NoSuchKey" ||
+    status === 404
+  );
+}
+
+async function objectExists(key) {
+  if (!key) return false;
+  try {
+    await s3Client().send(
+      new HeadObjectCommand({
+        Bucket: mediaBucket(),
+        Key: key,
+      })
+    );
+    return true;
+  } catch (err) {
+    if (isMissingObjectError(err)) return false;
+    throw err;
+  }
+}
+
+function isConditionalCheckFailed(err) {
+  if (!err) return false;
+  var name = String(err.name || "");
+  var code = String(err.code || err.Code || "");
+  return (
+    name === "ConditionalCheckFailedException" ||
+    code === "ConditionalCheckFailedException"
+  );
+}
+
 async function signedFullUrls(item) {
+  var photos = (item.photos || []).filter(function (photo) {
+    return photo.status === "ready" && photo.key;
+  });
+  var entries = await Promise.all(
+    photos.map(async function (photo) {
+      return [photo.photoId, await signKey(photo.key)];
+    })
+  );
   var urls = {};
-  var photos = item.photos || [];
-  for (var i = 0; i < photos.length; i++) {
-    var photo = photos[i];
-    if (photo.status !== "ready" || !photo.key) {
-      continue;
-    }
-    urls[photo.photoId] = await signKey(photo.key);
+  for (var i = 0; i < entries.length; i++) {
+    urls[entries[i][0]] = entries[i][1];
   }
   return urls;
 }
 
 async function signedThumbUrls(item) {
+  var photos = (item.photos || []).filter(function (photo) {
+    return photo.status === "ready" && photo.key;
+  });
+  var entries = await Promise.all(
+    photos.map(async function (photo) {
+      var key = photo.thumbKey || photo.key;
+      return [photo.photoId, await signKey(key)];
+    })
+  );
   var urls = {};
-  var photos = item.photos || [];
-  for (var i = 0; i < photos.length; i++) {
-    var photo = photos[i];
-    if (photo.status !== "ready" || !photo.key) {
-      continue;
-    }
-    var key = photo.thumbKey || photo.key;
-    urls[photo.photoId] = await signKey(key);
+  for (var i = 0; i < entries.length; i++) {
+    urls[entries[i][0]] = entries[i][1];
   }
   return urls;
 }
 
 async function signedCutoutUrls(item) {
+  var photos = (item.photos || []).filter(function (photo) {
+    return photo.status === "ready" && photo.cutoutKey;
+  });
+  var entries = await Promise.all(
+    photos.map(async function (photo) {
+      return [photo.photoId, await signKey(photo.cutoutKey)];
+    })
+  );
   var urls = {};
-  var photos = item.photos || [];
-  for (var i = 0; i < photos.length; i++) {
-    var photo = photos[i];
-    if (photo.status !== "ready" || !photo.cutoutKey) {
-      continue;
-    }
-    urls[photo.photoId] = await signKey(photo.cutoutKey);
+  for (var i = 0; i < entries.length; i++) {
+    urls[entries[i][0]] = entries[i][1];
   }
   return urls;
 }
@@ -345,61 +393,7 @@ async function ensureThumbForPhoto(photo, cachedBuffer) {
   }
 }
 
-async function ensureCutoutForPhoto(photo, cachedBuffer, options) {
-  if (!CUTOUTS_ENABLED) {
-    return photo;
-  }
-  if (!photo || photo.status !== "ready" || !photo.key) {
-    return photo;
-  }
-  var opts = options || {};
-  var force = Boolean(opts.force);
-  var currentVersion = photo.cutoutVersion || 0;
-  var needs =
-    force ||
-    !photo.cutoutKey ||
-    currentVersion !== cutouts.CUTOUT_VERSION;
-  if (!needs) {
-    return photo;
-  }
-  try {
-    var input = cachedBuffer || (await loadPhotoBuffer(photo));
-    var cutoutBuf = await deps.makeCutout(input);
-    var cutoutKey = cutouts.cutoutKeyFor(photo.key);
-    await s3Client().send(
-      new PutObjectCommand({
-        Bucket: mediaBucket(),
-        Key: cutoutKey,
-        Body: cutoutBuf,
-        ContentType: cutouts.CUTOUT_CONTENT_TYPE,
-      })
-    );
-    return Object.assign({}, photo, {
-      cutoutKey: cutoutKey,
-      cutoutVersion: cutouts.CUTOUT_VERSION,
-    });
-  } catch (err) {
-    // Never block item save / confirm on matting failure (design §4a).
-    console.error(
-      "cutout_failed",
-      photo.photoId,
-      err && err.message ? err.message : err
-    );
-    return photo;
-  }
-}
-
-function photoNeedsCutout(photo, force) {
-  if (!CUTOUTS_ENABLED) return false;
-  if (!photo || photo.status !== "ready" || !photo.key) return false;
-  if (force) return true;
-  if (!photo.cutoutKey) return true;
-  return (photo.cutoutVersion || 0) !== cutouts.CUTOUT_VERSION;
-}
-
-async function ensureDerivativesForPhotos(photos, options) {
-  var opts = options || {};
-  var forceCutouts = Boolean(opts.forceCutouts);
+async function ensureDerivativesForPhotos(photos) {
   var out = [];
   for (var i = 0; i < (photos || []).length; i++) {
     var photo = photos[i];
@@ -408,8 +402,7 @@ async function ensureDerivativesForPhotos(photos, options) {
       continue;
     }
     var cached = null;
-    var needsCutout = photoNeedsCutout(photo, forceCutouts);
-    if (!photo.thumbKey || needsCutout) {
+    if (!photo.thumbKey) {
       try {
         cached = await loadPhotoBuffer(photo);
       } catch (err) {
@@ -422,11 +415,7 @@ async function ensureDerivativesForPhotos(photos, options) {
         continue;
       }
     }
-    var withThumb = await ensureThumbForPhoto(photo, cached);
-    var withCutout = await ensureCutoutForPhoto(withThumb, cached, {
-      force: forceCutouts,
-    });
-    out.push(withCutout);
+    out.push(await ensureThumbForPhoto(photo, cached));
   }
   return out;
 }
@@ -467,13 +456,16 @@ async function listItems(user, query) {
     return String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
   });
 
-  var out = [];
-  for (var i = 0; i < rows.length; i++) {
-    // Overview: thumbs + cutouts when present (full-res still on get/edit).
-    var thumbUrls = await signedThumbUrls(rows[i]);
-    var cutoutUrls = await signedCutoutUrls(rows[i]);
-    out.push(publicItem(rows[i], null, thumbUrls, cutoutUrls));
-  }
+  // Overview: thumbs + cutouts when present (full-res still on get/edit).
+  var out = await Promise.all(
+    rows.map(async function (row) {
+      var signed = await Promise.all([
+        signedThumbUrls(row),
+        signedCutoutUrls(row),
+      ]);
+      return publicItem(row, null, signed[0], signed[1]);
+    })
+  );
   return { statusCode: 200, body: { items: out } };
 }
 
@@ -482,12 +474,14 @@ async function getItem(user, itemId) {
   if (!item) {
     return { statusCode: 404, body: { error: "not_found" } };
   }
-  var urls = await signedFullUrls(item);
-  var thumbUrls = await signedThumbUrls(item);
-  var cutoutUrls = await signedCutoutUrls(item);
+  var signed = await Promise.all([
+    signedFullUrls(item),
+    signedThumbUrls(item),
+    signedCutoutUrls(item),
+  ]);
   return {
     statusCode: 200,
-    body: { item: publicItem(item, urls, thumbUrls, cutoutUrls) },
+    body: { item: publicItem(item, signed[0], signed[1], signed[2]) },
   };
 }
 
@@ -594,6 +588,25 @@ async function updateItem(user, itemId, body) {
   var existing = await getItemRecord(user.sub, itemId);
   if (!existing) {
     return { statusCode: 404, body: { error: "not_found" } };
+  }
+
+  // Optimistic concurrency: SPA sends the updatedAt it loaded; fall back to
+  // the value from this request's Get so concurrent PUTs still conflict.
+  var expectedUpdatedAt =
+    body && body.updatedAt != null && String(body.updatedAt).length
+      ? String(body.updatedAt)
+      : String(existing.updatedAt || "");
+  if (!expectedUpdatedAt) {
+    throw Object.assign(new Error("updated_at_required"), { statusCode: 400 });
+  }
+  if (
+    existing.updatedAt &&
+    String(existing.updatedAt) !== expectedUpdatedAt
+  ) {
+    return {
+      statusCode: 409,
+      body: { error: "conflict", message: "Item changed; reload and retry." },
+    };
   }
 
   var attrs = await normalizeAttributes(user, body, true);
@@ -755,19 +768,36 @@ async function updateItem(user, itemId, body) {
   // Strip legacy free-text color on write (ignore leftovers on read).
   delete next.color;
   next.searchText = buildSearchText(next);
-  await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
+  try {
+    await docClient().send(
+      new PutCommand({
+        TableName: tableName(),
+        Item: next,
+        ConditionExpression: "updatedAt = :expected",
+        ExpressionAttributeValues: { ":expected": expectedUpdatedAt },
+      })
+    );
+  } catch (err) {
+    if (isConditionalCheckFailed(err)) {
+      return {
+        statusCode: 409,
+        body: { error: "conflict", message: "Item changed; reload and retry." },
+      };
+    }
+    throw err;
+  }
 
   if (Object.keys(attrs).length) {
     await attributeOptions.rememberCustomValues(user, attrs);
   }
 
+  var signed = await Promise.all([
+    signedFullUrls(next),
+    signedThumbUrls(next),
+    signedCutoutUrls(next),
+  ]);
   var responseBody = {
-    item: publicItem(
-      next,
-      await signedFullUrls(next),
-      await signedThumbUrls(next),
-      await signedCutoutUrls(next)
-    ),
+    item: publicItem(next, signed[0], signed[1], signed[2]),
   };
   if (uploads.length) {
     responseBody.uploads = uploads;
@@ -787,13 +817,45 @@ async function confirmPhotos(user, itemId, body) {
   if (!readyIds.length) {
     throw Object.assign(new Error("photo_ids_required"), { statusCode: 400 });
   }
+
+  var missing = [];
+  var readySet = {};
+  for (var r = 0; r < readyIds.length; r++) {
+    readySet[String(readyIds[r])] = true;
+  }
+  var existingById = {};
+  for (var e = 0; e < (existing.photos || []).length; e++) {
+    existingById[String(existing.photos[e].photoId)] = existing.photos[e];
+  }
+  for (var i = 0; i < readyIds.length; i++) {
+    var id = String(readyIds[i]);
+    var photo = existingById[id];
+    if (!photo || !photo.key) {
+      missing.push(id);
+      continue;
+    }
+    if (!(await objectExists(photo.key))) {
+      missing.push(id);
+    }
+  }
+  if (missing.length) {
+    return {
+      statusCode: 409,
+      body: {
+        error: "photo_object_missing",
+        photoIds: missing,
+        message: "Upload missing in storage; retry upload before complete.",
+      },
+    };
+  }
+
   var photos = (existing.photos || []).map(function (photo) {
-    if (readyIds.indexOf(photo.photoId) >= 0) {
+    if (readySet[String(photo.photoId)]) {
       return Object.assign({}, photo, { status: "ready" });
     }
     return photo;
   });
-  // UC-20 thumbs for newly ready photos. Cutout generation stopped (Option D).
+  // UC-20 thumbs for newly ready photos. Cutout generation quarantined.
   photos = await ensureDerivativesForPhotos(photos);
   var next = Object.assign({}, existing, {
     photos: photos,
@@ -802,24 +864,20 @@ async function confirmPhotos(user, itemId, body) {
   delete next.color;
   next.searchText = buildSearchText(next);
   await docClient().send(new PutCommand({ TableName: tableName(), Item: next }));
+  var signed = await Promise.all([
+    signedFullUrls(next),
+    signedThumbUrls(next),
+    signedCutoutUrls(next),
+  ]);
   return {
     statusCode: 200,
     body: {
-      item: publicItem(
-        next,
-        await signedFullUrls(next),
-        await signedThumbUrls(next),
-        await signedCutoutUrls(next)
-      ),
+      item: publicItem(next, signed[0], signed[1], signed[2]),
     },
   };
 }
 
-async function backfillDerivative(user, kind, options) {
-  var opts = options || {};
-  var force = Boolean(opts.force);
-  var wantThumb = kind === "thumbs" || kind === "both";
-  var wantCutout = kind === "cutouts" || kind === "both";
+async function backfillThumbs(user) {
   var result = await docClient().send(
     new QueryCommand({
       TableName: tableName(),
@@ -849,9 +907,7 @@ async function backfillDerivative(user, kind, options) {
         continue;
       }
 
-      var needsThumb = wantThumb && !photo.thumbKey;
-      var needsCutout = wantCutout && photoNeedsCutout(photo, force);
-      if (!needsThumb && !needsCutout) {
+      if (photo.thumbKey) {
         nextPhotos.push(photo);
         skipped += 1;
         continue;
@@ -871,49 +927,17 @@ async function backfillDerivative(user, kind, options) {
         continue;
       }
 
-      var nextPhoto = photo;
-      var madeProgress = false;
-      var hadFailure = false;
-
-      if (needsThumb) {
-        var withThumb = await ensureThumbForPhoto(nextPhoto, cached);
-        if (withThumb.thumbKey && withThumb.thumbKey !== photo.thumbKey) {
-          nextPhoto = withThumb;
-          madeProgress = true;
-        } else if (!withThumb.thumbKey) {
-          hadFailure = true;
-        }
-      }
-
-      if (needsCutout) {
-        var prevKey = photo.cutoutKey || null;
-        var prevVersion = photo.cutoutVersion || 0;
-        var withCutout = await ensureCutoutForPhoto(nextPhoto, cached, {
-          force: force || prevVersion !== cutouts.CUTOUT_VERSION,
-        });
-        if (!withCutout.cutoutKey) {
-          hadFailure = true;
-        } else if (
-          force ||
-          withCutout.cutoutKey !== prevKey ||
-          (withCutout.cutoutVersion || 0) !== prevVersion
-        ) {
-          // Force regenerates in place (same key); still count as processed.
-          nextPhoto = withCutout;
-          madeProgress = true;
-        }
-      }
-
-      if (madeProgress) {
+      var withThumb = await ensureThumbForPhoto(photo, cached);
+      if (withThumb.thumbKey && withThumb.thumbKey !== photo.thumbKey) {
         processed += 1;
         changed = true;
-        nextPhotos.push(nextPhoto);
-      } else if (hadFailure) {
+        nextPhotos.push(withThumb);
+      } else if (!withThumb.thumbKey) {
         failed += 1;
         nextPhotos.push(photo);
       } else {
         skipped += 1;
-        nextPhotos.push(nextPhoto);
+        nextPhotos.push(withThumb);
       }
     }
     if (changed) {
@@ -935,32 +959,8 @@ async function backfillDerivative(user, kind, options) {
       skipped: skipped,
       failed: failed,
       updatedItems: updatedItems,
-      cutoutVersion: cutouts.CUTOUT_VERSION,
     },
   };
-}
-
-async function backfillThumbs(user) {
-  return backfillDerivative(user, "thumbs");
-}
-
-async function backfillCutouts(user, body) {
-  if (!CUTOUTS_ENABLED) {
-    // Noop: leave existing keys; SPA no longer auto-calls this.
-    return {
-      statusCode: 200,
-      body: {
-        processed: 0,
-        skipped: 0,
-        failed: 0,
-        updatedItems: 0,
-        cutoutVersion: cutouts.CUTOUT_VERSION,
-        disabled: true,
-      },
-    };
-  }
-  var force = Boolean(body && (body.force || body.upgrade));
-  return backfillDerivative(user, "cutouts", { force: force });
 }
 
 async function deleteItem(user, itemId) {
@@ -968,18 +968,19 @@ async function deleteItem(user, itemId) {
   if (!existing) {
     return { statusCode: 404, body: { error: "not_found" } };
   }
-  for (var i = 0; i < (existing.photos || []).length; i++) {
-    var photo = existing.photos[i];
-    await deleteMediaKey(photo.key);
-    await deleteMediaKey(photo.thumbKey);
-    await deleteMediaKey(photo.cutoutKey);
-  }
+  // Dynamo first: prefer orphan S3 objects over a living row with dead media.
   await docClient().send(
     new DeleteCommand({
       TableName: tableName(),
       Key: { pk: pkForUser(user.sub), sk: skForItem(itemId) },
     })
   );
+  for (var i = 0; i < (existing.photos || []).length; i++) {
+    var photo = existing.photos[i];
+    await deleteMediaKey(photo.key);
+    await deleteMediaKey(photo.thumbKey);
+    await deleteMediaKey(photo.cutoutKey);
+  }
   return { statusCode: 204, body: {} };
 }
 
@@ -991,7 +992,6 @@ exports.createItem = createItem;
 exports.updateItem = updateItem;
 exports.confirmPhotos = confirmPhotos;
 exports.backfillThumbs = backfillThumbs;
-exports.backfillCutouts = backfillCutouts;
 exports.deleteItem = deleteItem;
 exports.publicItem = publicItem;
 exports.signedFullUrls = signedFullUrls;

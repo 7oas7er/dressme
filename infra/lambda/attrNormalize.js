@@ -1,8 +1,8 @@
 "use strict";
 
 /**
- * Attribute-value hygiene (Phase 1) — Lambda copy.
- * Keep in sync with web/src/attrNormalize.js (twin helpers; no shared package yet).
+ * Attribute-value hygiene (Phase 1) — single shared module.
+ * SPA re-exports from web/src/attrNormalize.js; keep this file as the source of truth.
  */
 
 var MAX_ATTR_LEN = 120;
