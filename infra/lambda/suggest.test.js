@@ -1495,6 +1495,41 @@ test("Bedrock failure returns suggest_unavailable without random fallback", asyn
   assert.equal(JSON.parse(res.body).error, "suggest_unavailable");
 });
 
+test("Bedrock path constructs ConverseCommand when deps.converse is unset", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedClassicCatalog(memory);
+
+  var sent = [];
+  suggest.resetDepsForTests({
+    bedrock: {
+      send: async function (command) {
+        sent.push(command);
+        assert.equal(command.constructor.name, "ConverseCommand");
+        return mockBedrockLooks();
+      },
+    },
+  });
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({
+        context: "board meeting tomorrow morning",
+        engine: "bedrock",
+      }),
+    });
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(sent.length >= 1, true);
+  assert.equal(JSON.parse(res.body).looks.length, 3);
+});
+
 test("Bedrock empty catalog skips model and returns empty looks", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);
