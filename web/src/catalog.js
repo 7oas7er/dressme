@@ -2553,7 +2553,7 @@ export function renderCatalogApp(root, { onLogout }) {
             role: "status",
             text:
               total > 0 && used > 0
-                ? `Closet is large — suggestions used ${used} of ${total} pieces (attrs-complete first).`
+                ? `Closet is large — suggestions used ${used} of ${total} pieces (preferring formality/role match for this request).`
                 : "Closet is large — suggestions used a capped subset of your catalog.",
           })
         );
