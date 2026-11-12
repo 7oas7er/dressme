@@ -406,7 +406,8 @@ test("systemPrompt asks for verbose titles and 2–4 sentence rationales", funct
   assert.match(prompt, /2–4 sentences|2-4 sentences/i);
   assert.match(prompt, /catchy but full/i);
   assert.match(prompt, /Wada\/palette|palette/i);
-  assert.match(prompt, /occasion-led|Board-day|luggage|capsule/i);
+  assert.match(prompt, /occasion-led|Soft power|luggage|capsule/i);
+  assert.match(prompt, /Board day blue|bare.*occasion.*color/i);
 });
 
 test("rewriteLookCopy is occasion-led and never pastes raw session context", function () {
@@ -476,6 +477,12 @@ test("rewriteLookCopy is occasion-led and never pastes raw session context", fun
   assert.ok(!/I would like you to create/i.test(rewritten.rationale));
   assert.ok(!/^Dark Tyrian Blue Rooks/i.test(rewritten.title));
   assert.match(rewritten.title, /board/i);
+  // Fallback must not collapse to bare "{shortTitle} {color}".
+  assert.equal(
+    suggest.titleLooksFlat(rewritten.title, brief.occasions[1]),
+    false,
+    rewritten.title
+  );
   assert.match(rewritten.rationale, /board/i);
   assert.ok(!/anchors the look/i.test(rewritten.rationale));
   assert.ok(!/Materials stay honest/i.test(rewritten.rationale));
@@ -497,6 +504,90 @@ test("rewriteLookCopy is occasion-led and never pastes raw session context", fun
     ),
     false
   );
+});
+
+test("titleLooksFlat catches occasion+color stubs; sync preserves catchy titles", function () {
+  var board = { shortTitle: "Board day", formalityHint: "business" };
+  assert.equal(suggest.titleLooksFlat("Board day blue", board), true);
+  assert.equal(suggest.titleLooksFlat("Board day black", board), true);
+  assert.equal(suggest.titleLooksFlat("Board-day navy", board), true);
+  assert.equal(suggest.titleLooksFlat("Board day blazer", board), true);
+  assert.equal(
+    suggest.titleLooksFlat("Soft power for the board", board),
+    false
+  );
+  assert.equal(
+    suggest.titleLooksFlat("Charcoal that travels", {
+      shortTitle: "Train-to-dinner",
+    }),
+    false
+  );
+
+  var catalog = [
+    {
+      itemId: "shirt1",
+      outfitRole: "shirt",
+      type: "oxford",
+      brandModel: "TM Lewin",
+      fabric: "cotton",
+      wadaColorIds: ["wada:v1:42"],
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "chinos",
+      fabric: "cotton twill",
+      wadaColorIds: ["wada:v1:7"],
+    },
+    { itemId: "shoe1", outfitRole: "footwear", type: "loafers" },
+    {
+      itemId: "jacket1",
+      outfitRole: "outerwear",
+      type: "blazer",
+      brandModel: "Rooks & Rocks",
+      fabric: "wool",
+      wadaColorIds: ["wada:v1:129"],
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var ids = ["shirt1", "pants1", "shoe1", "jacket1"];
+  var catchy = suggest.syncLookCopy(
+    {
+      lookId: "2",
+      title: "Soft power for the board",
+      rationale:
+        "Board day leans on a navy blazer, backed by a white oxford and chinos.",
+      itemIds: ids,
+    },
+    ids,
+    byId,
+    catalog,
+    "Day 2: board meeting",
+    { occasion: board, index: 1, force: true }
+  );
+  assert.equal(catchy.title, "Soft power for the board");
+
+  var flat = suggest.syncLookCopy(
+    {
+      lookId: "2",
+      title: "Board day blue",
+      rationale:
+        "Board day leans on a navy blazer, backed by a white oxford and chinos.",
+      itemIds: ids,
+    },
+    ids,
+    byId,
+    catalog,
+    "Day 2: board meeting",
+    { occasion: board, index: 1, force: true }
+  );
+  assert.notEqual(flat.title, "Board day blue");
+  assert.equal(suggest.titleLooksFlat(flat.title, board), false, flat.title);
+  assert.match(flat.title, /board/i);
 });
 
 test("formalityRank treats black-tie like black tie (seed spelling)", function () {

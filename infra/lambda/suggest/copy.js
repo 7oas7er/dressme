@@ -238,6 +238,48 @@ function copyLooksFormulaic(title, rationale) {
   return hits >= 2;
 }
 
+/**
+ * True when the title is a bare "{shortTitle} {color|type}" stub
+ * (e.g. "Board day blue") — occasion-led but personality-free.
+ */
+function titleLooksFlat(title, occasion) {
+  var raw = String(title || "")
+    .toLowerCase()
+    .replace(/[`*_~"']/g, "")
+    .replace(/[-–—]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return true;
+  var cue = String(
+    (occasion && (occasion.shortTitle || occasion.label)) || ""
+  )
+    .toLowerCase()
+    .replace(/[-–—]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cue) {
+    // No structured occasion — still flat if it's only a color or type word.
+    return (
+      COLOR_WORD_RE.test(raw) &&
+      raw.split(/\s+/).length <= 2 &&
+      !/\b(for|with|ready|meets|soft|sharp|quiet|bold)\b/.test(raw)
+    );
+  }
+  if (raw === cue) return true;
+  if (raw.indexOf(cue) !== 0) return false;
+  var rest = raw.slice(cue.length).trim();
+  if (!rest) return true;
+  var toks = rest.split(/\s+/).filter(Boolean);
+  if (toks.length > 2) return false;
+  // "{cue} {color}" / "{cue} {type}" / "{cue} {color} {type}"
+  var typeOnly =
+    /^(blazer|coat|jacket|cardigan|shirt|trousers|shoes|look|navy|line)$/i;
+  var allSimple = toks.every(function (tok) {
+    return COLOR_WORD_RE.test(tok) || typeOnly.test(tok);
+  });
+  return allSimple;
+}
+
 function lookAnchorPiece(pieces) {
   for (var i = 0; i < (pieces || []).length; i++) {
     if (classifySlot(pieces[i]) === "outer") return pieces[i];
@@ -301,13 +343,28 @@ function rewriteLookCopy(look, byId, context, opts) {
       ? opts.index
       : Math.max(0, (parseInt(String((look && look.lookId) || "1"), 10) || 1) - 1)) %
     3;
+  // Structured fallback titles — occasion-led, rotated voice, never bare
+  // "{shortTitle} {color}" (that pattern reads as a stub, not a look name).
   var titleSeed;
-  if (cue && color) titleSeed = cue + " " + color;
-  else if (cue && typeWord) titleSeed = cue + " " + typeWord;
-  else if (cue) titleSeed = cue;
-  else if (color && typeWord) titleSeed = color + " " + typeWord;
-  else if (typeWord) titleSeed = typeWord + " look";
-  else titleSeed = "Closet look";
+  if (cue && color && variant === 0) {
+    titleSeed = color + " for " + cue;
+  } else if (cue && typeWord && variant === 1) {
+    titleSeed = cue + "-ready " + typeWord;
+  } else if (cue && color && typeWord) {
+    titleSeed = color + " " + typeWord + " for " + cue;
+  } else if (cue && color) {
+    titleSeed = color + " for " + cue;
+  } else if (cue && typeWord) {
+    titleSeed = cue + "-ready " + typeWord;
+  } else if (cue) {
+    titleSeed = cue;
+  } else if (color && typeWord) {
+    titleSeed = color + " " + typeWord;
+  } else if (typeWord) {
+    titleSeed = typeWord + " look";
+  } else {
+    titleSeed = "Closet look";
+  }
   if (cold && !cue && titleSeed.indexOf("Layered") < 0) {
     titleSeed = clampTitle("Layered " + titleSeed);
   }
@@ -477,15 +534,38 @@ function syncLookCopy(look, priorIds, byId, catalog, context, opts) {
     catalog
   );
   var broken = copyLooksBroken(look && look.title, look && look.rationale);
+  var flat = titleLooksFlat(look && look.title, opts.occasion);
+  var formulaic = copyLooksFormulaic(
+    look && look.title,
+    look && look.rationale
+  );
   var force = Boolean(opts.force);
-  if (!changed && !foreign && !broken && !force) return look;
+  // Preserve catchy first-pass AI titles when IDs/copy are still valid.
+  // force=true after packing must not collapse personality to cue+color stubs.
+  if (!changed && !foreign && !broken && !flat && !formulaic && !force) {
+    return look;
+  }
+  if (
+    !changed &&
+    !foreign &&
+    !broken &&
+    !flat &&
+    !formulaic &&
+    force
+  ) {
+    return look;
+  }
   var reason = changed
     ? "ids_changed"
     : foreign
       ? "foreign_copy"
       : broken
         ? "broken_copy"
-        : "force";
+        : flat
+          ? "flat_title"
+          : formulaic
+            ? "formulaic_copy"
+            : "force";
   console.warn(
     JSON.stringify({
       event: "suggest_copy_rewrite",
@@ -532,7 +612,7 @@ function copyRewriteSystemPrompt(lookCount) {
     'Return JSON only: {"looks":[{"lookId":"1","title":"...","rationale":"..."}]} with exactly ' +
       clampLookCount(lookCount) +
       " looks.",
-    'Titles: catchy occasion-led phrases (about 3–7 words, ≤48 chars). Never lead with Wada colour name + brand. Never paste session context. Never end mid-phrase (no trailing "I would").',
+    'Titles: catchy occasion-led phrases with personality (about 3–7 words, ≤48 chars) — e.g. "Soft power for the board", "Charcoal that travels", "Garden-evening layers". Never bare "{occasion} {color}" stubs like "Board day blue" or "Board day navy". Never lead with Wada colour name + brand. Never paste session context. Never end mid-phrase (no trailing "I would").',
     "Rationales: 2–4 sentences with varied voice across looks. First sentence names this look's occasion/day. Then why these pieces fit that day, materials, and Wada/palette harmony — keep Wada quality without identical boilerplate.",
     'Forbidden skeleton phrases: "anchors the look", "Materials stay honest", "Palette-wise,". Do not reuse the same sentence pattern on every look.',
     "Describe only the listed pieces.",
@@ -596,14 +676,16 @@ async function rewriteLooksCopyWithBedrock(looks, byId, brief, callBedrock) {
       if (!row) return look;
       var title = clampTitle(row.title);
       var rationale = clampText(row.rationale, MAX_RATIONALE);
+      var occ = occasionForLook(brief, look, index);
       if (
         !title ||
         copyLooksBroken(title, rationale) ||
-        copyLooksFormulaic(title, rationale)
+        copyLooksFormulaic(title, rationale) ||
+        titleLooksFlat(title, occ)
       ) {
         return rewriteLookCopy(look, byId, "", {
           brief: brief,
-          occasion: occasionForLook(brief, look, index),
+          occasion: occ,
           index: index,
         });
       }
@@ -628,6 +710,7 @@ exports.colorCueFromItem = colorCueFromItem;
 exports.copyLooksBroken = copyLooksBroken;
 exports.copyLooksFormulaic = copyLooksFormulaic;
 exports.copyMentionsForeignPieces = copyMentionsForeignPieces;
+exports.titleLooksFlat = titleLooksFlat;
 exports.copyRewriteSystemPrompt = copyRewriteSystemPrompt;
 exports.copyRewriteUserPrompt = copyRewriteUserPrompt;
 exports.itemLabel = itemLabel;
