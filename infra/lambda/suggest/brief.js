@@ -150,9 +150,12 @@ function parseOccasions(context, lookCount) {
 
 function formalityHintFromText(body) {
   var t = String(body || "").toLowerCase();
-  if (/\b(board|boardroom|formal|black\s*tie|opera|gala)\b/.test(t)) {
-    return "business";
+  // Highest first so black-tie / gala subsetting does not collapse to business.
+  if (/\b(black\s*-?\s*tie|white\s*-?\s*tie|opera|gala)\b/.test(t)) {
+    return "black tie";
   }
+  if (/\bformal\b/.test(t)) return "formal";
+  if (/\b(board|boardroom)\b/.test(t)) return "business";
   if (/\b(casual)\b/.test(t) && /\b(train|travel|meeting)\b/.test(t)) {
     return "smart casual";
   }
