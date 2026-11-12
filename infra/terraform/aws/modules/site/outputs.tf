@@ -14,7 +14,7 @@ output "bucket_name" {
 }
 
 output "access_logs_bucket_name" {
-  description = "Private bucket for CloudFront (v2) and S3 site access logs."
+  description = "Private bucket for CloudFront (v2) and S3 site/media access logs."
   value       = aws_s3_bucket.access_logs.bucket
 }
 

@@ -70,6 +70,7 @@ Each env module creates a private `{env}-dressme-access-logs-bucket` (SSE-S3, Bl
 
 - **CloudFront** standard logging **v2** (CloudWatch Logs delivery → S3 prefix `cloudfront/`; delivery APIs in `us-east-1`, bucket in `eu-north-1`). Uses JSON output (not Parquet) to avoid conversion charges.
 - **S3 site bucket** server access logs → prefix `s3-site/`.
+- **S3 media bucket** server access logs → prefix `s3-media/`.
 
 ## Lambda logs and CloudWatch alarms
 

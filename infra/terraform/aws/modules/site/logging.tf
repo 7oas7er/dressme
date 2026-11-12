@@ -1,4 +1,4 @@
-# Private access-log bucket for CloudFront (v2 / CloudWatch delivery) and S3 site logs.
+# Private access-log bucket for CloudFront (v2 / CloudWatch delivery) and S3 site/media logs.
 # CloudWatch delivery APIs for CloudFront must be called in us-east-1; the S3 bucket stays in eu-north-1.
 
 data "aws_caller_identity" "current" {}
@@ -155,6 +155,31 @@ data "aws_iam_policy_document" "access_logs" {
       values   = [aws_s3_bucket.site.arn]
     }
   }
+
+  statement {
+    sid = "S3ServerAccessLogsWriteMedia"
+    actions = [
+      "s3:PutObject",
+    ]
+    resources = ["${aws_s3_bucket.access_logs.arn}/s3-media/*"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["logging.s3.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = [aws_s3_bucket.media.arn]
+    }
+  }
 }
 
 resource "aws_s3_bucket_policy" "access_logs" {
@@ -167,6 +192,15 @@ resource "aws_s3_bucket_logging" "site" {
 
   target_bucket = aws_s3_bucket.access_logs.id
   target_prefix = "s3-site/"
+
+  depends_on = [aws_s3_bucket_policy.access_logs]
+}
+
+resource "aws_s3_bucket_logging" "media" {
+  bucket = aws_s3_bucket.media.id
+
+  target_bucket = aws_s3_bucket.access_logs.id
+  target_prefix = "s3-media/"
 
   depends_on = [aws_s3_bucket_policy.access_logs]
 }

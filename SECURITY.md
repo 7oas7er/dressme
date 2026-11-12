@@ -39,3 +39,4 @@ Tokens that only exist for Terraform (Grafana Cloud access policy, Cloud Provide
 - IaC policy skips: [`docs/iac-policy.md`](docs/iac-policy.md)
 - Browser headers (CSP / Permissions-Policy): [`docs/security-headers.md`](docs/security-headers.md)
 - CodeQL SAST: [`docs/codeql.md`](docs/codeql.md)
+- Pen-test remediation follow-up (topics only, no open-vuln detail): [`docs/security/`](docs/security/)
