@@ -19,7 +19,7 @@ output "bucket_name" {
 }
 
 output "access_logs_bucket_name" {
-  description = "Private bucket for production CloudFront and S3 site access logs."
+  description = "Private bucket for production CloudFront and S3 site/media access logs."
   value       = module.site.access_logs_bucket_name
 }
 
