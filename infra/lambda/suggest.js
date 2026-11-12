@@ -460,12 +460,15 @@ function classifySlot(item) {
 }
 
 function formalityRank(value) {
+  // Closet may store seed "black-tie" or typed "black tie" — fold hyphens/underscores.
   var key = String(value || "")
     .toLowerCase()
-    .trim();
+    .trim()
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ");
   if (!key) return 0;
   if (FORMALITY_RANK[key] != null) return FORMALITY_RANK[key];
-  if (key.indexOf("black tie") >= 0) return 5;
+  if (key.indexOf("black tie") >= 0 || key.indexOf("blacktie") >= 0) return 5;
   if (key.indexOf("formal") >= 0) return 4;
   if (key.indexOf("business") >= 0) return 3;
   if (key.indexOf("smart") >= 0) return 2;
@@ -3150,6 +3153,7 @@ exports.MAX_RATIONALE = MAX_RATIONALE;
 exports.MAX_TITLE = MAX_TITLE;
 exports.SLOT_DEFS = SLOT_DEFS;
 exports.STYLE_PACK_V1 = STYLE_PACK_V1;
+exports.formalityRank = formalityRank;
 exports.classifySlot = classifySlot;
 exports.UNIQUE_SLOTS = UNIQUE_SLOTS;
 exports.enforceSlotUniqueness = enforceSlotUniqueness;

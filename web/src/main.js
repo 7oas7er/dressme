@@ -61,6 +61,8 @@ async function boot() {
     return;
   }
 
+  auth.configureAuth(cognito);
+
   try {
     await auth.completeLoginIfNeeded(cognito);
   } catch (err) {
@@ -72,7 +74,8 @@ async function boot() {
     return;
   }
 
-  if (!auth.getIdToken()) {
+  const session = await auth.ensureSession(cognito);
+  if (!session || !session.idToken) {
     renderGate(root, {
       cognito,
       message: "",
