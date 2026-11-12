@@ -238,46 +238,85 @@ function copyLooksFormulaic(title, rationale) {
   return hits >= 2;
 }
 
-/**
- * True when the title is a bare "{shortTitle} {color|type}" stub
- * (e.g. "Board day blue") — occasion-led but personality-free.
- */
-function titleLooksFlat(title, occasion) {
-  var raw = String(title || "")
+var FLAT_TYPE_WORD_RE =
+  /^(blazer|coat|jacket|cardigan|shirt|trousers|shoes|look|navy|line|outfit)$/i;
+var FLAT_FILLER_ADJ_RE = /^(soft|sharp|quiet|bold|calm|clean)$/i;
+
+function normalizeTitleFlatText(value) {
+  return String(value || "")
     .toLowerCase()
     .replace(/[`*_~"']/g, "")
     .replace(/[-–—]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Tokens that are only color / garment-type (optional one filler adj). */
+function tokensAreColorOrTypeStub(toks) {
+  var list = (toks || []).filter(Boolean);
+  if (!list.length) return false;
+  var start = 0;
+  if (list.length >= 2 && FLAT_FILLER_ADJ_RE.test(list[0])) start = 1;
+  var slice = list.slice(start);
+  if (!slice.length || slice.length > 2) return false;
+  return slice.every(function (tok) {
+    return COLOR_WORD_RE.test(tok) || FLAT_TYPE_WORD_RE.test(tok);
+  });
+}
+
+/**
+ * True when the title is a bare occasion↔color/type stub — e.g.
+ * "Board day blue", "blue for Dinner look", "Soft blue for Dinner".
+ */
+function titleLooksFlat(title, occasion) {
+  var raw = normalizeTitleFlatText(title);
   if (!raw) return true;
-  var cue = String(
+  var cue = normalizeTitleFlatText(
     (occasion && (occasion.shortTitle || occasion.label)) || ""
-  )
-    .toLowerCase()
-    .replace(/[-–—]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  );
+  var cueCore = cue.replace(/\s+look$/, "").trim();
+
+  function prefixIsFlat(prefix) {
+    if (!prefix || raw.indexOf(prefix) !== 0) return false;
+    var rest = raw.slice(prefix.length).trim();
+    if (!rest) return true;
+    return tokensAreColorOrTypeStub(rest.split(/\s+/));
+  }
+
+  function colorForTargetIsFlat(target) {
+    if (!target) return false;
+    var marker = " for " + target;
+    var idx = raw.indexOf(marker);
+    if (idx <= 0) return false;
+    var before = raw.slice(0, idx).trim();
+    var after = raw.slice(idx + marker.length).trim();
+    // Allow a dangling "look" only ("blue for Dinner" vs cue "Dinner look").
+    if (after && after !== "look") return false;
+    return tokensAreColorOrTypeStub(before.split(/\s+/));
+  }
+
   if (!cue) {
-    // No structured occasion — still flat if it's only a color or type word.
+    // "{color} for {short occasion}" without structured meta still reads as a stub.
+    var forMatch = raw.match(/^(.+?)\s+for\s+(.+)$/);
+    if (
+      forMatch &&
+      tokensAreColorOrTypeStub(forMatch[1].split(/\s+/)) &&
+      forMatch[2].split(/\s+/).filter(Boolean).length <= 3
+    ) {
+      return true;
+    }
     return (
-      COLOR_WORD_RE.test(raw) &&
-      raw.split(/\s+/).length <= 2 &&
-      !/\b(for|with|ready|meets|soft|sharp|quiet|bold)\b/.test(raw)
+      tokensAreColorOrTypeStub(raw.split(/\s+/)) &&
+      !/\b(with|ready|meets|that|carries|travels|presence|intent)\b/.test(raw)
     );
   }
-  if (raw === cue) return true;
-  if (raw.indexOf(cue) !== 0) return false;
-  var rest = raw.slice(cue.length).trim();
-  if (!rest) return true;
-  var toks = rest.split(/\s+/).filter(Boolean);
-  if (toks.length > 2) return false;
-  // "{cue} {color}" / "{cue} {type}" / "{cue} {color} {type}"
-  var typeOnly =
-    /^(blazer|coat|jacket|cardigan|shirt|trousers|shoes|look|navy|line)$/i;
-  var allSimple = toks.every(function (tok) {
-    return COLOR_WORD_RE.test(tok) || typeOnly.test(tok);
-  });
-  return allSimple;
+
+  if (raw === cue || (cueCore && raw === cueCore)) return true;
+  if (prefixIsFlat(cue) || (cueCore && cueCore !== cue && prefixIsFlat(cueCore))) {
+    return true;
+  }
+  if (colorForTargetIsFlat(cue) || colorForTargetIsFlat(cueCore)) return true;
+  return false;
 }
 
 function lookAnchorPiece(pieces) {
@@ -343,25 +382,29 @@ function rewriteLookCopy(look, byId, context, opts) {
       ? opts.index
       : Math.max(0, (parseInt(String((look && look.lookId) || "1"), 10) || 1) - 1)) %
     3;
-  // Structured fallback titles — occasion-led, rotated voice, never bare
-  // "{shortTitle} {color}" (that pattern reads as a stub, not a look name).
+  // Structured fallback titles — occasion-led, rotated voice. Never bare
+  // "{shortTitle} {color}" or "{color} for {shortTitle}" (both read as stubs).
+  var cueCore = String(cue || "")
+    .replace(/\s+look$/i, "")
+    .trim();
+  if (!cueCore) cueCore = cue;
   var titleSeed;
-  if (cue && color && variant === 0) {
-    titleSeed = color + " for " + cue;
-  } else if (cue && typeWord && variant === 1) {
-    titleSeed = cue + "-ready " + typeWord;
-  } else if (cue && color && typeWord) {
-    titleSeed = color + " " + typeWord + " for " + cue;
-  } else if (cue && color) {
-    titleSeed = color + " for " + cue;
-  } else if (cue && typeWord) {
-    titleSeed = cue + "-ready " + typeWord;
-  } else if (cue) {
-    titleSeed = cue;
+  if (cueCore && color && variant === 0) {
+    titleSeed = color + " that carries " + cueCore;
+  } else if (cueCore && typeWord && variant === 1) {
+    titleSeed = cueCore + "-ready " + typeWord;
+  } else if (cueCore && color && typeWord) {
+    titleSeed = "Quiet " + color + " " + typeWord + ", " + cueCore + " cut";
+  } else if (cueCore && color) {
+    titleSeed = color + " with " + cueCore + " presence";
+  } else if (cueCore && typeWord) {
+    titleSeed = cueCore + "-ready " + typeWord;
+  } else if (cueCore) {
+    titleSeed = cueCore + " with intent";
   } else if (color && typeWord) {
-    titleSeed = color + " " + typeWord;
+    titleSeed = color + " " + typeWord + " with intent";
   } else if (typeWord) {
-    titleSeed = typeWord + " look";
+    titleSeed = typeWord + " with intent";
   } else {
     titleSeed = "Closet look";
   }
@@ -371,6 +414,18 @@ function rewriteLookCopy(look, byId, context, opts) {
   var title = clampTitle(titleSeed);
   // Guard mid-phrase / first-person leftovers.
   title = clampTitle(title.replace(/\bI would\b.*$/i, "").trim() || "Closet look");
+  // Last-resort escape if a seed still trips flat detection.
+  if (titleLooksFlat(title, occasion || (cue ? { shortTitle: cue } : null))) {
+    title = clampTitle(
+      cueCore && typeWord
+        ? cueCore + "-ready " + typeWord
+        : cueCore
+          ? cueCore + " with intent"
+          : color && typeWord
+            ? color + " " + typeWord + " with intent"
+            : "Closet look"
+    );
+  }
 
   var details = pieces.map(pieceDetail);
   var wadaNames = uniqueNonEmpty(pieces.map(itemPrimaryWadaName));
@@ -612,7 +667,7 @@ function copyRewriteSystemPrompt(lookCount) {
     'Return JSON only: {"looks":[{"lookId":"1","title":"...","rationale":"..."}]} with exactly ' +
       clampLookCount(lookCount) +
       " looks.",
-    'Titles: catchy occasion-led phrases with personality (about 3–7 words, ≤48 chars) — e.g. "Soft power for the board", "Charcoal that travels", "Garden-evening layers". Never bare "{occasion} {color}" stubs like "Board day blue" or "Board day navy". Never lead with Wada colour name + brand. Never paste session context. Never end mid-phrase (no trailing "I would").',
+    'Titles: catchy occasion-led phrases with personality (about 3–7 words, ≤48 chars) — e.g. "Soft power for the board", "Charcoal that travels", "Garden-evening layers". Never bare "{occasion} {color}" or "{color} for {occasion}" stubs like "Board day blue", "Board day navy", or "blue for Dinner look". Never lead with Wada colour name + brand. Never paste session context. Never end mid-phrase (no trailing "I would").',
     "Rationales: 2–4 sentences with varied voice across looks. First sentence names this look's occasion/day. Then why these pieces fit that day, materials, and Wada/palette harmony — keep Wada quality without identical boilerplate.",
     'Forbidden skeleton phrases: "anchors the look", "Materials stay honest", "Palette-wise,". Do not reuse the same sentence pattern on every look.',
     "Describe only the listed pieces.",
