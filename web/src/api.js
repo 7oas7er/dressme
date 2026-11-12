@@ -1,4 +1,4 @@
-import { getIdToken } from "./auth.js";
+import { forceSignIn, getValidIdToken } from "./auth.js";
 
 function bufferToHex(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -17,7 +17,7 @@ async function sha256Hex(text) {
 
 async function request(path, options = {}) {
   const headers = Object.assign({ accept: "application/json" }, options.headers || {});
-  const token = getIdToken();
+  const token = await getValidIdToken();
   if (token) {
     // CloudFront OAC (signing_behavior=always) overwrites Authorization with SigV4
     // for the Lambda Function URL. Send the Cognito ID token on x-id-token too.
@@ -38,6 +38,13 @@ async function request(path, options = {}) {
   }
 
   const res = await fetch(path, Object.assign({}, options, { headers, body }));
+  if (res.status === 401) {
+    // Session dead (revoked/expired after refresh attempt) → Sign-in gate.
+    forceSignIn();
+    const err = new Error("unauthorized");
+    err.status = 401;
+    throw err;
+  }
   if (res.status === 204) {
     return null;
   }
