@@ -21,8 +21,11 @@ var MAX_LEGACY_FIELD = 240;
 var MAX_RATIONALE = 560;
 var MAX_TITLE = 48;
 var MAX_AI_CONTEXT_PROMPT = 300;
-/** Soft prompt cap — prefer role/formality rows when closet exceeds this. */
-var SOFT_CATALOG_CAP = 120;
+/**
+ * Soft prompt cap — ~200+ closet with headroom for ties/hats; when exceeded,
+ * request-aware formality/role subsetting picks the prompt rows.
+ */
+var SOFT_CATALOG_CAP = 240;
 /**
  * Skip optional Bedrock repair/fill if the primary call already burned most of
  * the CloudFront origin_read_timeout budget (60s without quota). Keeps the
@@ -60,6 +63,9 @@ var FORMALITY_RANK = {
   business: 3,
   "smart casual": 2,
   casual: 1,
+  // Seed peers that should rank with casual for subsetting / soft match.
+  weekend: 1,
+  athletic: 1,
 };
 
 var COLD_OUTDOOR_RE =

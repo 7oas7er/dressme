@@ -232,25 +232,90 @@ function assembleRandomLooks(catalog, options) {
   return looks;
 }
 
-/** Strip markdown/quotes from model titles; clamp ≤ MAX_TITLE. */
-function serializeCatalogForPrompt(catalog) {
-  var rows = (catalog || []).slice();
-  if (rows.length > SOFT_CATALOG_CAP) {
-    var preferred = [];
-    var rest = [];
-    for (var i = 0; i < rows.length; i++) {
-      var row = rows[i];
-      var hasRole = Boolean(String(row.outfitRole || "").trim());
-      var hasFormality = Boolean(String(row.formality || "").trim());
-      if (hasRole || hasFormality) preferred.push(row);
-      else rest.push(row);
-    }
-    // Prefer role/formality items; fill remaining slots oldest-first from rest.
-    rest.sort(function (a, b) {
-      return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
-    });
-    rows = preferred.concat(rest).slice(0, SOFT_CATALOG_CAP);
+/**
+ * Target formality rank from Suggest context (multi-day max, else keyword hint).
+ * Incomplete / unknown context → 0 (attrs-complete fallback only).
+ */
+function targetFormalityRankFromContext(context) {
+  var text = String(context || "");
+  if (!text.trim()) return 0;
+  var brief = parseTripBrief(text, null);
+  var best = 0;
+  var occasions = (brief && brief.occasions) || [];
+  for (var i = 0; i < occasions.length; i++) {
+    best = Math.max(best, formalityRank(occasions[i].formalityHint));
   }
+  if (!best) best = formalityRank(formalityHintFromText(text));
+  return best;
+}
+
+/**
+ * Score a catalog row for soft-cap subsetting. Higher = keep in prompt.
+ * Prefer formality near the request; fall back to usable role/slot and
+ * attrs presence when formality is missing or context has no hint.
+ */
+function catalogSubsetScore(row, targetRank) {
+  var item = row || {};
+  var rawFormality = String(item.formality || "").trim();
+  var fRank = formalityRank(rawFormality);
+  // Treat hyphenated / unknown seed peers via rank; empty stays incomplete.
+  var hasFormality = Boolean(rawFormality);
+  var hasRole = Boolean(String(item.outfitRole || "").trim());
+  // classifySlot already matches outfitRole first, then type — fills seed gaps.
+  var slot = classifySlot(item);
+  var usableRole = hasRole || Boolean(slot);
+
+  var score = 0;
+  if (usableRole) score += 10;
+  if (hasFormality) score += 5;
+  if (
+    slot === "base" ||
+    slot === "trousers" ||
+    slot === "footwear" ||
+    slot === "outer"
+  ) {
+    score += 3;
+  }
+
+  if (targetRank > 0) {
+    if (fRank > 0) {
+      var distance = Math.abs(fRank - targetRank);
+      score += Math.max(0, 24 - distance * 7);
+      if (targetRank >= 3 && fRank >= targetRank - 1) score += 8;
+      // Formal / business asks: demote clearly casual inventory.
+      if (targetRank >= 3 && fRank <= 1) score -= 18;
+      if (targetRank >= 4 && fRank > 0 && fRank <= 2) score -= 10;
+    } else if (!usableRole) {
+      // No formality and no role/slot — last resort under a formality ask.
+      score -= 40;
+    } else {
+      // Incomplete formality but usable role/slot — mild demotion.
+      score -= 3;
+    }
+  }
+
+  return score;
+}
+
+/**
+ * When closet exceeds SOFT_CATALOG_CAP, keep the highest-scoring rows for this
+ * request (formality/role). Stable oldest-first tie-break among equals.
+ */
+function selectCatalogForPrompt(catalog, context) {
+  var rows = (catalog || []).slice();
+  if (rows.length <= SOFT_CATALOG_CAP) return rows;
+  var targetRank = targetFormalityRankFromContext(context);
+  rows.sort(function (a, b) {
+    var diff = catalogSubsetScore(b, targetRank) - catalogSubsetScore(a, targetRank);
+    if (diff !== 0) return diff;
+    return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+  });
+  return rows.slice(0, SOFT_CATALOG_CAP);
+}
+
+/** Strip markdown/quotes from model titles; clamp ≤ MAX_TITLE. */
+function serializeCatalogForPrompt(catalog, context) {
+  var rows = selectCatalogForPrompt(catalog, context);
 
   return rows.map(function (item) {
     var out = {
@@ -509,7 +574,7 @@ async function assembleWithBedrock(catalog, input) {
   );
   var context = (input && input.context) || "";
   var brief = parseTripBrief(context, lookCount);
-  var compact = serializeCatalogForPrompt(catalog);
+  var compact = serializeCatalogForPrompt(catalog, context);
   var allowedIds = catalogIdSet(catalog);
   var byId = catalogById(catalog);
   var catalogJson = JSON.stringify(compact);
@@ -950,11 +1015,14 @@ exports.catalogIdSet = catalogIdSet;
 exports.completenessRepairNote = completenessRepairNote;
 exports.invokeBedrock = invokeBedrock;
 exports.invokeBedrockWithRetry = invokeBedrockWithRetry;
+exports.catalogSubsetScore = catalogSubsetScore;
 exports.schemaExample = schemaExample;
+exports.selectCatalogForPrompt = selectCatalogForPrompt;
 exports.serializeCatalogForPrompt = serializeCatalogForPrompt;
 exports.shuffleInPlace = shuffleInPlace;
 exports.sleep = sleep;
 exports.softWadaPriorText = softWadaPriorText;
 exports.systemPrompt = systemPrompt;
+exports.targetFormalityRankFromContext = targetFormalityRankFromContext;
 exports.userPrompt = userPrompt;
 exports.validateLookPayload = validateLookPayload;
