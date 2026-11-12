@@ -113,7 +113,23 @@ test("catalog overview prefers thumbUrl (UC-20)", () => {
   assert.match(useCases, /UC-20 — Fast catalog thumbnails/);
 });
 
-test("cutouts stopped: originals preferred; backfill endpoint noops", () => {
+test("api client treats 401 as session death (forceSignIn)", () => {
+  const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
+  const authSrc = fs.readFileSync(path.join(root, "web/src/auth.js"), "utf8");
+  assert.match(apiSrc, /res\.status === 401/);
+  assert.match(apiSrc, /forceSignIn/);
+  assert.match(authSrc, /export function forceSignIn/);
+  assert.match(authSrc, /clearSession\(\)/);
+  assert.match(authSrc, /location\.assign\("\/"\)/);
+});
+
+test("attrNormalize SPA re-exports shared Lambda module", () => {
+  const spa = fs.readFileSync(path.join(root, "web/src/attrNormalize.js"), "utf8");
+  assert.match(spa, /infra\/lambda\/attrNormalize\.js/);
+  assert.doesNotMatch(spa, /Keep in sync with/);
+});
+
+test("cutouts quarantined: originals preferred; backfill route gone", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const apiSrc = fs.readFileSync(path.join(root, "web/src/api.js"), "utf8");
   const lookLayout = fs.readFileSync(path.join(root, "web/src/lookLayout.js"), "utf8");
@@ -124,9 +140,13 @@ test("cutouts stopped: originals preferred; backfill endpoint noops", () => {
   assert.match(lookLayout, /purpose === "strip"/);
   assert.doesNotMatch(catalog, /maybeBackfillCutouts/);
   assert.doesNotMatch(catalog, /catalog-cutout/);
-  assert.match(apiSrc, /\/api\/photos\/backfill-cutouts/);
-  assert.match(lambdaApi, /backfill-cutouts/);
+  assert.doesNotMatch(apiSrc, /backfillCutouts|backfill-cutouts/);
+  assert.doesNotMatch(lambdaApi, /backfill-cutouts/);
   assert.match(itemsSrc, /CUTOUTS_ENABLED = false/);
+  assert.ok(
+    fs.existsSync(path.join(root, "infra/lambda/quarantine/cutouts.js")),
+    "cutouts.js quarantined"
+  );
   assert.match(useCases, /UC-24/);
   assert.match(useCases, /not required|Later|demoted|optional/i);
 });

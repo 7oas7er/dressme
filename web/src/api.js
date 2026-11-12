@@ -112,20 +112,6 @@ export function backfillThumbs() {
 }
 
 /**
- * Cutout backfill endpoint retained but Lambda noops (CUTOUTS_ENABLED=false).
- * SPA no longer auto-calls this; kept for manual ops / future AI categorization.
- */
-export function backfillCutouts({ force = false, upgrade = false } = {}) {
-  const body = {};
-  if (force) body.force = true;
-  if (upgrade) body.upgrade = true;
-  return request("/api/photos/backfill-cutouts", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-}
-
-/**
  * UC-04: outfit suggestions from the catalog (Bedrock or random).
  * Server parses look count from `context` (default 3, clamp 1–8).
  * Prefer `context`. Also echo `occasion` so a pre-apply Lambda that still
