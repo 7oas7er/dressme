@@ -2,8 +2,8 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference; amended 2026-11-09 for UC-05 photos-only look cards + Wada plate; amended 2026-11-09 drop free-text color; Later amended 2026-11-13 for UC-32–33 shopping support; Later amended 2026-11-13 for UC-34 look feedback; Later amended 2026-11-13 for post-MVP version bundling locked; Later amended 2026-11-13 for UC-35–36).  
-Last updated: 2026-11-13 (Europe/Berlin; Later UC-35–36 parked)
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference; amended 2026-11-09 for UC-05 photos-only look cards + Wada plate; amended 2026-11-09 drop free-text color; Later amended 2026-11-13 for UC-32–33 shopping support; Later amended 2026-11-13 for UC-34 look feedback; Later amended 2026-11-13 for post-MVP version bundling locked; Later amended 2026-11-13 for UC-35–36; Later amended 2026-11-13 for UC-37).  
+Last updated: 2026-11-13 (Europe/Berlin; Later UC-37 parked)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -72,7 +72,7 @@ Locked 2026-11-13. Post-MVP work ships in these version buckets (not one mega-re
 1. **v1.1 — Trust & polish:** ponytail Phase C + UC-29/30 (group/sort + Insights/attr audit) + UC-31 history
 2. **v1.2 — Learning Suggest:** UC-34 feedback (+ maybe UC-14)
 3. **v1.3 — Shopping:** UC-32 then UC-33 (+ UC-12 if useful)
-4. **Later still:** UC-13/08/15, UC-28 full scoring, UC-16/17, UC-24, UC-35, UC-36
+4. **Later still:** UC-13/08/15, UC-28 full scoring, UC-16/17, UC-24, UC-35, UC-36, UC-37
 
 ### UC-28 — Wada combination-aware suggest
 As Frank, when I request outfit suggestions, DressMe may use published Sanzo Wada *combinations* from *A Dictionary of Color Combinations* as a soft harmony prior when scoring or ranking looks — without forcing every outfit onto a book combination. **v1-lite:** Suggest system prompt includes a compact soft combo prior (MIT vendor data); primary Wada names already feed Bedrock text (UC-04), capture/catalog/detail swatch, and look-card plates (UC-05). **Forced combo scoring / ranking stays Later.**
@@ -121,3 +121,6 @@ As Frank, primary use is **iPhone Safari / mobile web** (not a native app). At s
 
 ### UC-36 — Visual look-and-feel refresh
 As Frank, the current UI is functional and fine for now. Later, revisit styling for a more **unique DressMe look** — explore directions; this is not a redesign commitment in the current release. **Later / post-MVP.**
+
+### UC-37 — Lean GuardDuty account threat detection
+As Frank (operator), enable **Amazon GuardDuty** for early warning on account compromise and S3/API abuse — lean setup only, not a SIEM. **Acceptance:** detectors on in **`eu-north-1`** and **`us-east-1`** (foundational); **S3 Protection on** in `eu-north-1` (media/site buckets); **Lambda Protection**, **Runtime Monitoring**, **Malware Protection**, and **AI Protection off** unless a later spend note says otherwise; strip any AWS auto-enabled extras the same day; **EventBridge → SNS email** on GuardDuty findings with severity **HIGH/CRITICAL** (GuardDuty-only phase — no Security Hub required for this UC). Confirm healthy detector status and Cost Explorer `AmazonGuardDuty` under an agreed cap after a normal deploy week. Shared-account blast radius; written spend approval vs the €10 ceiling before enable. **Out of scope for this UC:** Security Hub, AWS Config, multi-framework CSPM (Hub is a separate Phase 2 / sibling Later follow-on). No Terraform enablement in the concept phase. **Later / post-MVP.**
