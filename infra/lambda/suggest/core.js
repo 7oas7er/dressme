@@ -51,7 +51,7 @@ var STYLE_PACK_V1 = [
   "- Cool outdoor walking (≤~14°C, autumn/fall, chilly city walk / explore outdoors): do not ship a polo, tee, or light shirt alone under a jacket/coat — prefer a warm mid-layer (sweater, turtleneck, fleece, flannel, cardigan over a closed base). Indoor-only / theatre / dress-up looks are exempt.",
   "- Waist finish: looped trousers need a belt, or suspenders/braces when the trousers' aiContext supports them; side-adjuster / beltless trousers are exempt. Prefer belt for casual; suspenders OK when dressy or trousers only support suspenders. Match belt leather tone to footwear (black with black; brown/tan/cognac with brown shoes) — never brown belt with black shoes when a matching belt exists. At most one belt (or one suspenders).",
   "- Honor Frank's session context and each item's aiContext. Diversify the N looks. Closet-only — never invent IDs.",
-  "- Multi-day / multi-occasion briefs: one look per named day or occasion when N matches; put that day/occasion in the title and the first rationale sentence. Soft-align formality (board → business; casual train → smart casual).",
+  "- Multi-day / multi-occasion briefs: one look per named day, Outfit N, or numbered slot when N matches; put that day/occasion in the title and the first rationale sentence. Soft-align formality (board → business; casual train → smart casual; musical/theatre dress-up → formal/black-tie — never fold dress-up into travel).",
   "- Luggage / trip reuse: when packing limits are implied, plan a shared capsule first (≤N unique footwear, trousers, jackets) and reuse across looks.",
   "- Title and rationale must describe only the itemIds in that look (attrs + Wada names) — never name a piece that is not listed. Titles are catchy thematic phrases with personality (fit the look's vibe; occasion need not appear in every title) — ban flat templates like \"Board day blue\", \"blue for Dinner look\", \"black blazer that carries Lunch\", \"Lunch-ready blazer\", \"Quiet gray blazer, Lunch cut\" — never lead with Wada name + brand, never paste session context, never end mid-phrase. Rationales are 2–4 thoughtful sentences (lead with this look's occasion, then materials/palette), varied voice — never reuse the same anchors/Materials stay honest/Palette-wise skeleton every look.",
   "- Name garments in natural wardrobe language: colour + type (fabric when useful); brand/model is secondary (\"black leather jacket (Gipsy)\" / \"black leather Gipsy jacket\"). Never brand-as-noun alone (\"Black Gipsy\", \"Black Hiltl\").",
@@ -78,7 +78,7 @@ var OUTDOOR_ACTIVITY_RE =
   /\b(outdoors?|outside|garden|patio|terrace|city\s*walk|sightseeing|stroll|explore|exploring|walking|walk\s+around|travel\s*day)\b/i;
 /** Indoor / dress-up occasions that should not force a warm mid-layer. */
 var INDOOR_DRESSUP_RE =
-  /\b(theatre|theater|opera|indoor|inside|dress[- ]?up|black[- ]?tie|gala|concert|cinema|museum)\b/i;
+  /\b(theatre|theater|opera|musical|phantom|indoor|inside|dress[- ]?up|black[- ]?tie|gala|concert|cinema|museum)\b/i;
 /** Thin bases insufficient alone under a coat for cool outdoor walking. */
 var THIN_BASE_RE =
   /\b(polo|tee|t-shirt|tshirt)\b|\blight\s+shirt\b|\b(oxford|dress\s+shirt|blouse)\b|\bshirt\b/i;

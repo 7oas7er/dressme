@@ -1440,6 +1440,96 @@ test("lookNeedsWarmInsulation: cool outdoor walk vs indoor theatre", function ()
   );
 });
 
+test("Cologne Outfit 1/2/3 keeps distinct occasions incl. musical dress-up", function () {
+  var ctx =
+    "Three outfits for a Cologne weekend in 10°C autumn weather. " +
+    "Outfit 1: train into the city, explore outdoors, then a casual dinner. " +
+    "Outfit 2: Phantom of the Opera — dress up. " +
+    "Outfit 3: hotel breakfast then train home. " +
+    "Pack light — at most two pairs of shoes, trousers, and jackets.";
+  var brief = suggest.parseTripBrief(ctx, 3);
+  assert.equal(brief.occasions.length, 3, JSON.stringify(brief.occasions));
+
+  assert.match(brief.occasions[0].shortTitle, /train|explore|city|travel|dinner/i);
+  assert.ok(
+    suggest.formalityRank(brief.occasions[0].formalityHint) <=
+      suggest.formalityRank("smart casual"),
+    brief.occasions[0].formalityHint
+  );
+
+  assert.match(
+    brief.occasions[1].shortTitle,
+    /musical|theatre|dress-?up|opera/i
+  );
+  assert.ok(
+    suggest.formalityRank(brief.occasions[1].formalityHint) >=
+      suggest.formalityRank("formal"),
+    "look 2 formality should be elevated, got " + brief.occasions[1].formalityHint
+  );
+  assert.notEqual(brief.occasions[1].shortTitle, "Travel day");
+  assert.notEqual(brief.occasions[1].formalityHint, "smart casual");
+
+  assert.match(brief.occasions[2].shortTitle, /breakfast|train|travel|home/i);
+
+  var pub = suggest.publicOccasions(brief);
+  assert.equal(pub.length, 3);
+  assert.ok(
+    pub.some(function (o) {
+      return /musical|theatre|dress-?up|opera/i.test(o.shortTitle);
+    }),
+    JSON.stringify(pub)
+  );
+
+  assert.equal(
+    suggest.lookNeedsWarmInsulation(ctx, { lookId: "1" }, 0),
+    true
+  );
+  assert.equal(
+    suggest.lookNeedsWarmInsulation(ctx, { lookId: "2" }, 1),
+    false
+  );
+  assert.equal(
+    suggest.lookNeedsWarmInsulation(ctx, { lookId: "3" }, 2),
+    false
+  );
+
+  var note = suggest.tripBriefPromptNote(brief);
+  assert.match(note, /Musical|Theatre|Dress-up|look 2/i);
+  assert.match(note, /formal|black tie/i);
+});
+
+test("numbered 1) 2) 3) slots parse like Outfit labels", function () {
+  var ctx =
+    "Need 3 outfits: 1) train + Cologne explore 10°C + casual dinner " +
+    "2) Phantom of the Opera — dress up " +
+    "3) hotel breakfast + train home";
+  var occasions = suggest.parseOccasions(ctx, 3);
+  assert.equal(occasions.length, 3, JSON.stringify(occasions));
+  assert.ok(
+    suggest.formalityRank(occasions[1].formalityHint) >=
+      suggest.formalityRank("formal"),
+    occasions[1].formalityHint
+  );
+  assert.match(occasions[1].shortTitle, /musical|theatre|dress-?up|opera/i);
+});
+
+test("formalityHintFromText elevates dress-up / theatre / musical", function () {
+  assert.equal(
+    suggest.formalityHintFromText("Phantom of the Opera — dress up"),
+    "black tie"
+  );
+  assert.equal(suggest.formalityHintFromText("dress-up musical"), "formal");
+  assert.equal(suggest.formalityHintFromText("theatre evening"), "formal");
+  assert.ok(
+    suggest.formalityRank(
+      suggest.formalityHintFromText("Phantom of the Opera dress up")
+    ) >
+      suggest.formalityRank(
+        suggest.formalityHintFromText("casual train explore")
+      )
+  );
+});
+
 test("waist finish heuristics: side-adjusters exempt; suspenders capable", function () {
   var looped = {
     itemId: "pants",
@@ -2711,6 +2801,10 @@ test("formalityHintFromText ranks black-tie / formal above business board", func
   assert.equal(suggest.formalityHintFromText("opera night"), "black tie");
   assert.equal(suggest.formalityHintFromText("formal dinner"), "formal");
   assert.equal(suggest.formalityHintFromText("board meeting"), "business");
+  assert.equal(
+    suggest.formalityHintFromText("dress up for the theatre"),
+    "formal"
+  );
   assert.ok(
     suggest.formalityRank(suggest.formalityHintFromText("black tie event")) >
       suggest.formalityRank(suggest.formalityHintFromText("board meeting"))
