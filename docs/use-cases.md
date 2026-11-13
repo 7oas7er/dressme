@@ -2,8 +2,8 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference; amended 2026-11-09 for UC-05 photos-only look cards + Wada plate; amended 2026-11-09 drop free-text color).  
-Last updated: 2026-11-09 (Europe/Berlin; free-text `color` removed — Wada-only)
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference; amended 2026-11-09 for UC-05 photos-only look cards + Wada plate; amended 2026-11-09 drop free-text color; Later amended 2026-11-13 for UC-32–33 shopping support).  
+Last updated: 2026-11-13 (Europe/Berlin; shopping advice from gaps + candidate try-on)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -78,7 +78,7 @@ Beyond simply starting UC-04 again with new context text.
 Suggest a minimal multi-day packing list from the wardrobe.
 
 ### UC-11 — Wardrobe gap / “what’s missing” shopping advice
-Recommend purchases that would fill gaps.
+Recommend purchases that would fill gaps. **Acceptance-flavored backlog:** see **UC-32**.
 
 ### UC-12 — Near-duplicate / “too close to what I own” shopping check
 Warn when a potential purchase is too similar to an existing item.
@@ -97,3 +97,9 @@ Other users, onboarding, monetization.
 
 ### UC-17 — Native mobile app
 Beyond web (phone browser OK for v1).
+
+### UC-32 — Shopping advice from catalog gaps
+As Frank, I can ask DressMe what to buy next — e.g. “recommend shoes I’m missing”, “what coat next”, “shirt I lack” — and get purchase suggestions grounded in **catalog gaps** and **complementarity** with what I already own (classic menswear roles/slots), not generic fashion trends. Each suggestion names the gap (type / role / formality / season as relevant) and why filling it would unlock more outfits; it must **not** invent pieces I already have. Free-text ask or a light “what’s missing” entry is enough; no full shopping catalog integration in this slice. Elaborates the UC-11 stub. **Later / post-MVP.**
+
+### UC-33 — Candidate piece try-on with closet
+As Frank, when considering a purchase (in a shop or on a web shop), I share a **photo of a candidate piece**; DressMe generates outfit looks that **pair that candidate with existing wardrobe items** (photos-only look cards in the spirit of UC-05 where practical) so I can judge fit and complementarity before buying. The candidate is **not** added to the catalog unless I later run UC-01. Distinct from UC-12 (near-duplicate / “too close to what I own” warning). **Later / post-MVP.**
