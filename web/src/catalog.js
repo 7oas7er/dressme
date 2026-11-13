@@ -1,5 +1,15 @@
 import * as api from "./api.js";
 import { matchAttrOption, normalizeAttrValue } from "./attrNormalize.js";
+import {
+  applyGroupSort,
+  arrangeActive,
+  arrangeToggleLabel,
+  defaultArrangePrefs,
+  defaultSortDir,
+  normalizeArrangePrefs,
+  readArrangePrefs,
+  writeArrangePrefs,
+} from "./catalogArrange.js";
 import { layerImageUrl } from "./lookLayout.js";
 import { renderLookCard } from "./lookCard.js";
 import { rotateImageFromUrl } from "./rotateImage.js";
@@ -118,6 +128,7 @@ function emptyFilters() {
 }
 
 const FILTERS_OPEN_KEY = "dressme.catalog.filtersOpen";
+const ARRANGE_OPEN_KEY = "dressme.catalog.arrangeOpen";
 
 /** Folded by default; sessionStorage remembers expand/collapse for the tab. */
 function readFiltersOpen() {
@@ -131,6 +142,23 @@ function readFiltersOpen() {
 function writeFiltersOpen(open) {
   try {
     sessionStorage.setItem(FILTERS_OPEN_KEY, open ? "1" : "0");
+  } catch {
+    // Private mode / quota — fold state stays in-memory only.
+  }
+}
+
+/** Arrange fold chrome (ephemeral); prefs themselves use localStorage. */
+function readArrangeOpen() {
+  try {
+    return sessionStorage.getItem(ARRANGE_OPEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeArrangeOpen(open) {
+  try {
+    sessionStorage.setItem(ARRANGE_OPEN_KEY, open ? "1" : "0");
   } catch {
     // Private mode / quota — fold state stays in-memory only.
   }
@@ -352,6 +380,10 @@ export function renderCatalogApp(root, { onLogout }) {
     filters: emptyFilters(),
     /** Attribute filter pane; folded by default (sessionStorage). */
     filtersOpen: readFiltersOpen(),
+    /** UC-29 group/sort prefs (localStorage). */
+    arrange: readArrangePrefs(),
+    /** Arrange fold chrome; folded by default (sessionStorage). */
+    arrangeOpen: readArrangeOpen(),
     view: "list", // list | form | detail | suggest
     editing: null,
     status: "",
@@ -646,6 +678,15 @@ export function renderCatalogApp(root, { onLogout }) {
     state.filters = emptyFilters();
     updateStatusFromItems();
     paint();
+  }
+
+  function setArrangePrefs(next) {
+    state.arrange = writeArrangePrefs(normalizeArrangePrefs(next));
+    paint();
+  }
+
+  function clearArrange() {
+    setArrangePrefs(defaultArrangePrefs());
   }
 
   function addPendingFiles(fileList) {
@@ -1538,34 +1579,52 @@ export function renderCatalogApp(root, { onLogout }) {
     root.append(shell);
   }
 
-  function renderFilters() {
-    const activeCount = FILTER_FIELDS.filter((field) =>
+  function renderCatalogControlBar() {
+    const filterActiveCount = FILTER_FIELDS.filter((field) =>
       String(state.filters[field.key] || "").trim()
     ).length;
-    const open = state.filtersOpen;
-    const toggleLabel = open
+    const filtersOpen = state.filtersOpen;
+    const filterToggleLabel = filtersOpen
       ? "Hide filters"
-      : activeCount
-        ? `Filters (${activeCount})`
+      : filterActiveCount
+        ? `Filters (${filterActiveCount})`
         : "Filters";
 
-    const fold = el("div", { className: "filter-fold" });
-    fold.append(
+    const arrangeOpen = state.arrangeOpen;
+    const disabled = state.busy || !state.items.length ? "disabled" : null;
+
+    return el("div", { className: "catalog-control-bar" }, [
       el("button", {
         type: "button",
         className: "secondary filter-fold-toggle",
-        text: toggleLabel,
-        "aria-expanded": open ? "true" : "false",
+        text: filterToggleLabel,
+        "aria-expanded": filtersOpen ? "true" : "false",
         "aria-controls": "catalog-filters",
+        disabled,
         onClick: () => {
           state.filtersOpen = !state.filtersOpen;
           writeFiltersOpen(state.filtersOpen);
           paint();
         },
-      })
-    );
+      }),
+      el("button", {
+        type: "button",
+        className: "secondary filter-fold-toggle",
+        text: arrangeToggleLabel(state.arrange, arrangeOpen),
+        "aria-expanded": arrangeOpen ? "true" : "false",
+        "aria-controls": "catalog-arrange",
+        disabled,
+        onClick: () => {
+          state.arrangeOpen = !state.arrangeOpen;
+          writeArrangeOpen(state.arrangeOpen);
+          paint();
+        },
+      }),
+    ]);
+  }
 
-    if (!open) return fold;
+  function renderFilters() {
+    if (!state.filtersOpen) return null;
 
     const options = collectAttributeFilterValues(state.items);
     const bar = el("div", {
@@ -1616,8 +1675,151 @@ export function renderCatalogApp(root, { onLogout }) {
       }),
     ]);
     bar.append(actions);
-    fold.append(bar);
-    return fold;
+    return bar;
+  }
+
+  function renderArrange() {
+    if (!state.arrangeOpen) return null;
+
+    const prefs = normalizeArrangePrefs(state.arrange);
+    const disabled = state.busy || !state.items.length ? "disabled" : null;
+    const sortDisabled =
+      state.busy || !state.items.length || prefs.sortBy === "default"
+        ? "disabled"
+        : null;
+
+    const groupSelect = el("select", {
+      name: "arrange-group-by",
+      "aria-label": "Group by",
+      disabled,
+      onChange: (event) => {
+        setArrangePrefs({ ...prefs, groupBy: event.target.value });
+      },
+    });
+    for (const [value, label] of [
+      ["none", "None"],
+      ["type", "Type"],
+      ["dateAdded", "Date added"],
+      ["brandModel", "Brand / model"],
+      ["formality", "Formality"],
+    ]) {
+      groupSelect.append(el("option", { value, text: label }));
+    }
+    groupSelect.value = prefs.groupBy;
+
+    const sortSelect = el("select", {
+      name: "arrange-sort-by",
+      "aria-label": "Sort by",
+      disabled,
+      onChange: (event) => {
+        const sortBy = event.target.value;
+        setArrangePrefs({
+          ...prefs,
+          sortBy,
+          sortDir: sortBy === "default" ? prefs.sortDir : defaultSortDir(sortBy),
+        });
+      },
+    });
+    for (const [value, label] of [
+      ["default", "Default (API order)"],
+      ["type", "Type"],
+      ["dateAdded", "Date added"],
+      ["brandModel", "Brand / model"],
+      ["formality", "Formality"],
+    ]) {
+      sortSelect.append(el("option", { value, text: label }));
+    }
+    sortSelect.value = prefs.sortBy;
+
+    const dirToggle = el("button", {
+      type: "button",
+      className: "secondary arrange-dir-toggle",
+      text: prefs.sortDir === "asc" ? "Asc" : "Desc",
+      "aria-label": "Sort direction",
+      "aria-pressed": prefs.sortDir === "desc" ? "true" : "false",
+      disabled: sortDisabled,
+      onClick: () => {
+        if (prefs.sortBy === "default") return;
+        setArrangePrefs({
+          ...prefs,
+          sortDir: prefs.sortDir === "asc" ? "desc" : "asc",
+        });
+      },
+    });
+
+    const bar = el("div", {
+      id: "catalog-arrange",
+      className: "arrange-bar",
+      role: "group",
+      "aria-label": "Group and sort catalog",
+    });
+    const grid = el("div", { className: "arrange-grid" });
+    grid.append(
+      el("label", { className: "filter-field" }, [
+        el("span", { className: "field-title", text: "Group by" }),
+        groupSelect,
+      ])
+    );
+    grid.append(
+      el("label", { className: "filter-field arrange-sort-field" }, [
+        el("span", { className: "field-title", text: "Sort by" }),
+        el("div", { className: "arrange-sort-row" }, [sortSelect, dirToggle]),
+      ])
+    );
+    bar.append(grid);
+    bar.append(
+      el("div", { className: "row filter-actions" }, [
+        el("button", {
+          type: "button",
+          className: "secondary",
+          text: "Clear arrange",
+          disabled: state.busy || !arrangeActive(prefs) ? "disabled" : null,
+          onClick: clearArrange,
+        }),
+      ])
+    );
+    return bar;
+  }
+
+  function renderItemCard(item) {
+    const url = thumbUrl(item);
+    return el(
+      "button",
+      {
+        type: "button",
+        className: "item-card",
+        onClick: () => openDetail(item),
+      },
+      [
+        url
+          ? el("img", {
+              src: url,
+              alt: (() => {
+                const wadaName = primaryWadaName(item);
+                return wadaName ? `${item.type} ${wadaName}` : item.type;
+              })(),
+            })
+          : el("div", { className: "thumb", text: "No photo" }),
+        el("div", { className: "meta" }, [
+          el("p", { className: "title", text: item.type }),
+          el("div", { className: "sub-row" }, [
+            el("p", {
+              className: "sub",
+              text: catalogCardSubLine(item),
+            }),
+            wadaPrimarySwatch(item.wadaColorIds),
+          ]),
+        ]),
+      ]
+    );
+  }
+
+  function renderCatalogGrid(items) {
+    const grid = el("div", { className: "catalog-grid" });
+    for (const item of items) {
+      grid.append(renderItemCard(item));
+    }
+    return grid;
   }
 
   function renderList() {
@@ -1645,7 +1847,11 @@ export function renderCatalogApp(root, { onLogout }) {
       }),
     ]);
     panel.append(searchRow);
-    panel.append(renderFilters());
+    panel.append(renderCatalogControlBar());
+    const filtersBody = renderFilters();
+    if (filtersBody) panel.append(filtersBody);
+    const arrangeBody = renderArrange();
+    if (arrangeBody) panel.append(arrangeBody);
 
     if (state.catalogLoading) {
       const wait = el("div", {
@@ -1680,57 +1886,47 @@ export function renderCatalogApp(root, { onLogout }) {
     }
 
     const visible = visibleItems();
-    const grid = el("div", { className: "catalog-grid" });
     if (!state.items.length) {
-      grid.append(
-        el("p", {
-          className: "muted",
-          text: "Your catalog is empty. Capture a piece with photos and attributes.",
-        })
+      panel.append(
+        el("div", { className: "catalog-grid" }, [
+          el("p", {
+            className: "muted",
+            text: "Your catalog is empty. Capture a piece with photos and attributes.",
+          }),
+        ])
       );
     } else if (!visible.length) {
-      grid.append(
-        el("p", {
-          className: "muted",
-          text: "No items match these filters. Clear filters to see everything again.",
-        })
+      panel.append(
+        el("div", { className: "catalog-grid" }, [
+          el("p", {
+            className: "muted",
+            text: "No items match these filters. Clear filters to see everything again.",
+          }),
+        ])
       );
     } else {
-      for (const item of visible) {
-        const url = thumbUrl(item);
-        const card = el(
-          "button",
-          {
-            type: "button",
-            className: "item-card",
-            onClick: () => openDetail(item),
-          },
-          [
-            url
-              ? el("img", {
-                  src: url,
-                  alt: (() => {
-                    const wadaName = primaryWadaName(item);
-                    return wadaName ? `${item.type} ${wadaName}` : item.type;
-                  })(),
-                })
-              : el("div", { className: "thumb", text: "No photo" }),
-            el("div", { className: "meta" }, [
-              el("p", { className: "title", text: item.type }),
-              el("div", { className: "sub-row" }, [
-                el("p", {
-                  className: "sub",
-                  text: catalogCardSubLine(item),
-                }),
-                wadaPrimarySwatch(item.wadaColorIds),
-              ]),
-            ]),
-          ]
-        );
-        grid.append(card);
+      const display = applyGroupSort(visible, state.arrange);
+      if (display.mode === "grouped") {
+        const sections = el("div", { className: "catalog-groups" });
+        for (const group of display.groups) {
+          const section = el("section", {
+            className: "catalog-group",
+            "aria-label": `${group.label}, ${group.items.length} items`,
+          });
+          section.append(
+            el("h2", {
+              className: "catalog-group-heading",
+              text: `${group.label} · ${group.items.length}`,
+            })
+          );
+          section.append(renderCatalogGrid(group.items));
+          sections.append(section);
+        }
+        panel.append(sections);
+      } else {
+        panel.append(renderCatalogGrid(display.items));
       }
     }
-    panel.append(grid);
     panel.append(
       el("p", {
         className: "catalog-count",

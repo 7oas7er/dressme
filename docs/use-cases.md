@@ -107,6 +107,9 @@ Other users, onboarding, monetization.
 ### UC-17 — Native mobile app
 Beyond web (phone browser OK for v1).
 
+### UC-29 — Group and sort the catalog
+As Frank, above the catalog grid (same control bar as UC-07 filters), I can **group and/or sort** items by **type**, **date added**, **brand/model**, or **formality**, so browsing scales as the wardrobe grows. Filters and group/sort combine; **Clear arrange** restores the default list order (**API `updatedAt` desc**, not date-added) without wiping filters. Client-side on the loaded list; prefs in `localStorage`. **v1.1.**
+
 ### UC-32 — Shopping advice from catalog gaps
 As Frank, I can ask DressMe what to buy next — e.g. “recommend shoes I’m missing”, “what coat next”, “shirt I lack” — and get purchase suggestions grounded in **catalog gaps** and **complementarity** with what I already own (classic menswear roles/slots), not generic fashion trends. Each suggestion names the gap (type / role / formality / season as relevant) and why filling it would unlock more outfits; it must **not** invent pieces I already have. Free-text ask or a light “what’s missing” entry is enough; no full shopping catalog integration in this slice. Elaborates the UC-11 stub. **Later / post-MVP.**
 
