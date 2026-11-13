@@ -4,7 +4,7 @@ Personal wardrobe catalog and outfit suggestions (classic menswear), plus the **
 
 **Fundamental design:** each app is an **isolated repository**. Shared Cloudflare zone rulesets and shared Grafana Free objects (Infinity DS, GitHub plugin) live in [`7oas7er/platform`](https://github.com/7oas7er/platform). Apps depend on platform — **never on each other**.
 
-**Architecture:** [docs/architecture.md](docs/architecture.md) · **Use cases:** [docs/use-cases.md](docs/use-cases.md) · **ADRs:** [docs/adr/](docs/adr/) · **Agents:** [AGENTS.md](AGENTS.md) · **Security floor:** [docs/github-branch-protection.md](docs/github-branch-protection.md) · **Secrets:** [SECURITY.md](SECURITY.md) · **Maintenance:** [docs/maintenance.md](docs/maintenance.md)
+**Architecture:** [docs/architecture.md](docs/architecture.md) · **Use cases:** [docs/use-cases.md](docs/use-cases.md) · **ADRs:** [docs/adr/](docs/adr/) · **Agents:** [AGENTS.md](AGENTS.md) · **Ops runbook:** [docs/runbook.md](docs/runbook.md) · **Security floor:** [docs/github-branch-protection.md](docs/github-branch-protection.md) · **Secrets:** [SECURITY.md](SECURITY.md) · **Maintenance:** [docs/maintenance.md](docs/maintenance.md)
 
 Frontend source lives under [`web/`](web/) (Vite); build output under [`dressme/`](dressme/). Product scope: UC-01–06 + UC-18–19 (Option A); catalog first.
 

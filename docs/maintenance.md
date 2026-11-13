@@ -18,6 +18,9 @@ CI **never** runs `terraform apply` ([ADR 0003](adr/0003-local-terraform-apply.m
 [ ] Open Dependabot PRs on staging — merge when CI is green
 [ ] Clear or explicitly waive high/critical Dependabot / code-scanning alerts
 [ ] Glance Grafana synthetics (stg + prod) and obvious error panels
+[ ] Wardrobe cold backup (stg + prod once backup buckets exist):
+      ./scripts/wardrobe-backup.sh --env stg && ./scripts/wardrobe-backup.sh --env prod
+      (see docs/runbook.md — Backup and restore)
 ```
 
 One red Dependabot PR: fix or split; don’t batch-merge majors with unknowns.

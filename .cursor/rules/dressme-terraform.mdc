@@ -30,4 +30,4 @@ Platform layout/CI: `app-terraform`.
 - **Origin-verify**: keep AWS `origin_verify_secret` in sync with Cloudflare; rotate via `infra/terraform/docs/origin-verify-secret-rotation.md`.
 - Cloudflare app root is **DNS only** for `dressme` / `dressme-stg` (no apex/www). Zone rulesets + rate limits live in platform `shared-edge`.
 - Access logs: `{env}-dressme-access-logs-bucket` (CloudFront v2 + S3 site). Lambda log group finite retention; CF 5xx alarms in `us-east-1`.
-- DynamoDB PITR restore: `infra/terraform/docs/dynamodb-pitr-restore.md`. Bedrock apply/smoke: `infra/terraform/docs/bedrock-catalog-assist.md`.
+- DynamoDB PITR + media/cold restore: `infra/terraform/docs/dynamodb-pitr-restore.md`; operator overview `docs/runbook.md`. Backup bucket `{env}-dressme-backup-bucket` + scripts `scripts/wardrobe-backup.sh`. Bedrock apply/smoke: `infra/terraform/docs/bedrock-catalog-assist.md`.
