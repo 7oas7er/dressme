@@ -2,8 +2,8 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference; amended 2026-11-09 for UC-05 photos-only look cards + Wada plate; amended 2026-11-09 drop free-text color; Later amended 2026-11-13 for UC-32–33 shopping support; Later amended 2026-11-13 for UC-34 look feedback).  
-Last updated: 2026-11-13 (Europe/Berlin; look feedback personalizes Suggest)
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference; amended 2026-11-09 for UC-05 photos-only look cards + Wada plate; amended 2026-11-09 drop free-text color; Later amended 2026-11-13 for UC-32–33 shopping support; Later amended 2026-11-13 for UC-34 look feedback; Later amended 2026-11-13 for post-MVP version bundling locked).  
+Last updated: 2026-11-13 (Europe/Berlin; post-MVP version bundling locked)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -64,6 +64,15 @@ As Frank, under each look card I see a short Bedrock rationale (1–3 sentences)
 ## Later — out of v1 scope
 
 Includes former “Should” candidates not pulled into the v1 contract.
+
+### Post-MVP version bundling (locked)
+
+Locked 2026-11-13. Post-MVP work ships in these version buckets (not one mega-release):
+
+1. **v1.1 — Trust & polish:** ponytail Phase C + UC-29/30 (group/sort + Insights/attr audit) + UC-31 history
+2. **v1.2 — Learning Suggest:** UC-34 feedback (+ maybe UC-14)
+3. **v1.3 — Shopping:** UC-32 then UC-33 (+ UC-12 if useful)
+4. **Later still:** UC-13/08/15, UC-28 full scoring, UC-16/17, UC-24
 
 ### UC-28 — Wada combination-aware suggest
 As Frank, when I request outfit suggestions, DressMe may use published Sanzo Wada *combinations* from *A Dictionary of Color Combinations* as a soft harmony prior when scoring or ranking looks — without forcing every outfit onto a book combination. **v1-lite:** Suggest system prompt includes a compact soft combo prior (MIT vendor data); primary Wada names already feed Bedrock text (UC-04), capture/catalog/detail swatch, and look-card plates (UC-05). **Forced combo scoring / ranking stays Later.**
