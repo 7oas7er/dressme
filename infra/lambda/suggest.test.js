@@ -3080,3 +3080,325 @@ test("selectCatalogForPrompt falls back when context has no formality hint", fun
   assert.equal(ids["role-only"], true);
   assert.equal(ids["formality-only"], true);
 });
+
+test("resolveExcludeItemIds normalizes and clamps prior look IDs", function () {
+  assert.deepEqual(suggest.resolveExcludeItemIds({}), []);
+  assert.deepEqual(
+    suggest.resolveExcludeItemIds({
+      excludeItemIds: ["a", "a", "", "b", null],
+    }),
+    ["a", "b"]
+  );
+  assert.deepEqual(
+    suggest.resolveExcludeItemIds({
+      looks: [{ itemIds: ["x", "y"] }, { itemIds: ["y", "z"] }],
+    }),
+    ["x", "y", "z"]
+  );
+  var many = [];
+  for (var i = 0; i < suggest.MAX_EXCLUDE_ITEM_IDS + 10; i++) {
+    many.push("id-" + i);
+  }
+  assert.equal(
+    suggest.resolveExcludeItemIds({ excludeItemIds: many }).length,
+    suggest.MAX_EXCLUDE_ITEM_IDS
+  );
+});
+
+test("diversifyExcludePromptNote is empty without priors and strong with them", function () {
+  assert.equal(suggest.diversifyExcludePromptNote([]), "");
+  assert.equal(suggest.diversifyExcludePromptNote(null), "");
+  var note = suggest.diversifyExcludePromptNote(["blazer-1", "tie-1"]);
+  assert.match(note, /soft-exclude/i);
+  assert.match(note, /blazer-1/);
+  assert.match(note, /Prefer alternate/i);
+});
+
+test("pickUnusedCandidate prefers non-soft-excluded peers", function () {
+  var catalog = [
+    {
+      itemId: "shirt-prior",
+      type: "oxford",
+      outfitRole: "shirt",
+      formality: "business",
+    },
+    {
+      itemId: "shirt-alt",
+      type: "oxford",
+      outfitRole: "shirt",
+      formality: "business",
+    },
+  ];
+  var used = new Set();
+  var pick = suggest.pickUnusedCandidate(
+    catalog,
+    used,
+    function (item) {
+      return String(item.type) === "oxford";
+    },
+    new Set(["shirt-prior"])
+  );
+  assert.equal(pick.itemId, "shirt-alt");
+
+  var onlyPrior = suggest.pickUnusedCandidate(
+    [
+      {
+        itemId: "shirt-prior",
+        type: "oxford",
+        outfitRole: "shirt",
+      },
+    ],
+    used,
+    function (item) {
+      return String(item.type) === "oxford";
+    },
+    new Set(["shirt-prior"])
+  );
+  assert.equal(
+    onlyPrior.itemId,
+    "shirt-prior",
+    "reuse soft-excluded when no alternative exists"
+  );
+});
+
+test("softDiversifyFromExclude swaps prior pieces for formality peers", function () {
+  var catalog = [
+    {
+      itemId: "blazer-prior",
+      type: "blazer",
+      outfitRole: "outerwear",
+      formality: "formal",
+    },
+    {
+      itemId: "blazer-alt",
+      type: "blazer",
+      outfitRole: "outerwear",
+      formality: "formal",
+    },
+    {
+      itemId: "shirt-1",
+      type: "oxford",
+      outfitRole: "shirt",
+      formality: "business",
+    },
+    {
+      itemId: "pants-1",
+      type: "trousers",
+      outfitRole: "trousers",
+      formality: "formal",
+    },
+    {
+      itemId: "shoes-1",
+      type: "oxfords",
+      outfitRole: "footwear",
+      formality: "formal",
+    },
+  ];
+  var byId = suggest.catalogById(catalog);
+  var result = suggest.softDiversifyFromExclude(
+    [
+      {
+        lookId: "1",
+        itemIds: ["blazer-prior", "shirt-1", "pants-1", "shoes-1"],
+      },
+    ],
+    byId,
+    catalog,
+    ["blazer-prior"]
+  );
+  assert.equal(result.swaps, 1);
+  assert.deepEqual(result.looks[0].itemIds, [
+    "blazer-alt",
+    "shirt-1",
+    "pants-1",
+    "shoes-1",
+  ]);
+});
+
+test("assembleRandomLooks soft-excludes prior IDs when alternatives exist", function () {
+  var catalog = [
+    {
+      itemId: "shirt-a",
+      type: "oxford",
+      outfitRole: "shirt",
+      formality: "business",
+    },
+    {
+      itemId: "shirt-b",
+      type: "oxford",
+      outfitRole: "shirt",
+      formality: "business",
+    },
+    {
+      itemId: "pants-a",
+      type: "chinos",
+      outfitRole: "trousers",
+      formality: "smart casual",
+    },
+    {
+      itemId: "pants-b",
+      type: "chinos",
+      outfitRole: "trousers",
+      formality: "smart casual",
+    },
+    {
+      itemId: "shoes-a",
+      type: "loafers",
+      outfitRole: "footwear",
+      formality: "business",
+    },
+    {
+      itemId: "shoes-b",
+      type: "loafers",
+      outfitRole: "footwear",
+      formality: "business",
+    },
+  ];
+  var looks = suggest.assembleRandomLooks(catalog, {
+    lookCount: 1,
+    random: function () {
+      return 0;
+    },
+    softExclude: ["shirt-a", "pants-a", "shoes-a"],
+  });
+  var ids = (looks[0].items || []).map(function (item) {
+    return item.itemId;
+  });
+  assert.ok(ids.indexOf("shirt-a") < 0);
+  assert.ok(ids.indexOf("pants-a") < 0);
+  assert.ok(ids.indexOf("shoes-a") < 0);
+  assert.ok(ids.indexOf("shirt-b") >= 0);
+  assert.ok(ids.indexOf("pants-b") >= 0);
+  assert.ok(ids.indexOf("shoes-b") >= 0);
+});
+
+test("Bedrock Suggest-again bumps temperature and diversify prompt", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedClassicCatalog(memory);
+  seedItem(memory, {
+    itemId: "blazer-2",
+    type: "blazer",
+    fabric: "wool",
+    brandModel: "Alt Blazer",
+    formality: "business",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "outerwear",
+  });
+  seedItem(memory, {
+    itemId: "shirt-2",
+    type: "oxford",
+    fabric: "cotton",
+    brandModel: "Alt Shirt",
+    formality: "business",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "shirt",
+  });
+  seedItem(memory, {
+    itemId: "pants-2",
+    type: "chinos",
+    fabric: "cotton",
+    brandModel: "Alt Pants",
+    formality: "smart casual",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "trousers",
+  });
+  seedItem(memory, {
+    itemId: "shoes-2",
+    type: "loafers",
+    fabric: "leather",
+    brandModel: "Alt Shoes",
+    formality: "business",
+    pattern: "solid",
+    season: "all-season",
+    outfitRole: "footwear",
+  });
+
+  var calls = [];
+  suggest.resetDepsForTests({
+    converse: async function (input) {
+      calls.push(input);
+      assert.equal(
+        input.inferenceConfig.temperature,
+        suggest.AGAIN_BEDROCK_TEMPERATURE
+      );
+      var userText = input.messages[0].content[0].text;
+      assert.match(userText, /soft-exclude/i);
+      assert.match(userText, /blazer-1/);
+      return mockBedrockLooks([
+        {
+          itemIds: ["shoes-2", "pants-2", "shirt-2", "blazer-2"],
+        },
+        {
+          itemIds: ["shoes-2", "pants-2", "shirt-2"],
+        },
+        {
+          itemIds: ["shoes-2", "pants-2", "shirt-2", "blazer-2"],
+        },
+      ]);
+    },
+  });
+
+  var res;
+  try {
+    res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({
+        context: "board meeting tomorrow morning",
+        engine: "bedrock",
+        excludeItemIds: ["blazer-1", "shirt-1", "pants-1", "shoes-1"],
+        previousSuggestionId: "sid-prior",
+      }),
+    });
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+
+  assert.equal(res.statusCode, 200);
+  assert.ok(calls.length >= 1);
+  var body = JSON.parse(res.body);
+  var used = {};
+  for (var i = 0; i < body.looks.length; i++) {
+    for (var j = 0; j < body.looks[i].items.length; j++) {
+      used[body.looks[i].items[j].itemId] = true;
+    }
+  }
+  assert.equal(used["blazer-1"], undefined);
+  assert.equal(used["shirt-1"], undefined);
+});
+
+test("first Bedrock suggest keeps temperature 0.3 without exclude IDs", async function () {
+  var memory = makeMemoryDeps();
+  items.resetDepsForTests(memory);
+  seedClassicCatalog(memory);
+
+  var temps = [];
+  suggest.resetDepsForTests({
+    converse: async function (input) {
+      temps.push(input.inferenceConfig.temperature);
+      var userText = input.messages[0].content[0].text;
+      assert.doesNotMatch(userText, /soft-exclude/i);
+      return mockBedrockLooks();
+    },
+  });
+
+  try {
+    var res = await api.handler({
+      rawPath: "/api/suggest",
+      requestContext: { http: { method: "POST", path: "/api/suggest" } },
+      body: JSON.stringify({
+        context: "board meeting tomorrow morning",
+        engine: "bedrock",
+      }),
+    });
+    assert.equal(res.statusCode, 200);
+  } finally {
+    suggest.resetDepsForTests({});
+  }
+  assert.ok(temps.length >= 1);
+  assert.equal(temps[0], suggest.DEFAULT_BEDROCK_TEMPERATURE);
+});

@@ -15,6 +15,7 @@ import { renderLookCard } from "./lookCard.js";
 import { rotateImageFromUrl } from "./rotateImage.js";
 import {
   buildSuggestExportPayload,
+  collectPriorSuggestItemIds,
   copyTextToClipboard,
   downloadTextFile,
   stringifySuggestExport,
@@ -1161,7 +1162,15 @@ export function renderCatalogApp(root, { onLogout }) {
     paint();
     startSuggestTipRotation();
     try {
-      const data = await api.suggestOutfits({ context });
+      const payload = { context };
+      // Suggest-again: soft-exclude prior look piece IDs (+ optional suggestionId).
+      if (state.suggest.looks && state.suggest.looks.length) {
+        const excludeItemIds = collectPriorSuggestItemIds(state.suggest.looks);
+        if (excludeItemIds.length) payload.excludeItemIds = excludeItemIds;
+        const priorSid = String(state.suggest.suggestionId || "").trim();
+        if (priorSid) payload.previousSuggestionId = priorSid;
+      }
+      const data = await api.suggestOutfits(payload);
       state.suggest.looks = data.looks || [];
       state.suggest.engine = data.engine || "random";
       state.suggest.modelId = data.modelId || "";

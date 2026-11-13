@@ -374,6 +374,7 @@ test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   assert.match(catalog, /navButton\("dressme", "DressMe"/);
   assert.match(catalog, /openSuggest|view === "suggest"/);
   assert.match(catalog, /runSuggest/);
+  assert.match(catalog, /collectPriorSuggestItemIds|excludeItemIds/);
   assert.match(catalog, /renderLookCard/);
   assert.match(catalog, /fromSuggest|Back to looks|backToLooks/);
   assert.match(catalog, /suggest_incomplete_looks/);

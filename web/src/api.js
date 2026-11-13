@@ -114,10 +114,24 @@ export function backfillThumbs() {
 /**
  * UC-04: outfit suggestions from the catalog (Bedrock or random).
  * Server parses look count from `context` (default 3, clamp 1–8).
+ * Suggest-again may pass `excludeItemIds` (prior look piece IDs) and optional
+ * `previousSuggestionId` so the server soft-excludes repeats.
  */
-export function suggestOutfits({ context, engine } = {}) {
+export function suggestOutfits({
+  context,
+  engine,
+  excludeItemIds,
+  previousSuggestionId,
+} = {}) {
   const body = { context };
   if (engine) body.engine = engine;
+  if (Array.isArray(excludeItemIds) && excludeItemIds.length) {
+    body.excludeItemIds = excludeItemIds
+      .map((id) => String(id || "").trim())
+      .filter(Boolean);
+  }
+  const priorId = String(previousSuggestionId || "").trim();
+  if (priorId) body.previousSuggestionId = priorId;
   return request("/api/suggest", {
     method: "POST",
     body: JSON.stringify(body),
