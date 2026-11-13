@@ -1757,7 +1757,9 @@ export function renderCatalogApp(root, { onLogout }) {
     grid.append(
       el("label", { className: "filter-field" }, [
         el("span", { className: "field-title", text: "Group by" }),
-        groupSelect,
+        // Same control-row wrapper as Sort so both columns share one baseline
+        // (bare <select> vs flex row was staggering the Arrange fold).
+        el("div", { className: "arrange-sort-row" }, [groupSelect]),
       ])
     );
     grid.append(

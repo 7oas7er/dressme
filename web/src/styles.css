@@ -263,6 +263,12 @@ label {
   align-items: start;
 }
 
+/* UC-29: top-align label grids so Group by / Sort by share one baseline
+   even when Sort wraps select + Asc/Desc in .arrange-sort-row. */
+.arrange-grid > label {
+  align-content: start;
+}
+
 .filter-field {
   margin: 0;
 }
