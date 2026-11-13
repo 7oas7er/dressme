@@ -2,8 +2,8 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference; amended 2026-11-09 for UC-05 photos-only look cards + Wada plate; amended 2026-11-09 drop free-text color; Later amended 2026-11-13 for UC-32–33 shopping support).  
-Last updated: 2026-11-13 (Europe/Berlin; shopping advice from gaps + candidate try-on)
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference; amended 2026-11-09 for UC-05 photos-only look cards + Wada plate; amended 2026-11-09 drop free-text color; Later amended 2026-11-13 for UC-32–33 shopping support; Later amended 2026-11-13 for UC-34 look feedback; Later amended 2026-11-13 for post-MVP version bundling locked; Later amended 2026-11-13 for UC-35–36; Later amended 2026-11-13 for UC-37).  
+Last updated: 2026-11-13 (Europe/Berlin; Later UC-37 parked)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -65,6 +65,15 @@ As Frank, under each look card I see a short Bedrock rationale (1–3 sentences)
 
 Includes former “Should” candidates not pulled into the v1 contract.
 
+### Post-MVP version bundling (locked)
+
+Locked 2026-11-13. Post-MVP work ships in these version buckets (not one mega-release):
+
+1. **v1.1 — Trust & polish:** ponytail Phase C + UC-29/30 (group/sort + Insights/attr audit) + UC-31 history
+2. **v1.2 — Learning Suggest:** UC-34 feedback (+ maybe UC-14)
+3. **v1.3 — Shopping:** UC-32 then UC-33 (+ UC-12 if useful)
+4. **Later still:** UC-13/08/15, UC-28 full scoring, UC-16/17, UC-24, UC-35, UC-36, UC-37
+
 ### UC-28 — Wada combination-aware suggest
 As Frank, when I request outfit suggestions, DressMe may use published Sanzo Wada *combinations* from *A Dictionary of Color Combinations* as a soft harmony prior when scoring or ranking looks — without forcing every outfit onto a book combination. **v1-lite:** Suggest system prompt includes a compact soft combo prior (MIT vendor data); primary Wada names already feed Bedrock text (UC-04), capture/catalog/detail swatch, and look-card plates (UC-05). **Forced combo scoring / ranking stays Later.**
 
@@ -98,8 +107,23 @@ Other users, onboarding, monetization.
 ### UC-17 — Native mobile app
 Beyond web (phone browser OK for v1).
 
+### UC-29 — Group and sort the catalog
+As Frank, above the catalog grid (same control bar as UC-07 filters), I can **group and/or sort** items by **type**, **date added**, **brand/model**, or **formality**, so browsing scales as the wardrobe grows. Filters and group/sort combine; **Clear arrange** restores the default list order (**API `updatedAt` desc**, not date-added) without wiping filters. Client-side on the loaded list; prefs in `localStorage`. **v1.1.**
+
 ### UC-32 — Shopping advice from catalog gaps
 As Frank, I can ask DressMe what to buy next — e.g. “recommend shoes I’m missing”, “what coat next”, “shirt I lack” — and get purchase suggestions grounded in **catalog gaps** and **complementarity** with what I already own (classic menswear roles/slots), not generic fashion trends. Each suggestion names the gap (type / role / formality / season as relevant) and why filling it would unlock more outfits; it must **not** invent pieces I already have. Free-text ask or a light “what’s missing” entry is enough; no full shopping catalog integration in this slice. Elaborates the UC-11 stub. **Later / post-MVP.**
 
 ### UC-33 — Candidate piece try-on with closet
 As Frank, when considering a purchase (in a shop or on a web shop), I share a **photo of a candidate piece**; DressMe generates outfit looks that **pair that candidate with existing wardrobe items** (photos-only look cards in the spirit of UC-05 where practical) so I can judge fit and complementarity before buying. The candidate is **not** added to the catalog unless I later run UC-01. Distinct from UC-12 (near-duplicate / “too close to what I own” warning). **Later / post-MVP.**
+
+### UC-34 — Look feedback (rating + notes)
+As Frank, after a Suggest run (UC-04 / UC-05), I can rate each generated look with a **1–5 star** score and optional **free-text** note. DressMe stores that feedback and the Suggest engine uses it to **personalize future recommendations** (prefer what I like, avoid what I reject). Distinct from UC-06 (no in-app feedback in v1) and UC-14 (worn / like / reject + wear history). **Later / post-MVP.**
+
+### UC-35 — Mobile web / iPhone experience (assess + improve)
+As Frank, primary use is **iPhone Safari / mobile web** (not a native app). At some point assess and pursue **non-native** improvements so the SPA works better on iPhone — e.g. PWA / home-screen installability, viewport and safe-area handling, touch targets, and mobile Safari quirks. Explicitly **not** a native iOS rewrite (distinct from UC-17). **Later / post-MVP.**
+
+### UC-36 — Visual look-and-feel refresh
+As Frank, the current UI is functional and fine for now. Later, revisit styling for a more **unique DressMe look** — explore directions; this is not a redesign commitment in the current release. **Later / post-MVP.**
+
+### UC-37 — Lean GuardDuty account threat detection
+As Frank (operator), enable **Amazon GuardDuty** for early warning on account compromise and S3/API abuse — lean setup only, not a SIEM. **Acceptance:** detectors on in **`eu-north-1`** and **`us-east-1`** (foundational); **S3 Protection on** in `eu-north-1` (media/site buckets); **Lambda Protection**, **Runtime Monitoring**, **Malware Protection**, and **AI Protection off** unless a later spend note says otherwise; strip any AWS auto-enabled extras the same day; **EventBridge → SNS email** on GuardDuty findings with severity **HIGH/CRITICAL** (GuardDuty-only phase — no Security Hub required for this UC). Confirm healthy detector status and Cost Explorer `AmazonGuardDuty` under an agreed cap after a normal deploy week. Shared-account blast radius; written spend approval vs the €10 ceiling before enable. **Out of scope for this UC:** Security Hub, AWS Config, multi-framework CSPM (Hub is a separate Phase 2 / sibling Later follow-on). No Terraform enablement in the concept phase. **Later / post-MVP.**

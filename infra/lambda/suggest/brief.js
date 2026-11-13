@@ -43,6 +43,9 @@ var nowMs = core.nowMs;
 var resetDepsForTests = core.resetDepsForTests;
 var slotDefById = core.slotDefById;
 var contextNeedsColdLayer = core.contextNeedsColdLayer;
+var contextHasCoolWeather = core.contextHasCoolWeather;
+var contextImpliesOutdoorActivity = core.contextImpliesOutdoorActivity;
+var contextImpliesIndoorDressup = core.contextImpliesIndoorDressup;
 var lookItemIds = core.lookItemIds;
 var catalogById = core.catalogById;
 var parseJsonObject = core.parseJsonObject;
@@ -125,26 +128,114 @@ function parseCountToken(raw) {
 }
 
 /**
- * Structured day/occasion list from multi-day briefs (Day 1: … Day 2: …).
- * Soft formality hints for board vs casual/train vs dinner.
+ * Clean one occasion body from a multi-slot match.
+ */
+function cleanOccasionBody(raw) {
+  return String(raw || "")
+    .replace(/^[-–•]\s*/, "")
+    .replace(/\s*[-–]\s*$/, "")
+    .trim();
+}
+
+/**
+ * Day 1: … Day 2: … labeled slots.
+ */
+function extractDayLabeledOccasions(text) {
+  var occasions = [];
+  var re =
+    /Day\s*(\d+)\s*:\s*(.+?)(?=(?:\s*[-–•]?\s*)Day\s*\d+\s*:|$)/gi;
+  var match;
+  while ((match = re.exec(text)) !== null) {
+    var body = cleanOccasionBody(match[2]);
+    if (!body) continue;
+    occasions.push(buildOccasionMeta(Number(match[1]), body));
+  }
+  return occasions;
+}
+
+/**
+ * Outfit 1: … / Look 2 — … / "For Outfit 1 …" labeled slots.
+ * Position-based (not delimiter-strict): space, comma, or no punctuation after
+ * the number still splits — Cologne free text often omits the colon.
+ * Requires ≥2 markers so a lone "Outfit 1" does not invent a trip plan.
+ */
+function extractOutfitLabeledOccasions(text) {
+  var markerRe =
+    /(?:(?:for|for\s+my)\s+)?(?:outfit|look)\s*(\d+)\b/gi;
+  var markers = [];
+  var match;
+  while ((match = markerRe.exec(text)) !== null) {
+    markers.push({
+      day: Number(match[1]),
+      bodyStart: match.index + match[0].length,
+      markerStart: match.index,
+    });
+  }
+  if (markers.length < 2) return [];
+
+  var occasions = [];
+  for (var i = 0; i < markers.length; i++) {
+    var end =
+      i + 1 < markers.length ? markers[i + 1].markerStart : text.length;
+    var raw = text.slice(markers[i].bodyStart, end);
+    var body = cleanOccasionBody(raw.replace(/^[:.\-–—,)]\s*/, ""));
+    // Drop trailing packing / preamble glue after the last slot when possible.
+    if (i === markers.length - 1) {
+      body = body
+        .replace(
+          /\s+(?:pack(?:ing|ed)?|luggage|for luggage|don'?t want|at most|no more than)\b[\s\S]*$/i,
+          ""
+        )
+        .trim();
+    }
+    if (!body) continue;
+    occasions.push(buildOccasionMeta(markers[i].day, body));
+  }
+  return occasions;
+}
+
+/**
+ * Numbered list slots: "1) … 2) …" or "1. … 2. …".
+ * Requires ≥2 hits so a lone "1." in prose does not invent a trip plan.
+ */
+function extractNumberedListOccasions(text) {
+  var occasions = [];
+  var re =
+    /(?:^|[;•]|\s[-–]\s|\s)\(?\s*(\d{1,2})\s*[.)]\s+(.+?)(?=(?:\s*(?:[;•]|\s[-–]\s)\s*)?(?:\(?\s*\d{1,2}\s*[.)]\s+)|$)/gi;
+  var match;
+  while ((match = re.exec(text)) !== null) {
+    var body = cleanOccasionBody(match[2]);
+    if (!body) continue;
+    // Skip temp-like noise ("10°C …") captured as a fake slot.
+    if (/^[°º]/.test(body) || /^(?:c|f|celsius|fahrenheit)\b/i.test(body)) {
+      continue;
+    }
+    occasions.push(buildOccasionMeta(Number(match[1]), body));
+  }
+  if (occasions.length < 2) return [];
+  return occasions;
+}
+
+/**
+ * Structured day/occasion list from multi-slot briefs:
+ * Day 1: …, Outfit 1: …, or numbered 1) / 1. lists.
+ * Soft formality hints for board vs casual/train vs dinner vs dress-up.
  */
 function parseOccasions(context, lookCount) {
   var text = String(context || "").replace(/\s+/g, " ").trim();
   var occasions = [];
   if (!text) return occasions;
-  var re =
-    /Day\s*(\d+)\s*:\s*(.+?)(?=(?:\s*[-–•]?\s*)Day\s*\d+\s*:|$)/gi;
-  var match;
-  while ((match = re.exec(text)) !== null) {
-    var body = String(match[2] || "")
-      .replace(/^[-–•]\s*/, "")
-      .replace(/\s*[-–]\s*$/, "")
-      .trim();
-    if (!body) continue;
-    occasions.push(buildOccasionMeta(Number(match[1]), body));
+
+  occasions = extractDayLabeledOccasions(text);
+  if (!occasions.length) {
+    occasions = extractOutfitLabeledOccasions(text);
   }
+  if (!occasions.length) {
+    occasions = extractNumberedListOccasions(text);
+  }
+
   occasions.sort(function (a, b) {
-    return a.day - b.day;
+    return (a.day || 0) - (b.day || 0);
   });
   if (!occasions.length) {
     // Single-occasion fallback from keyword cues (no raw context paste).
@@ -160,11 +251,20 @@ function parseOccasions(context, lookCount) {
 
 function formalityHintFromText(body) {
   var t = String(body || "").toLowerCase();
-  // Highest first so black-tie / gala subsetting does not collapse to business.
-  if (/\b(black\s*-?\s*tie|white\s*-?\s*tie|opera|gala)\b/.test(t)) {
+  // Explicit black/white tie or opera *gala* only — bare "Phantom of the Opera"
+  // / "dress up" is theatre formal, not black tie.
+  if (/\b(black\s*-?\s*tie|white\s*-?\s*tie)\b/.test(t)) {
     return "black tie";
   }
-  if (/\bformal\b/.test(t)) return "formal";
+  if (/\bopera\s+gala\b/.test(t) || (/\bgala\b/.test(t) && !/\bphantom\b/.test(t))) {
+    return "black tie";
+  }
+  if (
+    /\bformal\b/.test(t) ||
+    /\b(dress[- ]?up|theatre|theater|musical|phantom|opera)\b/.test(t)
+  ) {
+    return "formal";
+  }
   if (/\b(board|boardroom)\b/.test(t)) return "business";
   if (/\b(casual)\b/.test(t) && /\b(train|travel|meeting)\b/.test(t)) {
     return "smart casual";
@@ -180,14 +280,21 @@ function formalityHintFromText(body) {
 function shortTitleFromOccasionBody(body, day) {
   var t = String(body || "").toLowerCase();
   if (/\bboard\b/.test(t)) return "Board day";
+  if (/\b(opera|musical|phantom)\b/.test(t)) return "Musical night";
+  if (/\b(theatre|theater)\b/.test(t)) return "Theatre night";
+  if (/\bdress[- ]?up\b/.test(t)) return "Dress-up evening";
   if (/\btrain\b/.test(t) && /\bdinner\b/.test(t)) return "Train-to-dinner";
   if (/\bcasual\b/.test(t) && /\btrain\b/.test(t)) return "Casual train";
   if (/\bdinner\b/.test(t) && /\b(client|colleague)/.test(t)) {
     return "Client dinner";
   }
   if (/\bgarden\b|\bpatio\b|\bterrace\b/.test(t)) return "Garden evening";
+  if (/\bbreakfast\b/.test(t)) return "Breakfast look";
   if (/\bdinner\b/.test(t)) return "Dinner look";
   if (/\blunch\b/.test(t)) return "Lunch look";
+  if (/\b(explore|exploring|sightseeing|city\s*walk)\b/.test(t)) {
+    return "City explore";
+  }
   if (/\btrain\b|\btravel/.test(t)) return "Travel day";
   if (/\bcasual\b/.test(t)) return "Casual day";
   if (day) return "Day " + day;
@@ -206,14 +313,23 @@ function buildOccasionMeta(day, body) {
 
 function inferOccasionFromText(text, day) {
   var t = String(text || "");
+  // Multi Outfit/Look markers belong in extractOutfitLabeledOccasions — never
+  // collapse them into one Musical/Travel title from the whole brief.
+  var outfitMarkers = t.match(
+    /(?:(?:for|for\s+my)\s+)?(?:outfit|look)\s*\d+\b/gi
+  );
+  if (outfitMarkers && outfitMarkers.length >= 2) {
+    return null;
+  }
   if (
-    !/\b(board|dinner|lunch|garden|patio|train|travel|casual|client|evening|office)\b/i.test(
+    !/\b(board|dinner|lunch|garden|patio|train|travel|casual|client|evening|office|opera|theatre|theater|musical|phantom|dress[- ]?up|breakfast|explore)\b/i.test(
       t
     )
   ) {
     return null;
   }
-  return buildOccasionMeta(day || null, t.slice(0, 160));
+  // Scan the full brief for title/formality — only the stored body is clamped.
+  return buildOccasionMeta(day || null, t);
 }
 
 /**
@@ -248,6 +364,44 @@ function parseTripBrief(context, lookCount) {
     packing: parsePackingLimits(context),
     cold: contextNeedsColdLayer(context),
   };
+}
+
+/**
+ * Whether this look's occasion/context implies cool outdoor walking that needs
+ * a warm mid-layer under outerwear. Indoor theatre / dress-up looks are exempt.
+ * Multi-slot briefs: outdoor cue must sit on THIS look's body — do not bleed
+ * a day-1 city walk onto evening dress-up or breakfast/train-home slots.
+ */
+function lookNeedsWarmInsulation(context, look, index) {
+  var full = String(context || "");
+  if (!full.trim()) return false;
+  var brief = parseTripBrief(full, null);
+  var occ = occasionForLook(brief, look, index);
+  var occBody = occ && occ.body ? String(occ.body) : "";
+  var multiSlot = (brief.occasions || []).length > 1;
+  var focus = occBody || full;
+
+  if (contextImpliesIndoorDressup(focus)) return false;
+
+  // Cool signal only (temp / autumn / cold) — bare "outdoors"/"garden" is not enough.
+  // Shared trip weather (e.g. 10°C in the preamble) may apply across outdoor slots.
+  var cool =
+    contextHasCoolWeather(full) || contextHasCoolWeather(occBody);
+  if (!cool) return false;
+
+  if (multiSlot && occBody) {
+    return contextImpliesOutdoorActivity(occBody);
+  }
+
+  if (occBody) {
+    return (
+      contextImpliesOutdoorActivity(occBody) ||
+      contextImpliesOutdoorActivity(full)
+    );
+  }
+
+  // Single-context blob: need an outdoor activity cue alongside cool weather.
+  return contextImpliesOutdoorActivity(full);
 }
 
 function occasionForLook(brief, look, index) {
@@ -344,6 +498,11 @@ function tripBriefPromptNote(brief) {
         ". Put that day/occasion in the title and the first rationale sentence."
     );
   }
+  if (brief.cold) {
+    parts.push(
+      "For cool outdoor / walking days, prefer a warm knit mid-layer (sweater/turtleneck/fleece/flannel) under outerwear — not a polo or tee alone under a jacket. Indoor theatre/dress-up looks need not force that mid-layer."
+    );
+  }
   if (brief.packing) {
     parts.push(
       "Plan a shared luggage capsule first, then build looks from it. Across all looks use at most " +
@@ -391,6 +550,7 @@ exports.parseCountToken = parseCountToken;
 exports.parseOccasions = parseOccasions;
 exports.parsePackingLimits = parsePackingLimits;
 exports.parseTripBrief = parseTripBrief;
+exports.lookNeedsWarmInsulation = lookNeedsWarmInsulation;
 exports.publicOccasions = publicOccasions;
 exports.resolveContext = resolveContext;
 exports.resolveEngine = resolveEngine;

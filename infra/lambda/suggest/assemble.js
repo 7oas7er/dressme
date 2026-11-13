@@ -117,6 +117,7 @@ var leatherToneFamily = repair.leatherToneFamily;
 var lookCompleteness = repair.lookCompleteness;
 var lookHasOuterLayer = repair.lookHasOuterLayer;
 var lookHasWaistFinish = repair.lookHasWaistFinish;
+var softStyleClashes = repair.softStyleClashes;
 var packingSummary = repair.packingSummary;
 var pickUnusedCandidate = repair.pickUnusedCandidate;
 var pickWaistFinish = repair.pickWaistFinish;
@@ -429,14 +430,17 @@ function systemPrompt(lookCount) {
     "Each look MUST include the mandatory core: base (shirt/knit/polo/tee) + bottom (trousers/jeans/chinos/shorts), plus footwear when shoes exist in the catalog.",
     "Slot uniqueness: at most one base, one bottom, one footwear, and one outer/mid-layer per look. Never two shoes, two jackets, or two competing tops.",
     "Outerwear may layer over a single base. Distinct accessory types (hat, scarf, etc.) may co-exist; still at most one belt or suspenders.",
+    "Cardigan / open knit mid-layer: always include a shirt, tee, polo, or equivalent closed base underneath — never ship a cardigan as the sole top.",
+    "Never pair a black suit (black blazer/suit jacket + black trousers) with a black necktie unless the context clearly is a funeral or mourning. For theatre / dress-up / dinner, prefer a coloured or textured tie, or no tie with dress shirt + blazer.",
     "When context is cold / cool / outdoor evening / garden / patio, include a warm outer or mid layer when the catalog has candidates.",
+    "Cool outdoor walking (≤~14°C, autumn/fall, chilly city walk / explore outdoors): prefer a sweater, turtleneck, fleece, or flannel under a jacket/coat — never a polo, tee, or light shirt alone under outerwear. Indoor-only / theatre / dress-up looks are exempt.",
     "When trousers need a waist finish (not side-adjuster/beltless), include a belt — or suspenders/braces when the trousers' aiContext supports them.",
     "Match belt leather tone to footwear (black belt with black shoes; brown/tan/cognac belt with brown shoes). Never pair a brown belt with black shoes when a matching belt exists in the catalog.",
     "Accessories beyond waist finish remain optional — hat, scarf, jewelry, bag, neckwear, etc. Add them when they improve the look or fit the occasion.",
     "Title and rationale must name only pieces present in that look's itemIds (prefer type + Wada/common colour + fabric; brandModel secondary). Never describe a cardigan if the look's outer is a leather jacket.",
     'Titles: catchy thematic phrases with personality (e.g. "Soft power for the board", "Charcoal that travels", "Garden-evening layers", "Client-calm charcoal"). Fit the look\'s vibe; occasion may flavour a title but need not appear in every one. Never flat templates: "{occasion} {color}", "{color} for {occasion}", "{color} {type} that carries {occasion}", "{occasion}-ready {type}", "{adj} {color} {type}, {occasion} cut" — ban "Board day blue", "blue for Dinner look", "black blazer that carries Lunch", "Lunch-ready blazer", "Quiet gray blazer, Lunch cut". Never lead with Wada name + brand. Never paste or truncate session context into titles. Never end mid-phrase.',
     "Rationales: 2–4 sentences with varied voice; first sentence names this look's occasion/day; then why pieces fit that day, materials, and palette. Name pieces as colour + type (+ fabric), with brand only as a tag — e.g. \"black leather jacket (Gipsy)\", never \"Black Gipsy\" / brand-as-noun. Do not paste session context. Do not reuse an anchors/Materials stay honest/Palette-wise skeleton on every look.",
-    "When the context lists Day 1 / Day 2 / … or distinct occasions and asks for that many looks, return one look per day/occasion in order with matching formality (board → business; casual train → smart casual).",
+    "When the context lists Day 1 / Day 2 / …, Outfit 1 / Outfit 2 / …, or numbered 1) / 2) slots and asks for that many looks, return one look per day/occasion in order with matching formality (board → business; casual train → smart casual; musical/theatre dress-up → formal/business unless they said black-tie or opera gala — never collapse all slots into one travel or one musical occasion).",
     "When luggage/trip limits appear (or a multi-day trip implies packing), plan a shared capsule first and reuse footwear/trousers/jackets across looks so unique counts stay within the stated (or default ≤2) limits.",
     "Never return a look that is only tops, only bottoms, or missing a bottom when trousers/jeans/shorts exist in the catalog.",
     "If the catalog lacks a mandatory slot class (e.g. no footwear at all), omit that slot rather than inventing IDs — still require every available mandatory-core slot.",
@@ -479,7 +483,10 @@ function completenessRepairNote(incomplete, lookCount) {
     ". Fix each look: include base + bottom" +
     " (+ footwear when the catalog has shoes). At most one base, one bottom, one footwear, one outer; outer may layer." +
     " If duplicate_footwear / duplicate_outer / competing_bases: keep a single piece in that slot." +
+    " If missing_base_under_open_knit: add a shirt/tee/polo (or equivalent closed base) under the cardigan/open knit." +
+    " If black_suit_black_tie: replace the black necktie with a coloured/textured tie, or omit the tie — never black-on-black necktie with a black suit unless the context is funeral/mourning." +
     " If missing_layer_for_cold: add a warm outer/mid layer from the catalog." +
+    " If insufficient_insulation_for_cool_outdoor: replace a thin polo/tee/shirt under outerwear with a sweater/turtleneck/fleece/flannel (warm mid-layer) from the catalog — indoor/theatre looks exempt." +
     " If missing_waist_finish: add a belt, or suspenders when trousers support them." +
     " Other accessories remain optional. Titles/rationales must match the final itemIds only — keep titles catchy but full and rationales 2–4 thoughtful sentences (not one-liners)." +
     " Return " +
@@ -888,6 +895,7 @@ async function assembleWithBedrock(catalog, input) {
   completeLooks = beltResult.looks;
   completeLooks = enforceSlotUniqueness(completeLooks, byId);
   softFormalityMismatches(completeLooks, brief, byId);
+  softStyleClashes(completeLooks, byId, context);
 
   // Prefer Bedrock copy rewrite after slot/packing/belt repair when budget allows.
   // Template is the true fallback — detect flat/formulaic/broken copy. Do not

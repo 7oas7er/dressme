@@ -201,10 +201,17 @@ test("classifySlot maps outfitRole/type into menswear slots", function () {
     suggest.classifySlot({ outfitRole: "overshirt", type: "overshirt" }),
     "outer"
   );
+  // Cardigan is open-layer knitwear — always outer, even with knitwear role.
   assert.equal(
     suggest.classifySlot({ outfitRole: "knitwear", type: "cardigan" }),
+    "outer"
+  );
+  assert.equal(
+    suggest.classifySlot({ outfitRole: "knitwear", type: "sweater" }),
     "base"
   );
+  assert.equal(suggest.isOpenLayerKnitwear({ type: "cardigan" }), true);
+  assert.equal(suggest.isOpenLayerKnitwear({ type: "sweater" }), false);
 });
 
 test("salvageCompetingBases keeps the first base only", function () {
@@ -1371,6 +1378,12 @@ test("systemPrompt mentions Wada colour reference and mandatory core", function 
   assert.match(prompt, /missing_waist_finish|waist finish|suspenders/i);
   assert.match(prompt, /Match belt leather tone|brown belt with black/i);
   assert.match(prompt, /cold|warm layer|garden/i);
+  assert.match(prompt, /cardigan.*shirt|open knit.*base/i);
+  assert.match(prompt, /black suit.*black (necktie|tie)|funeral|mourning/i);
+  assert.match(prompt, /Cool outdoor walking|sweater.*under|polo.*tee/i);
+  assert.match(suggest.STYLE_PACK_V1, /Open knit layering|cardigan/i);
+  assert.match(suggest.STYLE_PACK_V1, /Black suit \+ black tie|funeral/i);
+  assert.match(suggest.STYLE_PACK_V1, /Cool outdoor walking|mid-layer/i);
   var five = suggest.systemPrompt(5);
   assert.match(five, /exactly 5 distinct looks/);
   assert.match(five, /"lookId":"5"/);
@@ -1384,6 +1397,172 @@ test("contextNeedsColdLayer detects cold/outdoor garden cues", function () {
   );
   assert.equal(suggest.contextNeedsColdLayer("hot indoor office"), false);
   assert.equal(suggest.contextNeedsColdLayer(""), false);
+  assert.equal(
+    suggest.contextNeedsColdLayer("explore Cologne in 10°C autumn weather"),
+    true
+  );
+});
+
+test("lookNeedsWarmInsulation: cool outdoor walk vs indoor theatre", function () {
+  var cologne =
+    "Day 1: explore Cologne in 10°C autumn weather. Day 2: Phantom of the Opera dress-up theatre.";
+  assert.equal(
+    suggest.lookNeedsWarmInsulation(
+      cologne,
+      { lookId: "1" },
+      0
+    ),
+    true
+  );
+  assert.equal(
+    suggest.lookNeedsWarmInsulation(
+      cologne,
+      { lookId: "2" },
+      1
+    ),
+    false
+  );
+  assert.equal(
+    suggest.lookNeedsWarmInsulation(
+      "explore the city on a cool autumn walk — 1 look",
+      { lookId: "1" },
+      0
+    ),
+    true
+  );
+  assert.equal(
+    suggest.lookNeedsWarmInsulation(
+      "Phantom of the Opera dress-up",
+      { lookId: "1" },
+      0
+    ),
+    false
+  );
+});
+
+function assertCologneThreeOccasions(ctx, label) {
+  var brief = suggest.parseTripBrief(ctx, 3);
+  assert.equal(
+    brief.occasions.length,
+    3,
+    label + " " + JSON.stringify(brief.occasions)
+  );
+  assert.notEqual(
+    brief.occasions.length,
+    1,
+    label + " must not collapse to one occasion"
+  );
+  assert.notEqual(brief.occasions[0].shortTitle, "Musical night");
+  assert.notEqual(brief.occasions[0].shortTitle, brief.occasions[1].shortTitle);
+
+  assert.match(
+    brief.occasions[0].shortTitle,
+    /train|explore|city|travel|dinner/i
+  );
+  assert.ok(
+    suggest.formalityRank(brief.occasions[0].formalityHint) <=
+      suggest.formalityRank("smart casual"),
+    label + " look1 formality " + brief.occasions[0].formalityHint
+  );
+
+  assert.match(
+    brief.occasions[1].shortTitle,
+    /musical|theatre|dress-?up|opera/i
+  );
+  assert.equal(
+    brief.occasions[1].formalityHint,
+    "formal",
+    label + " look2 formality (dress-up ≠ black tie)"
+  );
+  assert.notEqual(brief.occasions[1].shortTitle, "Travel day");
+  assert.notEqual(brief.occasions[1].formalityHint, "smart casual");
+  assert.notEqual(brief.occasions[1].formalityHint, "black tie");
+
+  assert.match(brief.occasions[2].shortTitle, /breakfast|train|travel|home/i);
+  assert.ok(
+    suggest.formalityRank(brief.occasions[2].formalityHint) <=
+      suggest.formalityRank("smart casual"),
+    label + " look3 formality " + brief.occasions[2].formalityHint
+  );
+
+  assert.equal(suggest.lookNeedsWarmInsulation(ctx, { lookId: "1" }, 0), true);
+  assert.equal(suggest.lookNeedsWarmInsulation(ctx, { lookId: "2" }, 1), false);
+  assert.equal(suggest.lookNeedsWarmInsulation(ctx, { lookId: "3" }, 2), false);
+  return brief;
+}
+
+test("Cologne Outfit 1/2/3 keeps distinct occasions incl. musical dress-up", function () {
+  var ctx =
+    "Three outfits for a Cologne weekend in 10°C autumn weather. " +
+    "Outfit 1: train into the city, explore outdoors, then a casual dinner. " +
+    "Outfit 2: Phantom of the Opera — dress up. " +
+    "Outfit 3: hotel breakfast then train home. " +
+    "Pack light — at most two pairs of shoes, trousers, and jackets.";
+  var brief = assertCologneThreeOccasions(ctx, "colon");
+
+  var pub = suggest.publicOccasions(brief);
+  assert.equal(pub.length, 3);
+  assert.ok(
+    pub.some(function (o) {
+      return /musical|theatre|dress-?up|opera/i.test(o.shortTitle);
+    }),
+    JSON.stringify(pub)
+  );
+
+  var note = suggest.tripBriefPromptNote(brief);
+  assert.match(note, /Musical|Theatre|Dress-up|look 2/i);
+  assert.match(note, /formal/i);
+  assert.doesNotMatch(note, /black tie/i);
+});
+
+test("Cologne Outfit 1/2/3 without colons still yields 3 distinct occasions", function () {
+  // Regression e1ef4c4d: delimiter-strict regex missed; full-brief infer → Musical night.
+  var ctx =
+    "Three outfits for a Cologne weekend in 10°C autumn weather. " +
+    "Outfit 1 train into the city, explore outdoors, then a casual dinner. " +
+    "Outfit 2 Phantom of the Opera — dress up. " +
+    "Outfit 3 hotel breakfast then train home. " +
+    "Pack light — at most two pairs of shoes, trousers, and jackets.";
+  assertCologneThreeOccasions(ctx, "no-colon");
+});
+
+test("Cologne For Outfit N spoken style yields 3 distinct occasions", function () {
+  var ctx =
+    "Please suggest three outfits for Cologne at 10°C. " +
+    "For Outfit 1 I need something for the train and exploring outdoors plus casual dinner. " +
+    "For Outfit 2 Phantom of the Opera dress up. " +
+    "For Outfit 3 hotel breakfast and train home.";
+  assertCologneThreeOccasions(ctx, "for-outfit");
+});
+
+test("numbered 1) 2) 3) slots parse like Outfit labels", function () {
+  var ctx =
+    "Need 3 outfits: 1) train + Cologne explore 10°C + casual dinner " +
+    "2) Phantom of the Opera — dress up " +
+    "3) hotel breakfast + train home";
+  var occasions = suggest.parseOccasions(ctx, 3);
+  assert.equal(occasions.length, 3, JSON.stringify(occasions));
+  assert.equal(occasions[1].formalityHint, "formal");
+  assert.match(occasions[1].shortTitle, /musical|theatre|dress-?up|opera/i);
+});
+
+test("formalityHintFromText elevates dress-up / theatre / musical", function () {
+  assert.equal(
+    suggest.formalityHintFromText("Phantom of the Opera — dress up"),
+    "formal"
+  );
+  assert.equal(suggest.formalityHintFromText("dress-up musical"), "formal");
+  assert.equal(suggest.formalityHintFromText("theatre evening"), "formal");
+  assert.equal(suggest.formalityHintFromText("black-tie gala"), "black tie");
+  assert.equal(suggest.formalityHintFromText("opera gala"), "black tie");
+  assert.ok(
+    suggest.formalityRank(
+      suggest.formalityHintFromText("Phantom of the Opera dress up")
+    ) >
+      suggest.formalityRank(
+        suggest.formalityHintFromText("casual train explore")
+      )
+  );
 });
 
 test("waist finish heuristics: side-adjusters exempt; suspenders capable", function () {
@@ -1534,6 +1713,370 @@ test("assertLooksComplete accepts core-only and rejects competing bases", functi
     noShoesInCloset
   );
   assert.equal(okWithoutShoes.incomplete.length, 0);
+});
+
+test("cardigan / open knit requires a shirt or tee underneath (Cologne look 3)", function () {
+  var catalog = [
+    {
+      itemId: "cardigan1",
+      outfitRole: "knitwear",
+      type: "cardigan",
+      brandModel: "Charles Tyrwhitt",
+      formality: "smart casual",
+    },
+    {
+      itemId: "barb1",
+      outfitRole: "outerwear",
+      type: "waxed jacket",
+      brandModel: "Barbour",
+      formality: "casual",
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "chinos",
+      formality: "smart casual",
+    },
+    {
+      itemId: "boot1",
+      outfitRole: "footwear",
+      type: "boots",
+      formality: "casual",
+    },
+    {
+      itemId: "belt1",
+      outfitRole: "belt",
+      type: "leather belt",
+      fabric: "brown leather",
+    },
+    {
+      itemId: "shirt1",
+      outfitRole: "shirt",
+      type: "oxford",
+      formality: "smart casual",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  // Regression: cardigan + trousers + Barbour + boots + belt, no shirt.
+  var bare = suggest.lookCompleteness(
+    ["cardigan1", "pants1", "barb1", "boot1", "belt1"],
+    byId,
+    { requireFootwear: true }
+  );
+  assert.equal(bare.ok, false);
+  assert.ok(
+    bare.reasons.includes("missing_base") ||
+      bare.reasons.includes("missing_base_under_open_knit"),
+    String(bare.reasons)
+  );
+
+  var withShirt = suggest.lookCompleteness(
+    ["cardigan1", "shirt1", "pants1", "boot1", "belt1"],
+    byId,
+    { requireFootwear: true }
+  );
+  assert.equal(withShirt.ok, true);
+
+  var repaired = suggest.repairLookLocally(
+    {
+      lookId: "3",
+      itemIds: ["cardigan1", "pants1", "boot1", "belt1"],
+    },
+    byId,
+    catalog,
+    "Cologne day walk"
+  );
+  assert.ok(repaired.look.itemIds.indexOf("shirt1") >= 0);
+  assert.ok(repaired.repairs.includes("attach_base"));
+  var after = suggest.lookCompleteness(repaired.look.itemIds, byId, {
+    requireFootwear: true,
+  });
+  assert.equal(after.ok, true);
+});
+
+test("black suit + black tie rejected except funeral/mourning (Cologne look 2)", function () {
+  var catalog = [
+    {
+      itemId: "blazer1",
+      outfitRole: "outerwear",
+      type: "blazer",
+      brandModel: "Hugo Boss",
+      fabric: "black wool",
+      formality: "formal",
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "wool trousers",
+      fabric: "black wool",
+      formality: "formal",
+    },
+    {
+      itemId: "shirt1",
+      outfitRole: "shirt",
+      type: "dress shirt",
+      fabric: "white cotton",
+      formality: "formal",
+    },
+    {
+      itemId: "tie-black",
+      outfitRole: "neckwear",
+      type: "tie",
+      brandModel: "Olymp",
+      fabric: "black silk",
+      formality: "formal",
+    },
+    {
+      itemId: "tie-navy",
+      outfitRole: "neckwear",
+      type: "tie",
+      fabric: "navy silk",
+      formality: "formal",
+    },
+    {
+      itemId: "shoe1",
+      outfitRole: "footwear",
+      type: "brogues",
+      fabric: "black leather",
+      formality: "formal",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var phantomIds = ["blazer1", "pants1", "shirt1", "tie-black", "shoe1"];
+  assert.equal(suggest.lookHasBlackSuitBlackTie(phantomIds, byId), true);
+
+  var theatre = suggest.lookCompleteness(phantomIds, byId, {
+    requireFootwear: true,
+    allowBlackSuitBlackTie: false,
+  });
+  assert.equal(theatre.ok, false);
+  assert.ok(theatre.reasons.includes("black_suit_black_tie"));
+
+  var funeral = suggest.lookCompleteness(phantomIds, byId, {
+    requireFootwear: true,
+    allowBlackSuitBlackTie: true,
+  });
+  assert.equal(funeral.ok, true);
+
+  assert.equal(
+    suggest.contextAllowsBlackSuitBlackTie("Phantom of the Opera dress-up"),
+    false
+  );
+  assert.equal(
+    suggest.contextAllowsBlackSuitBlackTie("black-tie funeral in Cologne"),
+    true
+  );
+
+  var optsTheatre = suggest.completenessOptionsForLook(
+    phantomIds,
+    byId,
+    catalog,
+    "Phantom of the Opera theatre evening"
+  );
+  assert.equal(optsTheatre.allowBlackSuitBlackTie, false);
+
+  var repaired = suggest.repairLookLocally(
+    { lookId: "2", itemIds: phantomIds.slice() },
+    byId,
+    catalog,
+    "Phantom of the Opera dress-up"
+  );
+  assert.ok(repaired.look.itemIds.indexOf("tie-black") < 0);
+  assert.ok(
+    repaired.repairs.includes("swap_black_suit_tie") ||
+      repaired.repairs.includes("drop_black_suit_tie")
+  );
+  if (repaired.repairs.includes("swap_black_suit_tie")) {
+    assert.ok(repaired.look.itemIds.indexOf("tie-navy") >= 0);
+  }
+  var after = suggest.lookCompleteness(
+    repaired.look.itemIds,
+    byId,
+    suggest.completenessOptionsForLook(
+      repaired.look.itemIds,
+      byId,
+      catalog,
+      "Phantom of the Opera dress-up"
+    )
+  );
+  assert.equal(after.ok, true);
+
+  var soft = suggest.softStyleClashes(
+    [{ lookId: "2", itemIds: phantomIds }],
+    byId,
+    "funeral for a colleague"
+  );
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].rule, "black_suit_black_tie");
+  assert.equal(soft[0].allowed, true);
+});
+
+test("completenessRepairNote mentions open-knit and black-suit rules", function () {
+  var note = suggest.completenessRepairNote(
+    [
+      { lookId: "3", reasons: ["missing_base_under_open_knit"] },
+      { lookId: "2", reasons: ["black_suit_black_tie"] },
+      { lookId: "1", reasons: ["insufficient_insulation_for_cool_outdoor"] },
+    ],
+    3
+  );
+  assert.match(note, /missing_base_under_open_knit/);
+  assert.match(note, /cardigan|shirt|tee/i);
+  assert.match(note, /black_suit_black_tie/);
+  assert.match(note, /funeral|mourning|coloured|textured/i);
+  assert.match(note, /insufficient_insulation_for_cool_outdoor/);
+  assert.match(note, /sweater|mid-layer|polo/i);
+});
+
+test("cool outdoor walk rejects thin polo under coat; swaps to sweater (Cologne look 1)", function () {
+  var catalog = [
+    {
+      itemId: "polo1",
+      outfitRole: "shirt",
+      type: "polo",
+      fabric: "merino",
+      brandModel: "John Smedley",
+      formality: "smart casual",
+    },
+    {
+      itemId: "tee1",
+      outfitRole: "shirt",
+      type: "tee",
+      fabric: "merino",
+      formality: "casual",
+    },
+    {
+      itemId: "sweater1",
+      outfitRole: "knitwear",
+      type: "sweater",
+      fabric: "merino wool",
+      formality: "smart casual",
+    },
+    {
+      itemId: "barb1",
+      outfitRole: "outerwear",
+      type: "waxed jacket",
+      brandModel: "Barbour Beaufort",
+      formality: "casual",
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "jeans",
+      formality: "casual",
+    },
+    {
+      itemId: "boot1",
+      outfitRole: "footwear",
+      type: "boots",
+      formality: "casual",
+    },
+    {
+      itemId: "belt1",
+      outfitRole: "belt",
+      type: "leather belt",
+      fabric: "brown leather",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var ctx = "explore Cologne in 10°C autumn weather — city walk outdoors";
+  var thinIds = ["polo1", "pants1", "barb1", "boot1", "belt1"];
+
+  assert.equal(suggest.isThinBaseLayer(byId.get("polo1")), true);
+  assert.equal(suggest.isThinBaseLayer(byId.get("tee1")), true);
+  assert.equal(suggest.isWarmInsulationPiece(byId.get("sweater1")), true);
+  assert.equal(suggest.isWarmInsulationPiece(byId.get("barb1")), false);
+
+  var opts = suggest.completenessOptionsForLook(
+    thinIds,
+    byId,
+    catalog,
+    ctx,
+    { lookId: "1", itemIds: thinIds },
+    0
+  );
+  assert.equal(opts.requireWarmInsulation, true);
+
+  var thin = suggest.lookCompleteness(thinIds, byId, opts);
+  assert.equal(thin.ok, false);
+  assert.ok(
+    thin.reasons.includes("insufficient_insulation_for_cool_outdoor"),
+    String(thin.reasons)
+  );
+
+  var warmIds = ["sweater1", "pants1", "barb1", "boot1", "belt1"];
+  var warm = suggest.lookCompleteness(
+    warmIds,
+    byId,
+    suggest.completenessOptionsForLook(
+      warmIds,
+      byId,
+      catalog,
+      ctx,
+      { lookId: "1", itemIds: warmIds },
+      0
+    )
+  );
+  assert.equal(warm.ok, true);
+
+  var theatreCtx = "Phantom of the Opera dress-up theatre evening";
+  var theatreOpts = suggest.completenessOptionsForLook(
+    thinIds,
+    byId,
+    catalog,
+    theatreCtx,
+    { lookId: "2", itemIds: thinIds },
+    0
+  );
+  assert.equal(theatreOpts.requireWarmInsulation, false);
+
+  var repaired = suggest.repairLookLocally(
+    { lookId: "1", itemIds: thinIds.slice() },
+    byId,
+    catalog,
+    ctx,
+    new Set(),
+    0
+  );
+  assert.ok(repaired.repairs.includes("swap_warm_insulation_base"));
+  assert.ok(repaired.look.itemIds.indexOf("sweater1") >= 0);
+  assert.ok(repaired.look.itemIds.indexOf("polo1") < 0);
+  var after = suggest.lookCompleteness(
+    repaired.look.itemIds,
+    byId,
+    suggest.completenessOptionsForLook(
+      repaired.look.itemIds,
+      byId,
+      catalog,
+      ctx,
+      repaired.look,
+      0
+    )
+  );
+  assert.equal(after.ok, true);
+
+  // Merino tee + Barbour is also too thin for cool outdoor.
+  var teeLook = suggest.lookCompleteness(
+    ["tee1", "pants1", "barb1", "boot1", "belt1"],
+    byId,
+    opts
+  );
+  assert.equal(teeLook.ok, false);
+  assert.ok(
+    teeLook.reasons.includes("insufficient_insulation_for_cool_outdoor")
+  );
 });
 
 test("clampTitle strips quotes and clamps length", function () {
@@ -2290,9 +2833,14 @@ test("catalogCapMeta flags when closet exceeds soft cap", function () {
 
 test("formalityHintFromText ranks black-tie / formal above business board", function () {
   assert.equal(suggest.formalityHintFromText("black-tie gala"), "black tie");
-  assert.equal(suggest.formalityHintFromText("opera night"), "black tie");
+  assert.equal(suggest.formalityHintFromText("opera gala"), "black tie");
+  assert.equal(suggest.formalityHintFromText("opera night"), "formal");
   assert.equal(suggest.formalityHintFromText("formal dinner"), "formal");
   assert.equal(suggest.formalityHintFromText("board meeting"), "business");
+  assert.equal(
+    suggest.formalityHintFromText("dress up for the theatre"),
+    "formal"
+  );
   assert.ok(
     suggest.formalityRank(suggest.formalityHintFromText("black tie event")) >
       suggest.formalityRank(suggest.formalityHintFromText("board meeting"))
