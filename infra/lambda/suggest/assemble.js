@@ -433,6 +433,7 @@ function systemPrompt(lookCount) {
     "Cardigan / open knit mid-layer: always include a shirt, tee, polo, or equivalent closed base underneath — never ship a cardigan as the sole top.",
     "Never pair a black suit (black blazer/suit jacket + black trousers) with a black necktie unless the context clearly is a funeral or mourning. For theatre / dress-up / dinner, prefer a coloured or textured tie, or no tie with dress shirt + blazer.",
     "When context is cold / cool / outdoor evening / garden / patio, include a warm outer or mid layer when the catalog has candidates.",
+    "Cool outdoor walking (≤~14°C, autumn/fall, chilly city walk / explore outdoors): prefer a sweater, turtleneck, fleece, or flannel under a jacket/coat — never a polo, tee, or light shirt alone under outerwear. Indoor-only / theatre / dress-up looks are exempt.",
     "When trousers need a waist finish (not side-adjuster/beltless), include a belt — or suspenders/braces when the trousers' aiContext supports them.",
     "Match belt leather tone to footwear (black belt with black shoes; brown/tan/cognac belt with brown shoes). Never pair a brown belt with black shoes when a matching belt exists in the catalog.",
     "Accessories beyond waist finish remain optional — hat, scarf, jewelry, bag, neckwear, etc. Add them when they improve the look or fit the occasion.",
@@ -485,6 +486,7 @@ function completenessRepairNote(incomplete, lookCount) {
     " If missing_base_under_open_knit: add a shirt/tee/polo (or equivalent closed base) under the cardigan/open knit." +
     " If black_suit_black_tie: replace the black necktie with a coloured/textured tie, or omit the tie — never black-on-black necktie with a black suit unless the context is funeral/mourning." +
     " If missing_layer_for_cold: add a warm outer/mid layer from the catalog." +
+    " If insufficient_insulation_for_cool_outdoor: replace a thin polo/tee/shirt under outerwear with a sweater/turtleneck/fleece/flannel (warm mid-layer) from the catalog — indoor/theatre looks exempt." +
     " If missing_waist_finish: add a belt, or suspenders when trousers support them." +
     " Other accessories remain optional. Titles/rationales must match the final itemIds only — keep titles catchy but full and rationales 2–4 thoughtful sentences (not one-liners)." +
     " Return " +

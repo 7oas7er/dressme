@@ -43,6 +43,9 @@ var nowMs = core.nowMs;
 var resetDepsForTests = core.resetDepsForTests;
 var slotDefById = core.slotDefById;
 var contextNeedsColdLayer = core.contextNeedsColdLayer;
+var contextHasCoolWeather = core.contextHasCoolWeather;
+var contextImpliesOutdoorActivity = core.contextImpliesOutdoorActivity;
+var contextImpliesIndoorDressup = core.contextImpliesIndoorDressup;
 var lookItemIds = core.lookItemIds;
 var catalogById = core.catalogById;
 var parseJsonObject = core.parseJsonObject;
@@ -250,6 +253,37 @@ function parseTripBrief(context, lookCount) {
   };
 }
 
+/**
+ * Whether this look's occasion/context implies cool outdoor walking that needs
+ * a warm mid-layer under outerwear. Indoor theatre / dress-up looks are exempt.
+ */
+function lookNeedsWarmInsulation(context, look, index) {
+  var full = String(context || "");
+  if (!full.trim()) return false;
+  var brief = parseTripBrief(full, null);
+  var occ = occasionForLook(brief, look, index);
+  var occBody = occ && occ.body ? String(occ.body) : "";
+  var focus = occBody || full;
+
+  if (contextImpliesIndoorDressup(focus)) return false;
+
+  // Cool signal only (temp / autumn / cold) — bare "outdoors"/"garden" is not enough.
+  var cool =
+    contextHasCoolWeather(full) || contextHasCoolWeather(occBody);
+  if (!cool) return false;
+
+  if (occBody) {
+    // Named day: outdoor cue on that day, or outdoor in the shared brief.
+    return (
+      contextImpliesOutdoorActivity(occBody) ||
+      contextImpliesOutdoorActivity(full)
+    );
+  }
+
+  // Single-context blob: need an outdoor activity cue alongside cool weather.
+  return contextImpliesOutdoorActivity(full);
+}
+
 function occasionForLook(brief, look, index) {
   var list = (brief && brief.occasions) || [];
   if (!list.length) return null;
@@ -344,6 +378,11 @@ function tripBriefPromptNote(brief) {
         ". Put that day/occasion in the title and the first rationale sentence."
     );
   }
+  if (brief.cold) {
+    parts.push(
+      "For cool outdoor / walking days, prefer a warm knit mid-layer (sweater/turtleneck/fleece/flannel) under outerwear — not a polo or tee alone under a jacket. Indoor theatre/dress-up looks need not force that mid-layer."
+    );
+  }
   if (brief.packing) {
     parts.push(
       "Plan a shared luggage capsule first, then build looks from it. Across all looks use at most " +
@@ -391,6 +430,7 @@ exports.parseCountToken = parseCountToken;
 exports.parseOccasions = parseOccasions;
 exports.parsePackingLimits = parsePackingLimits;
 exports.parseTripBrief = parseTripBrief;
+exports.lookNeedsWarmInsulation = lookNeedsWarmInsulation;
 exports.publicOccasions = publicOccasions;
 exports.resolveContext = resolveContext;
 exports.resolveEngine = resolveEngine;
