@@ -815,6 +815,45 @@ test("updateItem returns 409 on stale updatedAt", async function () {
   assert.equal(JSON.parse(second.body).error, "conflict");
 });
 
+test("listItemRecords loops while LastEvaluatedKey is set", async function () {
+  var calls = [];
+  items.resetDepsForTests({
+    doc: {
+      send: async function (command) {
+        assert.equal(command.constructor.name, "QueryCommand");
+        calls.push(command.input.ExclusiveStartKey || null);
+        if (calls.length === 1) {
+          assert.equal(command.input.ExclusiveStartKey, undefined);
+          return {
+            Items: [
+              { pk: "USER#test-user", sk: "ITEM#a", itemId: "a" },
+              { pk: "USER#test-user", sk: "ITEM#b", itemId: "b" },
+            ],
+            LastEvaluatedKey: { pk: "USER#test-user", sk: "ITEM#b" },
+          };
+        }
+        assert.deepEqual(command.input.ExclusiveStartKey, {
+          pk: "USER#test-user",
+          sk: "ITEM#b",
+        });
+        return {
+          Items: [{ pk: "USER#test-user", sk: "ITEM#c", itemId: "c" }],
+        };
+      },
+    },
+  });
+
+  var rows = await items.listItemRecords("test-user");
+  assert.equal(calls.length, 2);
+  assert.equal(rows.length, 3);
+  assert.deepEqual(
+    rows.map(function (r) {
+      return r.itemId;
+    }),
+    ["a", "b", "c"]
+  );
+});
+
 test("photos/complete returns 409 when S3 object missing", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);

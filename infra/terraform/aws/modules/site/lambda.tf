@@ -70,6 +70,14 @@ resource "aws_lambda_function" "high_scores" {
       # Suggest model pin (empty → Lambda falls back to BEDROCK_MODEL_ID).
       SUGGEST_MODEL_ID = local.suggest_model_id_effective
       SUGGEST_ENGINE   = var.suggest_engine
+      # Reflect site (+ local Vite) origins on Lambda JSON CORS (ponytail C3).
+      CORS_ALLOWED_ORIGINS = join(",", [
+        "https://${var.site_domain_name}",
+        "http://127.0.0.1:4173",
+        "http://localhost:4173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+      ])
     }
   }
 

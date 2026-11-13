@@ -1244,7 +1244,7 @@ test("assembleRandomLooks honors requested lookCount", function () {
   assert.equal(looks.length, 5);
 });
 
-test("resolveContext prefers context and shims occasion/weather", function () {
+test("resolveContext uses context only (no occasion/weather shim)", function () {
   assert.equal(
     suggest.resolveContext({ context: "opera tonight, rainy" }),
     "opera tonight, rainy"
@@ -1254,9 +1254,9 @@ test("resolveContext prefers context and shims occasion/weather", function () {
       occasion: "client lunch",
       weather: "cool and dry",
     }),
-    "client lunch; cool and dry"
+    ""
   );
-  assert.equal(suggest.resolveContext({ occasion: "weekend" }), "weekend");
+  assert.equal(suggest.resolveContext({ occasion: "weekend" }), "");
   assert.equal(suggest.resolveContext({ weather: "only weather" }), "");
   assert.equal(suggest.resolveContext({}), "");
   assert.ok(suggest.resolveContext({ context: "x".repeat(600) }).length <= 480);
@@ -1619,12 +1619,12 @@ test("POST /api/suggest honors look count from context for random engine", async
   assert.equal(body.looks.length, 5);
 });
 
-test("legacy occasion/weather shim still works for random engine", async function () {
+test("legacy occasion/weather body without context is missing_context", async function () {
   var memory = makeMemoryDeps();
   items.resetDepsForTests(memory);
   seedClassicCatalog(memory);
 
-  var ok = await api.handler({
+  var res = await api.handler({
     rawPath: "/api/suggest",
     requestContext: { http: { method: "POST", path: "/api/suggest" } },
     body: JSON.stringify({
@@ -1632,10 +1632,8 @@ test("legacy occasion/weather shim still works for random engine", async functio
       weather: "cool and dry",
     }),
   });
-  assert.equal(ok.statusCode, 200);
-  var body = JSON.parse(ok.body);
-  assert.equal(body.context, "Tuesday client lunch; cool and dry");
-  assert.equal(body.looks.length, 3);
+  assert.equal(res.statusCode, 400);
+  assert.equal(JSON.parse(res.body).error, "missing_context");
 });
 
 test("Bedrock engine returns three looks with rationale and logs tokens", async function () {
