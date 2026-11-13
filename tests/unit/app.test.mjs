@@ -221,6 +221,32 @@ test("catalog list exposes attribute filters above the grid (UC-07)", () => {
   assert.match(useCases, /foldable filter pane/);
 });
 
+test("catalog list exposes Arrange group/sort sibling fold (UC-29)", () => {
+  const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
+  const arrange = fs.readFileSync(
+    path.join(root, "web/src/catalogArrange.js"),
+    "utf8"
+  );
+  const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
+  const useCases = fs.readFileSync(path.join(root, "docs/use-cases.md"), "utf8");
+  assert.match(catalog, /from "\.\/catalogArrange\.js"/);
+  assert.match(catalog, /applyGroupSort/);
+  assert.match(catalog, /renderArrange|renderCatalogControlBar/);
+  assert.match(catalog, /Clear arrange/);
+  assert.match(catalog, /dressme\.catalog\.arrange\.v1|ARRANGE_STORAGE_KEY|readArrangePrefs/);
+  assert.match(catalog, /Hide arrange|Arrange/);
+  assert.match(catalog, /catalog-group-heading/);
+  assert.match(arrange, /export function applyGroupSort/);
+  assert.match(arrange, /dateAdded/);
+  assert.match(arrange, /formalityRank/);
+  assert.match(styles, /\.catalog-control-bar/);
+  assert.match(styles, /\.arrange-bar/);
+  assert.match(styles, /\.catalog-group-heading/);
+  assert.doesNotMatch(styles, /catalog-group-heading[\s\S]{0,80}position:\s*sticky/);
+  assert.match(useCases, /UC-29 — Group and sort the catalog/);
+  assert.match(useCases, /updatedAt/);
+});
+
 test("catalog chrome: Catalog / Add item / DressMe nav, Sign out with Imprint, Appraise", () => {
   const catalog = fs.readFileSync(path.join(root, "web/src/catalog.js"), "utf8");
   const styles = fs.readFileSync(path.join(root, "web/src/styles.css"), "utf8");
