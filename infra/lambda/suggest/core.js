@@ -20,6 +20,12 @@ var MAX_CONTEXT = 480;
 var MAX_RATIONALE = 560;
 var MAX_TITLE = 48;
 var MAX_AI_CONTEXT_PROMPT = 300;
+/** Cap on Suggest-again soft-exclude IDs from the client (≈8 looks × ~8 pieces). */
+var MAX_EXCLUDE_ITEM_IDS = 96;
+/** First Dress-me Converse temperature (deterministic structured looks). */
+var DEFAULT_BEDROCK_TEMPERATURE = 0.3;
+/** Suggest-again Converse temperature (slight entropy; keep structured). */
+var AGAIN_BEDROCK_TEMPERATURE = 0.55;
 /**
  * Soft prompt cap — ~265-item closet with headroom; when exceeded,
  * request-aware formality/role subsetting picks the prompt rows.
@@ -382,6 +388,9 @@ exports.MAX_CONTEXT = MAX_CONTEXT;
 exports.MAX_RATIONALE = MAX_RATIONALE;
 exports.MAX_TITLE = MAX_TITLE;
 exports.MAX_AI_CONTEXT_PROMPT = MAX_AI_CONTEXT_PROMPT;
+exports.MAX_EXCLUDE_ITEM_IDS = MAX_EXCLUDE_ITEM_IDS;
+exports.DEFAULT_BEDROCK_TEMPERATURE = DEFAULT_BEDROCK_TEMPERATURE;
+exports.AGAIN_BEDROCK_TEMPERATURE = AGAIN_BEDROCK_TEMPERATURE;
 exports.SOFT_CATALOG_CAP = SOFT_CATALOG_CAP;
 exports.SECOND_PASS_DEADLINE_MS = SECOND_PASS_DEADLINE_MS;
 exports.DEFAULT_MODEL_ID = DEFAULT_MODEL_ID;

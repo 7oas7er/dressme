@@ -69,6 +69,8 @@ var parseTripBrief = brief.parseTripBrief;
 var publicOccasions = brief.publicOccasions;
 var resolveContext = brief.resolveContext;
 var resolveEngine = brief.resolveEngine;
+var resolveExcludeItemIds = brief.resolveExcludeItemIds;
+var resolvePreviousSuggestionId = brief.resolvePreviousSuggestionId;
 var shortTitleFromOccasionBody = brief.shortTitleFromOccasionBody;
 var softFormalityMismatches = brief.softFormalityMismatches;
 var tripBriefPromptNote = brief.tripBriefPromptNote;
@@ -124,6 +126,8 @@ var repairCrossLookPacking = repair.repairCrossLookPacking;
 var repairLookLocally = repair.repairLookLocally;
 var repairLooksLocally = repair.repairLooksLocally;
 var salvageCompetingBases = repair.salvageCompetingBases;
+var softDiversifyFromExclude = repair.softDiversifyFromExclude;
+var softExcludeSet = repair.softExcludeSet;
 var trousersNeedWaistFinish = repair.trousersNeedWaistFinish;
 var trousersSuspenderCapable = repair.trousersSuspenderCapable;
 var uniqueIdsForSlot = repair.uniqueIdsForSlot;
@@ -174,9 +178,27 @@ async function suggestLooks(user, body) {
   var engine = resolveEngine(body);
   var lookCount = extractLookCount(context);
   var suggestionId = crypto.randomUUID();
+  var excludeItemIds = resolveExcludeItemIds(body);
+  var softExclude = softExcludeSet(excludeItemIds);
+  var previousSuggestionId = resolvePreviousSuggestionId(body);
+  if (previousSuggestionId || excludeItemIds.length) {
+    console.log(
+      JSON.stringify({
+        event: "suggest_again_soft_exclude",
+        excludeCount: excludeItemIds.length,
+        previousSuggestionId: previousSuggestionId || null,
+        suggestionId: suggestionId,
+      })
+    );
+  }
 
   var catalog = await items.listItemRecords(user.sub);
-  var input = { context: context, engine: engine, lookCount: lookCount };
+  var input = {
+    context: context,
+    engine: engine,
+    lookCount: lookCount,
+    excludeItemIds: excludeItemIds,
+  };
 
   var rawLooks;
   var bedrockMeta = null;
@@ -191,6 +213,7 @@ async function suggestLooks(user, body) {
       assembleRandomLooks(catalog, {
         random: Math.random,
         lookCount: lookCount,
+        softExclude: softExclude,
       }),
       catalog
     );
@@ -206,11 +229,23 @@ async function suggestLooks(user, body) {
           .filter(Boolean),
       };
     });
-    var randomRepaired = repairLooksLocally(
+    var randomDiversified = softDiversifyFromExclude(
       randomAsIds,
       byIdSuggest,
       catalog,
-      context
+      softExclude
+    );
+    var randomRepaired = repairLooksLocally(
+      randomDiversified.looks,
+      byIdSuggest,
+      catalog,
+      context,
+      softExclude
+    );
+    randomRepaired.looks = enforceSlotUniqueness(
+      randomRepaired.looks,
+      byIdSuggest,
+      softExclude
     );
     var randomComplete = filterCompleteLooks(
       randomRepaired.looks,
@@ -223,7 +258,8 @@ async function suggestLooks(user, body) {
         randomComplete,
         catalog,
         context,
-        lookCount
+        lookCount,
+        softExclude
       );
     }
     rawLooks = randomComplete.map(function (look, index) {
