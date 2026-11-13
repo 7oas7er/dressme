@@ -409,6 +409,8 @@ test("systemPrompt asks for verbose titles and 2–4 sentence rationales", funct
   assert.match(prompt, /occasion-led|Soft power|luggage|capsule/i);
   assert.match(prompt, /Board day blue|bare.*occasion.*color/i);
   assert.match(prompt, /blue for Dinner look|color.*for.*occasion/i);
+  assert.match(prompt, /brand-as-noun|never.*"Black Gipsy"|natural wardrobe/i);
+  assert.match(prompt, /black leather jacket \(Gipsy\)|colour \+ type/i);
 });
 
 test("rewriteLookCopy is occasion-led and never pastes raw session context", function () {
@@ -643,6 +645,119 @@ test("titleLooksFlat catches occasion+color stubs; sync preserves catchy titles"
     false,
     dinnerRewrite.title
   );
+  // Prefer colour+type over colour-only "blue that carries Dinner".
+  assert.ok(
+    !/^blue that carries\b/i.test(dinnerRewrite.title),
+    dinnerRewrite.title
+  );
+  assert.match(dinnerRewrite.title, /blazer|jacket/i);
+});
+
+test("itemLabel / rewriteLookCopy prefer colour+type over brand-as-noun", function () {
+  var gipsy = {
+    itemId: "gipsy1",
+    outfitRole: "outerwear",
+    type: "leather jacket",
+    brandModel: "Gipsy",
+    fabric: "leather",
+    wadaColorIds: ["wada:v1:158"],
+  };
+  var joe = {
+    itemId: "joe1",
+    outfitRole: "base",
+    type: "merino turtleneck",
+    brandModel: "Joe Merino",
+    fabric: "merino",
+    wadaColorIds: ["wada:v1:158"],
+  };
+  var hiltl = {
+    itemId: "hiltl1",
+    outfitRole: "trousers",
+    type: "jeans",
+    brandModel: "Hiltl",
+    fabric: "denim",
+    wadaColorIds: ["wada:v1:158"],
+  };
+  var hackett = {
+    itemId: "hackett1",
+    outfitRole: "footwear",
+    type: "boots",
+    brandModel: "Hackett",
+    fabric: "leather",
+    wadaColorIds: ["wada:v1:158"],
+  };
+  var gipsyLabel = suggest.itemLabel(gipsy);
+  assert.match(gipsyLabel, /jacket/i);
+  assert.match(gipsyLabel, /leather/i);
+  assert.ok(!/^black\s+gipsy$/i.test(gipsyLabel), gipsyLabel);
+  assert.ok(!/\bin leather\b/i.test(suggest.pieceDetail(gipsy)));
+  assert.match(gipsyLabel, /Gipsy/);
+
+  var brandOnlyRationale =
+    "Dinner look leans on Black Gipsy in leather, backed by Black Joe Merino, Black Hiltl in denim, Black Hackett in leather.";
+  assert.equal(
+    suggest.copyLooksBrandAsNoun(
+      "black that carries Dinner",
+      brandOnlyRationale,
+      [gipsy, joe, hiltl, hackett]
+    ),
+    true
+  );
+  assert.equal(
+    suggest.copyLooksBrandAsNoun(
+      "black jacket that carries Dinner",
+      "Dinner look leans on a black leather jacket (Gipsy), backed by a black merino turtleneck (Joe Merino).",
+      [gipsy, joe]
+    ),
+    false
+  );
+
+  var byId = new Map(
+    [gipsy, joe, hiltl, hackett].map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var dinner = { shortTitle: "Dinner look", formalityHint: "smart casual" };
+  var rewritten = suggest.rewriteLookCopy(
+    {
+      lookId: "1",
+      title: "black that carries Dinner",
+      rationale: brandOnlyRationale,
+      itemIds: ["gipsy1", "joe1", "hiltl1", "hackett1"],
+    },
+    byId,
+    "Italian dinner + coat, Berlin Mitte hipster, cold autumn walk",
+    { occasion: dinner, index: 0 }
+  );
+  assert.ok(!/Black Gipsy/i.test(rewritten.rationale), rewritten.rationale);
+  assert.ok(!/Black Joe Merino/i.test(rewritten.rationale), rewritten.rationale);
+  assert.ok(!/Black Hiltl\b/i.test(rewritten.rationale), rewritten.rationale);
+  assert.ok(!/Black Hackett\b/i.test(rewritten.rationale), rewritten.rationale);
+  assert.match(rewritten.rationale, /jacket/i);
+  assert.match(rewritten.rationale, /jeans|turtleneck|sweater|boots/i);
+  assert.match(rewritten.rationale, /\(Gipsy\)|\(Joe Merino\)|\(Hiltl\)/);
+  assert.ok(!/^black that carries\b/i.test(rewritten.title), rewritten.title);
+  assert.match(rewritten.title, /jacket|boots/i);
+
+  var synced = suggest.syncLookCopy(
+    {
+      lookId: "1",
+      title: "Soft power for dinner",
+      rationale: brandOnlyRationale,
+      itemIds: ["gipsy1", "joe1", "hiltl1", "hackett1"],
+    },
+    ["gipsy1", "joe1", "hiltl1", "hackett1"],
+    byId,
+    [gipsy, joe, hiltl, hackett],
+    "Italian dinner + coat",
+    { occasion: dinner, index: 0, force: false }
+  );
+  assert.ok(!/Black Gipsy/i.test(synced.rationale), synced.rationale);
+  assert.match(synced.rationale, /jacket/i);
+
+  var rewritePrompt = suggest.copyRewriteSystemPrompt(3);
+  assert.match(rewritePrompt, /brand alone as the noun|Black Gipsy/i);
+  assert.match(rewritePrompt, /black leather jacket \(Gipsy\)/i);
 });
 
 test("formalityRank treats black-tie like black tie (seed spelling)", function () {
