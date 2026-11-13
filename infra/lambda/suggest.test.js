@@ -1440,6 +1440,57 @@ test("lookNeedsWarmInsulation: cool outdoor walk vs indoor theatre", function ()
   );
 });
 
+function assertCologneThreeOccasions(ctx, label) {
+  var brief = suggest.parseTripBrief(ctx, 3);
+  assert.equal(
+    brief.occasions.length,
+    3,
+    label + " " + JSON.stringify(brief.occasions)
+  );
+  assert.notEqual(
+    brief.occasions.length,
+    1,
+    label + " must not collapse to one occasion"
+  );
+  assert.notEqual(brief.occasions[0].shortTitle, "Musical night");
+  assert.notEqual(brief.occasions[0].shortTitle, brief.occasions[1].shortTitle);
+
+  assert.match(
+    brief.occasions[0].shortTitle,
+    /train|explore|city|travel|dinner/i
+  );
+  assert.ok(
+    suggest.formalityRank(brief.occasions[0].formalityHint) <=
+      suggest.formalityRank("smart casual"),
+    label + " look1 formality " + brief.occasions[0].formalityHint
+  );
+
+  assert.match(
+    brief.occasions[1].shortTitle,
+    /musical|theatre|dress-?up|opera/i
+  );
+  assert.equal(
+    brief.occasions[1].formalityHint,
+    "formal",
+    label + " look2 formality (dress-up ≠ black tie)"
+  );
+  assert.notEqual(brief.occasions[1].shortTitle, "Travel day");
+  assert.notEqual(brief.occasions[1].formalityHint, "smart casual");
+  assert.notEqual(brief.occasions[1].formalityHint, "black tie");
+
+  assert.match(brief.occasions[2].shortTitle, /breakfast|train|travel|home/i);
+  assert.ok(
+    suggest.formalityRank(brief.occasions[2].formalityHint) <=
+      suggest.formalityRank("smart casual"),
+    label + " look3 formality " + brief.occasions[2].formalityHint
+  );
+
+  assert.equal(suggest.lookNeedsWarmInsulation(ctx, { lookId: "1" }, 0), true);
+  assert.equal(suggest.lookNeedsWarmInsulation(ctx, { lookId: "2" }, 1), false);
+  assert.equal(suggest.lookNeedsWarmInsulation(ctx, { lookId: "3" }, 2), false);
+  return brief;
+}
+
 test("Cologne Outfit 1/2/3 keeps distinct occasions incl. musical dress-up", function () {
   var ctx =
     "Three outfits for a Cologne weekend in 10°C autumn weather. " +
@@ -1447,29 +1498,7 @@ test("Cologne Outfit 1/2/3 keeps distinct occasions incl. musical dress-up", fun
     "Outfit 2: Phantom of the Opera — dress up. " +
     "Outfit 3: hotel breakfast then train home. " +
     "Pack light — at most two pairs of shoes, trousers, and jackets.";
-  var brief = suggest.parseTripBrief(ctx, 3);
-  assert.equal(brief.occasions.length, 3, JSON.stringify(brief.occasions));
-
-  assert.match(brief.occasions[0].shortTitle, /train|explore|city|travel|dinner/i);
-  assert.ok(
-    suggest.formalityRank(brief.occasions[0].formalityHint) <=
-      suggest.formalityRank("smart casual"),
-    brief.occasions[0].formalityHint
-  );
-
-  assert.match(
-    brief.occasions[1].shortTitle,
-    /musical|theatre|dress-?up|opera/i
-  );
-  assert.ok(
-    suggest.formalityRank(brief.occasions[1].formalityHint) >=
-      suggest.formalityRank("formal"),
-    "look 2 formality should be elevated, got " + brief.occasions[1].formalityHint
-  );
-  assert.notEqual(brief.occasions[1].shortTitle, "Travel day");
-  assert.notEqual(brief.occasions[1].formalityHint, "smart casual");
-
-  assert.match(brief.occasions[2].shortTitle, /breakfast|train|travel|home/i);
+  var brief = assertCologneThreeOccasions(ctx, "colon");
 
   var pub = suggest.publicOccasions(brief);
   assert.equal(pub.length, 3);
@@ -1480,22 +1509,30 @@ test("Cologne Outfit 1/2/3 keeps distinct occasions incl. musical dress-up", fun
     JSON.stringify(pub)
   );
 
-  assert.equal(
-    suggest.lookNeedsWarmInsulation(ctx, { lookId: "1" }, 0),
-    true
-  );
-  assert.equal(
-    suggest.lookNeedsWarmInsulation(ctx, { lookId: "2" }, 1),
-    false
-  );
-  assert.equal(
-    suggest.lookNeedsWarmInsulation(ctx, { lookId: "3" }, 2),
-    false
-  );
-
   var note = suggest.tripBriefPromptNote(brief);
   assert.match(note, /Musical|Theatre|Dress-up|look 2/i);
-  assert.match(note, /formal|black tie/i);
+  assert.match(note, /formal/i);
+  assert.doesNotMatch(note, /black tie/i);
+});
+
+test("Cologne Outfit 1/2/3 without colons still yields 3 distinct occasions", function () {
+  // Regression e1ef4c4d: delimiter-strict regex missed; full-brief infer → Musical night.
+  var ctx =
+    "Three outfits for a Cologne weekend in 10°C autumn weather. " +
+    "Outfit 1 train into the city, explore outdoors, then a casual dinner. " +
+    "Outfit 2 Phantom of the Opera — dress up. " +
+    "Outfit 3 hotel breakfast then train home. " +
+    "Pack light — at most two pairs of shoes, trousers, and jackets.";
+  assertCologneThreeOccasions(ctx, "no-colon");
+});
+
+test("Cologne For Outfit N spoken style yields 3 distinct occasions", function () {
+  var ctx =
+    "Please suggest three outfits for Cologne at 10°C. " +
+    "For Outfit 1 I need something for the train and exploring outdoors plus casual dinner. " +
+    "For Outfit 2 Phantom of the Opera dress up. " +
+    "For Outfit 3 hotel breakfast and train home.";
+  assertCologneThreeOccasions(ctx, "for-outfit");
 });
 
 test("numbered 1) 2) 3) slots parse like Outfit labels", function () {
@@ -1505,21 +1542,19 @@ test("numbered 1) 2) 3) slots parse like Outfit labels", function () {
     "3) hotel breakfast + train home";
   var occasions = suggest.parseOccasions(ctx, 3);
   assert.equal(occasions.length, 3, JSON.stringify(occasions));
-  assert.ok(
-    suggest.formalityRank(occasions[1].formalityHint) >=
-      suggest.formalityRank("formal"),
-    occasions[1].formalityHint
-  );
+  assert.equal(occasions[1].formalityHint, "formal");
   assert.match(occasions[1].shortTitle, /musical|theatre|dress-?up|opera/i);
 });
 
 test("formalityHintFromText elevates dress-up / theatre / musical", function () {
   assert.equal(
     suggest.formalityHintFromText("Phantom of the Opera — dress up"),
-    "black tie"
+    "formal"
   );
   assert.equal(suggest.formalityHintFromText("dress-up musical"), "formal");
   assert.equal(suggest.formalityHintFromText("theatre evening"), "formal");
+  assert.equal(suggest.formalityHintFromText("black-tie gala"), "black tie");
+  assert.equal(suggest.formalityHintFromText("opera gala"), "black tie");
   assert.ok(
     suggest.formalityRank(
       suggest.formalityHintFromText("Phantom of the Opera dress up")
@@ -2798,7 +2833,8 @@ test("catalogCapMeta flags when closet exceeds soft cap", function () {
 
 test("formalityHintFromText ranks black-tie / formal above business board", function () {
   assert.equal(suggest.formalityHintFromText("black-tie gala"), "black tie");
-  assert.equal(suggest.formalityHintFromText("opera night"), "black tie");
+  assert.equal(suggest.formalityHintFromText("opera gala"), "black tie");
+  assert.equal(suggest.formalityHintFromText("opera night"), "formal");
   assert.equal(suggest.formalityHintFromText("formal dinner"), "formal");
   assert.equal(suggest.formalityHintFromText("board meeting"), "business");
   assert.equal(

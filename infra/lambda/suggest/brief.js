@@ -154,17 +154,42 @@ function extractDayLabeledOccasions(text) {
 }
 
 /**
- * Outfit 1: … / Look 2 — … labeled slots (Cologne-style free text).
+ * Outfit 1: … / Look 2 — … / "For Outfit 1 …" labeled slots.
+ * Position-based (not delimiter-strict): space, comma, or no punctuation after
+ * the number still splits — Cologne free text often omits the colon.
+ * Requires ≥2 markers so a lone "Outfit 1" does not invent a trip plan.
  */
 function extractOutfitLabeledOccasions(text) {
-  var occasions = [];
-  var re =
-    /(?:Outfit|Look)\s*(\d+)\s*[:.\-–—)]\s*(.+?)(?=(?:\s*[-–•]?\s*)(?:Outfit|Look)\s*\d+\s*[:.\-–—)]|$)/gi;
+  var markerRe =
+    /(?:(?:for|for\s+my)\s+)?(?:outfit|look)\s*(\d+)\b/gi;
+  var markers = [];
   var match;
-  while ((match = re.exec(text)) !== null) {
-    var body = cleanOccasionBody(match[2]);
+  while ((match = markerRe.exec(text)) !== null) {
+    markers.push({
+      day: Number(match[1]),
+      bodyStart: match.index + match[0].length,
+      markerStart: match.index,
+    });
+  }
+  if (markers.length < 2) return [];
+
+  var occasions = [];
+  for (var i = 0; i < markers.length; i++) {
+    var end =
+      i + 1 < markers.length ? markers[i + 1].markerStart : text.length;
+    var raw = text.slice(markers[i].bodyStart, end);
+    var body = cleanOccasionBody(raw.replace(/^[:.\-–—,)]\s*/, ""));
+    // Drop trailing packing / preamble glue after the last slot when possible.
+    if (i === markers.length - 1) {
+      body = body
+        .replace(
+          /\s+(?:pack(?:ing|ed)?|luggage|for luggage|don'?t want|at most|no more than)\b[\s\S]*$/i,
+          ""
+        )
+        .trim();
+    }
     if (!body) continue;
-    occasions.push(buildOccasionMeta(Number(match[1]), body));
+    occasions.push(buildOccasionMeta(markers[i].day, body));
   }
   return occasions;
 }
@@ -226,13 +251,17 @@ function parseOccasions(context, lookCount) {
 
 function formalityHintFromText(body) {
   var t = String(body || "").toLowerCase();
-  // Highest first so black-tie / gala subsetting does not collapse to business.
-  if (/\b(black\s*-?\s*tie|white\s*-?\s*tie|opera|gala)\b/.test(t)) {
+  // Explicit black/white tie or opera *gala* only — bare "Phantom of the Opera"
+  // / "dress up" is theatre formal, not black tie.
+  if (/\b(black\s*-?\s*tie|white\s*-?\s*tie)\b/.test(t)) {
+    return "black tie";
+  }
+  if (/\bopera\s+gala\b/.test(t) || (/\bgala\b/.test(t) && !/\bphantom\b/.test(t))) {
     return "black tie";
   }
   if (
     /\bformal\b/.test(t) ||
-    /\b(dress[- ]?up|theatre|theater|musical|phantom)\b/.test(t)
+    /\b(dress[- ]?up|theatre|theater|musical|phantom|opera)\b/.test(t)
   ) {
     return "formal";
   }
@@ -284,6 +313,14 @@ function buildOccasionMeta(day, body) {
 
 function inferOccasionFromText(text, day) {
   var t = String(text || "");
+  // Multi Outfit/Look markers belong in extractOutfitLabeledOccasions — never
+  // collapse them into one Musical/Travel title from the whole brief.
+  var outfitMarkers = t.match(
+    /(?:(?:for|for\s+my)\s+)?(?:outfit|look)\s*\d+\b/gi
+  );
+  if (outfitMarkers && outfitMarkers.length >= 2) {
+    return null;
+  }
   if (
     !/\b(board|dinner|lunch|garden|patio|train|travel|casual|client|evening|office|opera|theatre|theater|musical|phantom|dress[- ]?up|breakfast|explore)\b/i.test(
       t
