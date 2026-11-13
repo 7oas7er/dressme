@@ -16,20 +16,20 @@ exports.handler = async function handler(event) {
   var path = http.getPath(event);
 
   if (method === "OPTIONS") {
-    return http.json(204, {});
+    return http.json(204, {}, event);
   }
 
   try {
     if (path === "/api/health" || path === "/health") {
       var healthResult = health.handleHealth(method);
-      return http.json(healthResult.statusCode, healthResult.body);
+      return http.json(healthResult.statusCode, healthResult.body, event);
     }
 
     if (path === "/api/config" || path === "/config") {
       if (method !== "GET" && method !== "HEAD") {
-        return http.json(405, { error: "method_not_allowed" });
+        return http.json(405, { error: "method_not_allowed" }, event);
       }
-      return http.json(200, { cognito: auth.publicConfig() });
+      return http.json(200, { cognito: auth.publicConfig() }, event);
     }
 
     if (
@@ -38,9 +38,9 @@ exports.handler = async function handler(event) {
     ) {
       var optionsUser = await auth.requireUser(event);
       if (method === "GET" || method === "HEAD") {
-        return respond(await attributeOptions.listAttributeOptions(optionsUser));
+        return respond(await attributeOptions.listAttributeOptions(optionsUser), event);
       }
-      return http.json(405, { error: "method_not_allowed" });
+      return http.json(405, { error: "method_not_allowed" }, event);
     }
 
     if (
@@ -49,25 +49,25 @@ exports.handler = async function handler(event) {
     ) {
       var backfillUser = await auth.requireUser(event);
       if (method === "POST") {
-        return respond(await items.backfillThumbs(backfillUser));
+        return respond(await items.backfillThumbs(backfillUser), event);
       }
-      return http.json(405, { error: "method_not_allowed" });
+      return http.json(405, { error: "method_not_allowed" }, event);
     }
 
     if (path === "/api/suggest" || path === "/suggest") {
       var suggestUser = await auth.requireUser(event);
       if (method === "POST") {
-        return respond(await suggest.suggestLooks(suggestUser, http.parseBody(event)));
+        return respond(await suggest.suggestLooks(suggestUser, http.parseBody(event)), event);
       }
-      return http.json(405, { error: "method_not_allowed" });
+      return http.json(405, { error: "method_not_allowed" }, event);
     }
 
     if (path === "/api/items/analyze" || path === "/items/analyze") {
       var analyzeUser = await auth.requireUser(event);
       if (method === "POST") {
-        return respond(await analyze.analyzeItem(analyzeUser, http.parseBody(event)));
+        return respond(await analyze.analyzeItem(analyzeUser, http.parseBody(event)), event);
       }
-      return http.json(405, { error: "method_not_allowed" });
+      return http.json(405, { error: "method_not_allowed" }, event);
     }
 
     var itemMatch = /^\/api\/items(?:\/([^/]+))?(?:\/(photos\/complete))?$/.exec(path);
@@ -81,27 +81,27 @@ exports.handler = async function handler(event) {
       var action = itemMatch[2];
 
       if (!itemId && method === "GET") {
-        return respond(await items.listItems(user, http.getQuery(event)));
+        return respond(await items.listItems(user, http.getQuery(event)), event);
       }
       if (!itemId && method === "POST") {
-        return respond(await items.createItem(user, http.parseBody(event)));
+        return respond(await items.createItem(user, http.parseBody(event)), event);
       }
       if (itemId && action === "photos/complete" && method === "POST") {
-        return respond(await items.confirmPhotos(user, itemId, http.parseBody(event)));
+        return respond(await items.confirmPhotos(user, itemId, http.parseBody(event)), event);
       }
       if (itemId && !action && method === "GET") {
-        return respond(await items.getItem(user, itemId));
+        return respond(await items.getItem(user, itemId), event);
       }
       if (itemId && !action && (method === "PUT" || method === "PATCH")) {
-        return respond(await items.updateItem(user, itemId, http.parseBody(event)));
+        return respond(await items.updateItem(user, itemId, http.parseBody(event)), event);
       }
       if (itemId && !action && method === "DELETE") {
-        return respond(await items.deleteItem(user, itemId));
+        return respond(await items.deleteItem(user, itemId), event);
       }
-      return http.json(405, { error: "method_not_allowed" });
+      return http.json(405, { error: "method_not_allowed" }, event);
     }
 
-    return http.json(404, { error: "not_found" });
+    return http.json(404, { error: "not_found" }, event);
   } catch (err) {
     var status = (err && err.statusCode) || 500;
     var code = (err && err.message) || "internal_error";
@@ -124,10 +124,10 @@ exports.handler = async function handler(event) {
     } else if (status >= 500) {
       console.error("api_upstream", code);
     }
-    return http.json(status, { error: code });
+    return http.json(status, { error: code }, event);
   }
 };
 
-function respond(result) {
-  return http.json(result.statusCode, result.body || {});
+function respond(result, event) {
+  return http.json(result.statusCode, result.body || {}, event);
 }

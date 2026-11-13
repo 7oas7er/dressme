@@ -5,7 +5,7 @@ UC-04 / UC-09 (DM-44): Cognito-gated `POST /api/suggest` → Bedrock **text** Co
 ## Before cutover
 
 1. Merge the UC-04 implementation PR to `staging` (SPA deploys via Actions **Publish to S3**).
-2. **Apply AWS stg Terraform** so the Lambda zip includes `context` (+ occasion shim). Site deploy alone does **not** update Lambda — without apply, Recommend posts `{ context }` and the live function still returns `missing_occasion`. The SPA dual-writes `occasion` for that window; apply clears the mismatch.
+2. **Apply AWS stg Terraform** so the Lambda zip includes `context`. Site deploy alone does **not** update Lambda — without apply, Recommend posts `{ context }` and an old function that still required `occasion` returns `missing_occasion`. SPA and Lambda both use `context` only now (legacy occasion/weather shim dropped).
 3. Confirm Analyze already works on stg (same `BEDROCK_MODEL_ID` / IAM).
 4. Optional smoke **before** flipping the default engine: signed-in browser or API with body `{ "context": "…", "engine": "bedrock" }` while `SUGGEST_ENGINE` is still `random`.
 
