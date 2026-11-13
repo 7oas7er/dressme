@@ -53,6 +53,16 @@ output "media_bucket_name" {
   value       = aws_s3_bucket.media.bucket
 }
 
+output "backup_bucket_name" {
+  description = "Private S3 bucket for weekly wardrobe cold backups (inventory, Dynamo dump, media sync)."
+  value       = aws_s3_bucket.backup.bucket
+}
+
+output "wardrobe_backup_policy_arn" {
+  description = "IAM policy ARN for local wardrobe backup scripts (attach to operator principal if not using admin)."
+  value       = aws_iam_policy.wardrobe_backup.arn
+}
+
 output "cognito_user_pool_id" {
   description = "Cognito user pool id for the SPA auth gate."
   value       = aws_cognito_user_pool.app.id

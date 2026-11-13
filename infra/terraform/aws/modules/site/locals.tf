@@ -88,6 +88,9 @@ locals {
   origin_request_all_viewer_except_host = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
   items_table_name                      = "${local.name_prefix}-items-table"
   media_bucket_name                     = "${local.name_prefix}-media-bucket"
+  # Cold weekly wardrobe copies (inventory + Dynamo dump + media sync); outside live media.
+  backup_bucket_name          = "${local.name_prefix}-backup-bucket"
+  wardrobe_backup_policy_name = "${local.name_prefix}-wardrobe-backup-policy"
   cognito_user_pool_name                = "${local.name_prefix}-user-pool"
   cognito_client_name                   = "${local.name_prefix}-spa-client"
   # Cognito hosted UI domain prefix must be globally unique in the region.

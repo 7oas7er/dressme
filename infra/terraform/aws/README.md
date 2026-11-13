@@ -41,6 +41,7 @@ Examples for `stg`:
 
 - `stg-dressme-site-bucket`
 - `stg-dressme-access-logs-bucket`
+- `stg-dressme-backup-bucket` (weekly wardrobe cold copy; outside live media)
 - `stg-dressme-health-bucket`
 - `stg-dressme-health-function`
 - `stg-dressme-health-errors-alarm` / `…-throttles-alarm` / `…-duration-alarm` / `…-bedrock-client-errors-alarm` / `…-bedrock-invocations-alarm` / `…-site-5xx-alarm`
@@ -51,7 +52,7 @@ Examples for `stg`:
 
 Shared bootstrap resources use `shared` as the environment segment.
 
-Renaming named resources (buckets, roles, functions, OACs) forces Terraform to replace them. Copy site and high-score objects to the new buckets before destroying the old ones, and update GitHub Actions `AWS_*` variables after the prod deploy role / bucket names change. The health bucket has `prevent_destroy` and versioning (noncurrent versions expire after 90 days); remove the lifecycle guard temporarily if you intentionally replace it. The site bucket is not versioned — `dressme/` in git is the source of truth.
+Renaming named resources (buckets, roles, functions, OACs) forces Terraform to replace them. Copy site and high-score objects to the new buckets before destroying the old ones, and update GitHub Actions `AWS_*` variables after the prod deploy role / bucket names change. The health and **media** buckets have `prevent_destroy` and versioning (media noncurrent versions expire after 90 days); the **backup** bucket also has `prevent_destroy` + versioning (weekly/monthly lifecycle). Remove the lifecycle guard temporarily if you intentionally replace them. The site bucket is not versioned — `dressme/` in git is the source of truth. Wardrobe backup/restore: [`docs/runbook.md`](../../../docs/runbook.md).
 
 ## Apply order
 

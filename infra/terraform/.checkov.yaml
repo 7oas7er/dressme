@@ -43,9 +43,9 @@ skip-check:
   - CKV_AWS_19
   - CKV_AWS_144  # Cross-region replication — single-region (eu-north-1) by design
   - CKV2_AWS_62  # Event notifications — not used; no downstream consumers
-  - CKV_AWS_18   # Access logging on state / health — site bucket is logged; state is private account-only
+  - CKV_AWS_18   # Access logging on state / health / backup — site+media logged; backup is private cold copy (cost)
   - CKV2_AWS_61  # Lifecycle on state / site — state kept; site objects replaced by deploy sync
-  - CKV_AWS_21   # Versioning on access-logs / site — health is versioned; site is immutable deploy overwrite
+  - CKV_AWS_21   # Versioning on access-logs / site — health+media+backup versioned; site is immutable deploy overwrite
 
   # --- DynamoDB (AWS-owned SSE key; same CMK posture as S3 / Lambda env) ---
   - CKV_AWS_119  # Require CMK — server_side_encryption enabled with AWS-owned key is intentional
