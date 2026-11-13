@@ -1380,9 +1380,11 @@ test("systemPrompt mentions Wada colour reference and mandatory core", function 
   assert.match(prompt, /cold|warm layer|garden/i);
   assert.match(prompt, /cardigan.*shirt|open knit.*base/i);
   assert.match(prompt, /black suit.*black (necktie|tie)|funeral|mourning/i);
+  assert.match(prompt, /necktie or bow tie|never both/i);
   assert.match(prompt, /Cool outdoor walking|sweater.*under|polo.*tee/i);
   assert.match(suggest.STYLE_PACK_V1, /Open knit layering|cardigan/i);
   assert.match(suggest.STYLE_PACK_V1, /Black suit \+ black tie|funeral/i);
+  assert.match(suggest.STYLE_PACK_V1, /Neckwear:.*necktie or bow tie|never both/i);
   assert.match(suggest.STYLE_PACK_V1, /Cool outdoor walking|mid-layer/i);
   var five = suggest.systemPrompt(5);
   assert.match(five, /exactly 5 distinct looks/);
@@ -1924,6 +1926,7 @@ test("completenessRepairNote mentions open-knit and black-suit rules", function 
     [
       { lookId: "3", reasons: ["missing_base_under_open_knit"] },
       { lookId: "2", reasons: ["black_suit_black_tie"] },
+      { lookId: "4", reasons: ["dual_neckwear"] },
       { lookId: "1", reasons: ["insufficient_insulation_for_cool_outdoor"] },
     ],
     3
@@ -1932,8 +1935,137 @@ test("completenessRepairNote mentions open-knit and black-suit rules", function 
   assert.match(note, /cardigan|shirt|tee/i);
   assert.match(note, /black_suit_black_tie/);
   assert.match(note, /funeral|mourning|coloured|textured/i);
+  assert.match(note, /dual_neckwear/);
+  assert.match(note, /necktie or bow tie|never both/i);
   assert.match(note, /insufficient_insulation_for_cool_outdoor/);
   assert.match(note, /sweater|mid-layer|polo/i);
+});
+
+test("dual neckwear (necktie + bow tie) rejected and repaired (Musical night)", function () {
+  var catalog = [
+    {
+      itemId: "blazer1",
+      outfitRole: "outerwear",
+      type: "blazer",
+      formality: "formal",
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "wool trousers",
+      formality: "formal",
+    },
+    {
+      itemId: "shirt1",
+      outfitRole: "shirt",
+      type: "dress shirt",
+      formality: "formal",
+    },
+    {
+      itemId: "tie-olymp",
+      outfitRole: "neckwear",
+      type: "tie",
+      brandModel: "Olymp",
+      fabric: "silk",
+      formality: "business",
+    },
+    {
+      itemId: "bow-auerbach",
+      outfitRole: "neckwear",
+      type: "bow tie",
+      brandModel: "Auerbach",
+      fabric: "silk",
+      formality: "formal",
+    },
+    {
+      itemId: "shoe1",
+      outfitRole: "footwear",
+      type: "oxfords",
+      formality: "formal",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var dualIds = [
+    "blazer1",
+    "pants1",
+    "shirt1",
+    "tie-olymp",
+    "bow-auerbach",
+    "shoe1",
+  ];
+
+  assert.equal(suggest.isNecktie(byId.get("tie-olymp")), true);
+  assert.equal(suggest.isBowTie(byId.get("bow-auerbach")), true);
+  assert.equal(suggest.lookHasDualNeckwear(dualIds, byId), true);
+
+  var check = suggest.lookCompleteness(dualIds, byId, {
+    requireFootwear: true,
+  });
+  assert.equal(check.ok, false);
+  assert.ok(check.reasons.includes("dual_neckwear"));
+
+  // Formal evening: prefer formal bow tie over business necktie.
+  assert.equal(
+    suggest.pickPreferredNeckwearId(
+      dualIds,
+      byId,
+      "Musical night dress-up at the theatre"
+    ),
+    "bow-auerbach"
+  );
+
+  var repaired = suggest.repairLookLocally(
+    { lookId: "2", itemIds: dualIds.slice() },
+    byId,
+    catalog,
+    "Musical night — Phantom of the Opera dress-up"
+  );
+  assert.ok(repaired.repairs.includes("drop_dual_neckwear"));
+  assert.ok(repaired.look.itemIds.indexOf("bow-auerbach") >= 0);
+  assert.ok(repaired.look.itemIds.indexOf("tie-olymp") < 0);
+  var after = suggest.lookCompleteness(
+    repaired.look.itemIds,
+    byId,
+    suggest.completenessOptionsForLook(
+      repaired.look.itemIds,
+      byId,
+      catalog,
+      "Musical night dress-up"
+    )
+  );
+  assert.equal(after.ok, true);
+  assert.ok(!after.reasons.includes("dual_neckwear"));
+
+  // Two neckties also fail; keep the closer formality match.
+  catalog.push({
+    itemId: "tie-casual",
+    outfitRole: "neckwear",
+    type: "tie",
+    formality: "casual",
+  });
+  byId.set("tie-casual", catalog[catalog.length - 1]);
+  var twoDistinct = [
+    "blazer1",
+    "pants1",
+    "shirt1",
+    "tie-olymp",
+    "tie-casual",
+    "shoe1",
+  ];
+  assert.equal(suggest.lookHasDualNeckwear(twoDistinct, byId), true);
+  var repairedTwo = suggest.repairLookLocally(
+    { lookId: "1", itemIds: twoDistinct.slice() },
+    byId,
+    catalog,
+    "board meeting business day"
+  );
+  assert.ok(repairedTwo.repairs.includes("drop_dual_neckwear"));
+  assert.ok(repairedTwo.look.itemIds.indexOf("tie-olymp") >= 0);
+  assert.ok(repairedTwo.look.itemIds.indexOf("tie-casual") < 0);
 });
 
 test("cool outdoor walk rejects thin polo under coat; swaps to sweater (Cologne look 1)", function () {

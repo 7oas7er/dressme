@@ -206,11 +206,81 @@ function isSuitJacketLike(item) {
   );
 }
 
-function isBlackNecktie(item) {
+function isBowTie(item) {
+  if (!item || classifySlot(item) !== "neckwear") return false;
+  return /\bbow\s*tie\b/i.test(itemRoleTypeText(item));
+}
+
+function isNecktie(item) {
   if (!item || classifySlot(item) !== "neckwear") return false;
   var text = itemRoleTypeText(item).toLowerCase();
-  if (!/\btie\b/.test(text)) return false;
+  if (/\bbow\s*tie\b/.test(text)) return false;
+  return /\btie\b/.test(text);
+}
+
+/** Necktie or bow tie — scarves and other neckwear are out of scope for dual-tie. */
+function isTieNeckwear(item) {
+  return isNecktie(item) || isBowTie(item);
+}
+
+function isBlackNecktie(item) {
+  if (!isNecktie(item)) return false;
   return itemLooksBlack(item);
+}
+
+/**
+ * Collect necktie / bow-tie itemIds in look order.
+ */
+function collectTieNeckwearIds(ids, byId) {
+  var out = [];
+  for (var i = 0; i < (ids || []).length; i++) {
+    var record =
+      byId && typeof byId.get === "function" ? byId.get(ids[i]) : null;
+    if (isTieNeckwear(record || {})) out.push(String(ids[i]));
+  }
+  return out;
+}
+
+/**
+ * More than one necktie/bow-tie piece (including necktie + bow tie together).
+ */
+function lookHasDualNeckwear(ids, byId) {
+  return collectTieNeckwearIds(ids, byId).length > 1;
+}
+
+/**
+ * Prefer the necktie/bow tie whose formality is closest to the look + context.
+ * Stable earliest-index tie-break among equals.
+ */
+function pickPreferredNeckwearId(ids, byId, context) {
+  var candidates = [];
+  for (var i = 0; i < (ids || []).length; i++) {
+    var record =
+      byId && typeof byId.get === "function" ? byId.get(ids[i]) : null;
+    if (!isTieNeckwear(record || {})) continue;
+    candidates.push({ id: String(ids[i]), record: record, index: i });
+  }
+  if (!candidates.length) return null;
+  if (candidates.length === 1) return candidates[0].id;
+
+  var target = lookTargetFormality(ids, byId);
+  var hint = formalityRank(formalityHintFromText(context || ""));
+  if (hint > 0) target = Math.max(target, hint);
+
+  var best = null;
+  for (var c = 0; c < candidates.length; c++) {
+    var row = candidates[c];
+    var score = formalityRank(row.record && row.record.formality);
+    var match = target > 0 ? -Math.abs(score - target) : -row.index;
+    if (
+      !best ||
+      match > best.match ||
+      (match === best.match && row.index < best.index)
+    ) {
+      best = { id: row.id, match: match, index: row.index };
+    }
+  }
+  return best ? best.id : candidates[0].id;
 }
 
 /**
@@ -579,6 +649,10 @@ function lookCompleteness(itemIds, byId, options) {
   ) {
     reasons.push("black_suit_black_tie");
   }
+  // At most one necktie or bow tie — never both, never two ties.
+  if (lookHasDualNeckwear(itemIds, byId)) {
+    reasons.push("dual_neckwear");
+  }
   return { ok: reasons.length === 0, reasons: reasons };
 }
 
@@ -896,6 +970,34 @@ function repairLookLocally(look, byId, catalog, context, globalUsed, index) {
         event: "suggest_black_suit_black_tie_repair",
         lookId: look.lookId,
         action: swapped ? "swap" : "drop",
+      })
+    );
+  }
+
+  opts = completenessOptionsForLook(ids, byId, catalog, context, look, index);
+  result = lookCompleteness(ids, byId, opts);
+  if (result.reasons.indexOf("dual_neckwear") >= 0) {
+    var keepNeck = pickPreferredNeckwearId(ids, byId, context);
+    var keptOne = false;
+    var dualNext = [];
+    for (var ni = 0; ni < ids.length; ni++) {
+      var neckRec = byId.get(ids[ni]);
+      if (isTieNeckwear(neckRec || {})) {
+        if (keepNeck && String(ids[ni]) === String(keepNeck) && !keptOne) {
+          dualNext.push(ids[ni]);
+          keptOne = true;
+        }
+        continue;
+      }
+      dualNext.push(ids[ni]);
+    }
+    ids = dualNext;
+    repairs.push("drop_dual_neckwear");
+    console.warn(
+      JSON.stringify({
+        event: "suggest_dual_neckwear_repair",
+        lookId: look.lookId,
+        kept: keepNeck || null,
       })
     );
   }
@@ -1222,11 +1324,15 @@ exports.findLookTrousers = findLookTrousers;
 exports.findSlotIdInLook = findSlotIdInLook;
 exports.footwearFormality = footwearFormality;
 exports.isBeltItem = isBeltItem;
+exports.collectTieNeckwearIds = collectTieNeckwearIds;
 exports.isBlackNecktie = isBlackNecktie;
+exports.isBowTie = isBowTie;
+exports.isNecktie = isNecktie;
 exports.isOpenLayerKnitwear = isOpenLayerKnitwear;
 exports.isSuitJacketLike = isSuitJacketLike;
 exports.isSuspendersItem = isSuspendersItem;
 exports.isThinBaseLayer = isThinBaseLayer;
+exports.isTieNeckwear = isTieNeckwear;
 exports.isUnderLayerBase = isUnderLayerBase;
 exports.isWarmClosedBase = isWarmClosedBase;
 exports.isWarmInsulationPiece = isWarmInsulationPiece;
@@ -1235,7 +1341,9 @@ exports.itemLooksBlack = itemLooksBlack;
 exports.leatherToneFamily = leatherToneFamily;
 exports.lookCompleteness = lookCompleteness;
 exports.lookHasBlackSuitBlackTie = lookHasBlackSuitBlackTie;
+exports.lookHasDualNeckwear = lookHasDualNeckwear;
 exports.lookHasOpenLayerKnit = lookHasOpenLayerKnit;
+exports.pickPreferredNeckwearId = pickPreferredNeckwearId;
 exports.lookHasOuterLayer = lookHasOuterLayer;
 exports.lookHasUnderLayerBase = lookHasUnderLayerBase;
 exports.lookHasWaistFinish = lookHasWaistFinish;
