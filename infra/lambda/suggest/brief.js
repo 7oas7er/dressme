@@ -16,6 +16,7 @@ var LOOK_COUNT = core.LOOK_COUNT;
 var LOOK_NOUN = core.LOOK_NOUN;
 var MAX_AI_CONTEXT_PROMPT = core.MAX_AI_CONTEXT_PROMPT;
 var MAX_CONTEXT = core.MAX_CONTEXT;
+var MAX_EXCLUDE_ITEM_IDS = core.MAX_EXCLUDE_ITEM_IDS;
 var MAX_LOOK_COUNT = core.MAX_LOOK_COUNT;
 var MAX_RATIONALE = core.MAX_RATIONALE;
 var MAX_TITLE = core.MAX_TITLE;
@@ -532,6 +533,58 @@ function resolveContext(body) {
 }
 
 /**
+ * Normalize Suggest-again soft-exclude item IDs from the request body.
+ * Accepts `excludeItemIds` (preferred) or nested look `itemIds` arrays.
+ * Dedupes, stringifies, drops empties, clamps to MAX_EXCLUDE_ITEM_IDS.
+ */
+function resolveExcludeItemIds(body) {
+  var raw = [];
+  if (body && Array.isArray(body.excludeItemIds)) {
+    raw = body.excludeItemIds;
+  } else if (body && Array.isArray(body.priorItemIds)) {
+    raw = body.priorItemIds;
+  } else if (body && Array.isArray(body.looks)) {
+    for (var i = 0; i < body.looks.length; i++) {
+      var look = body.looks[i] || {};
+      var ids = Array.isArray(look.itemIds) ? look.itemIds : [];
+      for (var j = 0; j < ids.length; j++) raw.push(ids[j]);
+    }
+  }
+  var out = [];
+  var seen = Object.create(null);
+  for (var k = 0; k < raw.length; k++) {
+    var id = String(raw[k] || "").trim();
+    if (!id || seen[id]) continue;
+    seen[id] = true;
+    out.push(id);
+    if (out.length >= MAX_EXCLUDE_ITEM_IDS) break;
+  }
+  return out;
+}
+
+/** Optional previous suggestion UUID (logging / client continuity; not required). */
+function resolvePreviousSuggestionId(body) {
+  var id = body && body.previousSuggestionId;
+  if (id == null || id === "") id = body && body.suggestionId;
+  return clampText(id, 64);
+}
+
+/**
+ * Strong diversify clause for Suggest-again when prior look itemIds are present.
+ */
+function diversifyExcludePromptNote(excludeItemIds) {
+  var ids = Array.isArray(excludeItemIds) ? excludeItemIds : [];
+  if (!ids.length) return "";
+  return (
+    "Suggest-again diversity (soft-exclude): the user already saw looks using these itemIds: " +
+    JSON.stringify(ids) +
+    ". Prefer alternate closet pieces in every slot when formality-capable alternatives exist. " +
+    "Do not rebuild the same capsule unless packing limits or catalog completeness force reuse. " +
+    "Prioritize unused formal/business peers over repeating the exact prior blazer/trousers/shirt/tie set."
+  );
+}
+
+/**
  * Compact catalog rows for the Bedrock prompt — attrs + aiContext only.
  * Color signal is primary Wada English name (+ id) when set; no free-text color.
  * Never include photos, URLs, keys, base64, or combination IDs.
@@ -554,6 +607,9 @@ exports.lookNeedsWarmInsulation = lookNeedsWarmInsulation;
 exports.publicOccasions = publicOccasions;
 exports.resolveContext = resolveContext;
 exports.resolveEngine = resolveEngine;
+exports.resolveExcludeItemIds = resolveExcludeItemIds;
+exports.resolvePreviousSuggestionId = resolvePreviousSuggestionId;
+exports.diversifyExcludePromptNote = diversifyExcludePromptNote;
 exports.shortTitleFromOccasionBody = shortTitleFromOccasionBody;
 exports.softFormalityMismatches = softFormalityMismatches;
 exports.tripBriefPromptNote = tripBriefPromptNote;

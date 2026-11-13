@@ -20,6 +20,8 @@ var FORMULAIC_COPY_RES = core.FORMULAIC_COPY_RES;
 var LEATHER_TONE_FAMILIES = core.LEATHER_TONE_FAMILIES;
 var LOOK_COUNT = core.LOOK_COUNT;
 var LOOK_NOUN = core.LOOK_NOUN;
+var AGAIN_BEDROCK_TEMPERATURE = core.AGAIN_BEDROCK_TEMPERATURE;
+var DEFAULT_BEDROCK_TEMPERATURE = core.DEFAULT_BEDROCK_TEMPERATURE;
 var MAX_AI_CONTEXT_PROMPT = core.MAX_AI_CONTEXT_PROMPT;
 var MAX_CONTEXT = core.MAX_CONTEXT;
 var MAX_LOOK_COUNT = core.MAX_LOOK_COUNT;
@@ -67,6 +69,7 @@ var parseOccasions = brief.parseOccasions;
 var parsePackingLimits = brief.parsePackingLimits;
 var parseTripBrief = brief.parseTripBrief;
 var publicOccasions = brief.publicOccasions;
+var diversifyExcludePromptNote = brief.diversifyExcludePromptNote;
 var resolveContext = brief.resolveContext;
 var resolveEngine = brief.resolveEngine;
 var shortTitleFromOccasionBody = brief.shortTitleFromOccasionBody;
@@ -126,6 +129,8 @@ var repairCrossLookPacking = repair.repairCrossLookPacking;
 var repairLookLocally = repair.repairLookLocally;
 var repairLooksLocally = repair.repairLooksLocally;
 var salvageCompetingBases = repair.salvageCompetingBases;
+var softDiversifyFromExclude = repair.softDiversifyFromExclude;
+var softExcludeSet = repair.softExcludeSet;
 var trousersNeedWaistFinish = repair.trousersNeedWaistFinish;
 var trousersSuspenderCapable = repair.trousersSuspenderCapable;
 var uniqueIdsForSlot = repair.uniqueIdsForSlot;
@@ -182,12 +187,42 @@ function bucketBySlot(catalog) {
 function assembleRandomLooks(catalog, options) {
   var opts = options || {};
   var random = opts.random || Math.random;
+  var exclude = softExcludeSet(opts.softExclude || opts.excludeItemIds);
   var lookCount = clampLookCount(
     opts.lookCount != null ? opts.lookCount : DEFAULT_LOOK_COUNT
   );
   var buckets = bucketBySlot(catalog);
   var usedIds = new Set();
   var looks = [];
+
+  function pickFromPool(pool) {
+    var freshOpen = [];
+    var anyOpen = [];
+    var freshSoft = [];
+    var anySoft = [];
+    for (var p = 0; p < pool.length; p++) {
+      var item = pool[p];
+      if (!item || !item.itemId) continue;
+      var id = String(item.itemId);
+      var used = usedIds.has(id) || usedIds.has(item.itemId);
+      var soft = exclude && exclude.has(id);
+      if (!used && !soft) freshOpen.push(item);
+      else if (!soft) anyOpen.push(item);
+      else if (!used) freshSoft.push(item);
+      else anySoft.push(item);
+    }
+    var candidates = freshOpen.length
+      ? freshOpen
+      : anyOpen.length
+        ? anyOpen
+        : freshSoft.length
+          ? freshSoft
+          : anySoft.length
+            ? anySoft
+            : pool.slice();
+    shuffleInPlace(candidates, random);
+    return candidates[0] || null;
+  }
 
   for (var lookIndex = 0; lookIndex < lookCount; lookIndex++) {
     var lookItems = [];
@@ -196,12 +231,7 @@ function assembleRandomLooks(catalog, options) {
       var pool = buckets[slotId] || [];
       if (!pool.length) continue;
 
-      var fresh = pool.filter(function (item) {
-        return !usedIds.has(item.itemId);
-      });
-      var candidates = fresh.length ? fresh : pool.slice();
-      shuffleInPlace(candidates, random);
-      var pick = candidates[0];
+      var pick = pickFromPool(pool);
       if (!pick) continue;
       usedIds.add(pick.itemId);
       lookItems.push(pick);
@@ -214,11 +244,21 @@ function assembleRandomLooks(catalog, options) {
         return !usedIds.has(item.itemId);
       });
       if (!leftover.length) leftover = catalog.slice();
-      shuffleInPlace(leftover, random);
-      var take = Math.min(4, leftover.length);
+      var fallbackPick = pickFromPool(leftover);
+      var takePool = leftover.slice();
+      shuffleInPlace(takePool, random);
+      if (fallbackPick) {
+        // Prefer soft-exclude-aware first pick, then fill.
+        takePool = [fallbackPick].concat(
+          takePool.filter(function (item) {
+            return item && item.itemId !== fallbackPick.itemId;
+          })
+        );
+      }
+      var take = Math.min(4, takePool.length);
       for (var t = 0; t < take; t++) {
-        usedIds.add(leftover[t].itemId);
-        lookItems.push(leftover[t]);
+        usedIds.add(takePool[t].itemId);
+        lookItems.push(takePool[t]);
       }
     }
 
@@ -255,7 +295,7 @@ function targetFormalityRankFromContext(context) {
  * Prefer formality near the request; fall back to usable role/slot and
  * attrs presence when formality is missing or context has no hint.
  */
-function catalogSubsetScore(row, targetRank) {
+function catalogSubsetScore(row, targetRank, softExclude) {
   var item = row || {};
   var rawFormality = String(item.formality || "").trim();
   var fRank = formalityRank(rawFormality);
@@ -265,6 +305,7 @@ function catalogSubsetScore(row, targetRank) {
   // classifySlot already matches outfitRole first, then type — fills seed gaps.
   var slot = classifySlot(item);
   var usableRole = hasRole || Boolean(slot);
+  var exclude = softExcludeSet(softExclude);
 
   var score = 0;
   if (usableRole) score += 10;
@@ -295,6 +336,11 @@ function catalogSubsetScore(row, targetRank) {
     }
   }
 
+  // Suggest-again: keep prior pieces available but prefer peers in the prompt.
+  if (exclude && item.itemId && exclude.has(String(item.itemId))) {
+    score -= 6;
+  }
+
   return score;
 }
 
@@ -302,12 +348,15 @@ function catalogSubsetScore(row, targetRank) {
  * When closet exceeds SOFT_CATALOG_CAP, keep the highest-scoring rows for this
  * request (formality/role). Stable oldest-first tie-break among equals.
  */
-function selectCatalogForPrompt(catalog, context) {
+function selectCatalogForPrompt(catalog, context, softExclude) {
   var rows = (catalog || []).slice();
   if (rows.length <= SOFT_CATALOG_CAP) return rows;
   var targetRank = targetFormalityRankFromContext(context);
+  var exclude = softExcludeSet(softExclude);
   rows.sort(function (a, b) {
-    var diff = catalogSubsetScore(b, targetRank) - catalogSubsetScore(a, targetRank);
+    var diff =
+      catalogSubsetScore(b, targetRank, exclude) -
+      catalogSubsetScore(a, targetRank, exclude);
     if (diff !== 0) return diff;
     return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
   });
@@ -315,8 +364,8 @@ function selectCatalogForPrompt(catalog, context) {
 }
 
 /** Strip markdown/quotes from model titles; clamp ≤ MAX_TITLE. */
-function serializeCatalogForPrompt(catalog, context) {
-  var rows = selectCatalogForPrompt(catalog, context);
+function serializeCatalogForPrompt(catalog, context, softExclude) {
+  var rows = selectCatalogForPrompt(catalog, context, softExclude);
 
   return rows.map(function (item) {
     var out = {
@@ -432,6 +481,7 @@ function systemPrompt(lookCount) {
     "Outerwear may layer over a single base. Distinct accessory types (hat, scarf, etc.) may co-exist; still at most one belt or suspenders.",
     "Cardigan / open knit mid-layer: always include a shirt, tee, polo, or equivalent closed base underneath — never ship a cardigan as the sole top.",
     "Never pair a black suit (black blazer/suit jacket + black trousers) with a black necktie unless the context clearly is a funeral or mourning. For theatre / dress-up / dinner, prefer a coloured or textured tie, or no tie with dress shirt + blazer.",
+    "Neckwear: at most one necktie or bow tie per look — never both, and never two ties. Prefer the piece whose formality best matches the occasion.",
     "When context is cold / cool / outdoor evening / garden / patio, include a warm outer or mid layer when the catalog has candidates.",
     "Cool outdoor walking (≤~14°C, autumn/fall, chilly city walk / explore outdoors): prefer a sweater, turtleneck, fleece, or flannel under a jacket/coat — never a polo, tee, or light shirt alone under outerwear. Indoor-only / theatre / dress-up looks are exempt.",
     "When trousers need a waist finish (not side-adjuster/beltless), include a belt — or suspenders/braces when the trousers' aiContext supports them.",
@@ -452,7 +502,14 @@ function systemPrompt(lookCount) {
   ].join("\n");
 }
 
-function userPrompt(context, catalogJson, repairNote, lookCount, brief) {
+function userPrompt(
+  context,
+  catalogJson,
+  repairNote,
+  lookCount,
+  brief,
+  excludeItemIds
+) {
   var count = clampLookCount(lookCount);
   var trip = brief || parseTripBrief(context, count);
   var parts = [
@@ -463,6 +520,8 @@ function userPrompt(context, catalogJson, repairNote, lookCount, brief) {
   ];
   var tripNote = tripBriefPromptNote(trip);
   if (tripNote) parts.push(tripNote);
+  var diversifyNote = diversifyExcludePromptNote(excludeItemIds);
+  if (diversifyNote) parts.push(diversifyNote);
   if (repairNote) {
     parts.push(repairNote);
   }
@@ -485,6 +544,7 @@ function completenessRepairNote(incomplete, lookCount) {
     " If duplicate_footwear / duplicate_outer / competing_bases: keep a single piece in that slot." +
     " If missing_base_under_open_knit: add a shirt/tee/polo (or equivalent closed base) under the cardigan/open knit." +
     " If black_suit_black_tie: replace the black necktie with a coloured/textured tie, or omit the tie — never black-on-black necktie with a black suit unless the context is funeral/mourning." +
+    " If dual_neckwear: keep a single necktie or bow tie (never both) — prefer the piece whose formality best matches the occasion." +
     " If missing_layer_for_cold: add a warm outer/mid layer from the catalog." +
     " If insufficient_insulation_for_cool_outdoor: replace a thin polo/tee/shirt under outerwear with a sweater/turtleneck/fleece/flannel (warm mid-layer) from the catalog — indoor/theatre looks exempt." +
     " If missing_waist_finish: add a belt, or suspenders when trousers support them." +
@@ -501,7 +561,12 @@ function sleep(ms) {
   });
 }
 
-async function invokeBedrock(system, userText, lookCount) {
+async function invokeBedrock(system, userText, lookCount, options) {
+  var opts = options || {};
+  var temperature =
+    typeof opts.temperature === "number"
+      ? opts.temperature
+      : DEFAULT_BEDROCK_TEMPERATURE;
   var commandInput = {
     modelId: modelId(),
     system: [{ text: system }],
@@ -513,7 +578,7 @@ async function invokeBedrock(system, userText, lookCount) {
     ],
     inferenceConfig: {
       maxTokens: maxTokensForLookCount(lookCount),
-      temperature: 0.3,
+      temperature: temperature,
     },
   };
 
@@ -547,11 +612,11 @@ async function invokeBedrock(system, userText, lookCount) {
   };
 }
 
-async function invokeBedrockWithRetry(system, userText, lookCount) {
+async function invokeBedrockWithRetry(system, userText, lookCount, options) {
   var lastErr;
   for (var attempt = 0; attempt < 2; attempt++) {
     try {
-      return await invokeBedrock(system, userText, lookCount);
+      return await invokeBedrock(system, userText, lookCount, options);
     } catch (err) {
       lastErr = err;
       if (err && err.statusCode) throw err;
@@ -580,8 +645,16 @@ async function assembleWithBedrock(catalog, input) {
     input && input.lookCount != null ? input.lookCount : DEFAULT_LOOK_COUNT
   );
   var context = (input && input.context) || "";
+  var excludeItemIds = Array.isArray(input && input.excludeItemIds)
+    ? input.excludeItemIds
+    : [];
+  var softExclude = softExcludeSet(excludeItemIds);
+  var bedrockTemperature =
+    softExclude && softExclude.size
+      ? AGAIN_BEDROCK_TEMPERATURE
+      : DEFAULT_BEDROCK_TEMPERATURE;
   var brief = parseTripBrief(context, lookCount);
-  var compact = serializeCatalogForPrompt(catalog, context);
+  var compact = serializeCatalogForPrompt(catalog, context, softExclude);
   var allowedIds = catalogIdSet(catalog);
   var byId = catalogById(catalog);
   var catalogJson = JSON.stringify(compact);
@@ -592,6 +665,7 @@ async function assembleWithBedrock(catalog, input) {
   var lastModelId = modelId();
   var startedAt = nowMs();
   var packingRepairs = 0;
+  var softExcludeSwaps = 0;
 
   function withinSecondPassBudget() {
     return nowMs() - startedAt < SECOND_PASS_DEADLINE_MS;
@@ -603,7 +677,9 @@ async function assembleWithBedrock(catalog, input) {
 
   async function callBedrock(userText, systemOverride) {
     var sys = systemOverride || system;
-    var result = await invokeBedrockWithRetry(sys, userText, lookCount);
+    var result = await invokeBedrockWithRetry(sys, userText, lookCount, {
+      temperature: bedrockTemperature,
+    });
     bedrockCalls += 1;
     lastModelId = result.modelId || lastModelId;
     if (typeof result.inputTokens === "number") {
@@ -615,11 +691,20 @@ async function assembleWithBedrock(catalog, input) {
     return result;
   }
 
+  function prompt(repairNote, countOverride) {
+    return userPrompt(
+      context,
+      catalogJson,
+      repairNote || null,
+      countOverride != null ? countOverride : lookCount,
+      brief,
+      excludeItemIds
+    );
+  }
+
   var bedrockResult;
   try {
-    bedrockResult = await callBedrock(
-      userPrompt(context, catalogJson, null, lookCount, brief)
-    );
+    bedrockResult = await callBedrock(prompt(null));
   } catch (err) {
     if (err && err.statusCode) throw err;
     console.error(
@@ -644,13 +729,7 @@ async function assembleWithBedrock(catalog, input) {
     // One repair retry on malformed JSON.
     try {
       bedrockResult = await callBedrock(
-        userPrompt(
-          context,
-          catalogJson,
-          "Previous reply was not valid JSON. Return ONLY the schema object.",
-          lookCount,
-          brief
-        )
+        prompt("Previous reply was not valid JSON. Return ONLY the schema object.")
       );
       validated = validateLookPayload(
         parseJsonObject(bedrockResult.text),
@@ -673,16 +752,12 @@ async function assembleWithBedrock(catalog, input) {
       .join(", ");
     try {
       bedrockResult = await callBedrock(
-        userPrompt(
-          context,
-          catalogJson,
+        prompt(
           "Invalid or empty itemIds were removed. Pick ONLY from this ID list: " +
             idList +
             ". Return " +
             lookCount +
-            " looks with valid itemIds.",
-          lookCount,
-          brief
+            " looks with valid itemIds."
         )
       );
       validated = validateLookPayload(
@@ -720,7 +795,11 @@ async function assembleWithBedrock(catalog, input) {
   }
 
   var priorIdsBeforeDedupe = (validated.looks || []).map(lookItemIds);
-  validated.looks = enforceSlotUniqueness(validated.looks, byId);
+  validated.looks = enforceSlotUniqueness(
+    validated.looks,
+    byId,
+    softExclude
+  );
   var completeness = assertLooksComplete(
     validated.looks,
     byId,
@@ -730,13 +809,7 @@ async function assembleWithBedrock(catalog, input) {
   if (completeness.incomplete.length && canOptionalBedrockPass()) {
     try {
       bedrockResult = await callBedrock(
-        userPrompt(
-          context,
-          catalogJson,
-          completenessRepairNote(completeness.incomplete, lookCount),
-          lookCount,
-          brief
-        )
+        prompt(completenessRepairNote(completeness.incomplete, lookCount))
       );
       validated = validateLookPayload(
         parseJsonObject(bedrockResult.text),
@@ -744,7 +817,11 @@ async function assembleWithBedrock(catalog, input) {
         lookCount
       );
       priorIdsBeforeDedupe = (validated.looks || []).map(lookItemIds);
-      validated.looks = enforceSlotUniqueness(validated.looks, byId);
+      validated.looks = enforceSlotUniqueness(
+        validated.looks,
+        byId,
+        softExclude
+      );
     } catch (_repairErr) {
       console.warn(
         JSON.stringify({
@@ -765,8 +842,23 @@ async function assembleWithBedrock(catalog, input) {
     );
   }
 
-  var local = repairLooksLocally(validated.looks, byId, catalog, context);
-  local.looks = enforceSlotUniqueness(local.looks, byId);
+  var diversified = softDiversifyFromExclude(
+    validated.looks,
+    byId,
+    catalog,
+    softExclude
+  );
+  softExcludeSwaps = diversified.swaps || 0;
+  validated.looks = diversified.looks;
+
+  var local = repairLooksLocally(
+    validated.looks,
+    byId,
+    catalog,
+    context,
+    softExclude
+  );
+  local.looks = enforceSlotUniqueness(local.looks, byId, softExclude);
   local.looks = syncLooksCopy(
     local.looks,
     priorIdsBeforeDedupe,
@@ -787,7 +879,8 @@ async function assembleWithBedrock(catalog, input) {
       completeLooks,
       catalog,
       context,
-      lookCount
+      lookCount,
+      softExclude
     );
   }
 
@@ -796,9 +889,7 @@ async function assembleWithBedrock(catalog, input) {
     var missing = lookCount - completeLooks.length;
     try {
       bedrockResult = await callBedrock(
-        userPrompt(
-          context,
-          catalogJson,
+        prompt(
           "Return " +
             missing +
             " additional complete looks that diversify from these existing itemId sets: " +
@@ -810,8 +901,7 @@ async function assembleWithBedrock(catalog, input) {
             ". Same schema; only the new looks array (length " +
             missing +
             ").",
-          missing,
-          brief
+          missing
         )
       );
       var fillValidated = validateLookPayload(
@@ -819,15 +909,32 @@ async function assembleWithBedrock(catalog, input) {
         allowedIds,
         missing
       );
-      fillValidated.looks = enforceSlotUniqueness(fillValidated.looks, byId);
+      fillValidated.looks = enforceSlotUniqueness(
+        fillValidated.looks,
+        byId,
+        softExclude
+      );
+      var fillDiversified = softDiversifyFromExclude(
+        fillValidated.looks,
+        byId,
+        catalog,
+        softExclude
+      );
+      softExcludeSwaps += fillDiversified.swaps || 0;
+      fillValidated.looks = fillDiversified.looks;
       var fillPrior = (fillValidated.looks || []).map(lookItemIds);
       var fillLocal = repairLooksLocally(
         fillValidated.looks,
         byId,
         catalog,
-        context
+        context,
+        softExclude
       );
-      fillLocal.looks = enforceSlotUniqueness(fillLocal.looks, byId);
+      fillLocal.looks = enforceSlotUniqueness(
+        fillLocal.looks,
+        byId,
+        softExclude
+      );
       fillLocal.looks = syncLooksCopy(
         fillLocal.looks,
         fillPrior,
@@ -887,13 +994,13 @@ async function assembleWithBedrock(catalog, input) {
   );
   packingRepairs = packingResult.repairs || 0;
   completeLooks = packingResult.looks;
-  completeLooks = enforceSlotUniqueness(completeLooks, byId);
+  completeLooks = enforceSlotUniqueness(completeLooks, byId, softExclude);
 
   // Belt ↔ footwear leather-tone repair after packing (shoes may have swapped).
   var beltResult = repairBeltFootwearMatch(completeLooks, byId, catalog);
   var beltRepairs = beltResult.repairs || 0;
   completeLooks = beltResult.looks;
-  completeLooks = enforceSlotUniqueness(completeLooks, byId);
+  completeLooks = enforceSlotUniqueness(completeLooks, byId, softExclude);
   softFormalityMismatches(completeLooks, brief, byId);
   softStyleClashes(completeLooks, byId, context);
 
@@ -990,6 +1097,7 @@ async function assembleWithBedrock(catalog, input) {
   var repairCounts = Object.assign({}, local.repairCounts, {
     packing: packingRepairs,
     belt: beltRepairs,
+    softExclude: softExcludeSwaps,
   });
   var occasions = publicOccasions(brief);
 

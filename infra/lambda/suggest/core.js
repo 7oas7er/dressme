@@ -20,6 +20,12 @@ var MAX_CONTEXT = 480;
 var MAX_RATIONALE = 560;
 var MAX_TITLE = 48;
 var MAX_AI_CONTEXT_PROMPT = 300;
+/** Cap on Suggest-again soft-exclude IDs from the client (≈8 looks × ~8 pieces). */
+var MAX_EXCLUDE_ITEM_IDS = 96;
+/** First Dress-me Converse temperature (deterministic structured looks). */
+var DEFAULT_BEDROCK_TEMPERATURE = 0.3;
+/** Suggest-again Converse temperature (slight entropy; keep structured). */
+var AGAIN_BEDROCK_TEMPERATURE = 0.55;
 /**
  * Soft prompt cap — ~265-item closet with headroom; when exceeded,
  * request-aware formality/role subsetting picks the prompt rows.
@@ -46,6 +52,7 @@ var STYLE_PACK_V1 = [
   "- Completeness: every look needs base + bottom (+ footwear when shoes exist). Accessories when context warrants.",
   "- Open knit layering: a cardigan (or similar open knitwear mid-layer) is never the sole top — always include a shirt, tee, polo, or equivalent closed base underneath.",
   "- Black suit + black tie: never pair a black suit (black blazer/suit jacket + black trousers) with a black tie unless the context clearly is a funeral or mourning. For theatre / dress-up / dinner, prefer a coloured or textured tie, or no tie with a dress shirt + blazer.",
+  "- Neckwear: at most one necktie or bow tie per look — never both, and never two ties. Prefer the piece whose formality best matches the occasion (formal evening → keep one formal neckwear piece).",
   "- Slot uniqueness: at most one base, one bottom, one footwear, and one outer/mid-layer per look — never two shoes or two jackets.",
   "- Cold or outdoor evening / garden / patio: prefer a warm layer (coat, blazer, cardigan, knit overshirt) when the catalog has one.",
   "- Cool outdoor walking (≤~14°C, autumn/fall, chilly city walk / explore outdoors): do not ship a polo, tee, or light shirt alone under a jacket/coat — prefer a warm mid-layer (sweater, turtleneck, fleece, flannel, cardigan over a closed base). Indoor-only / theatre / dress-up looks are exempt.",
@@ -381,6 +388,9 @@ exports.MAX_CONTEXT = MAX_CONTEXT;
 exports.MAX_RATIONALE = MAX_RATIONALE;
 exports.MAX_TITLE = MAX_TITLE;
 exports.MAX_AI_CONTEXT_PROMPT = MAX_AI_CONTEXT_PROMPT;
+exports.MAX_EXCLUDE_ITEM_IDS = MAX_EXCLUDE_ITEM_IDS;
+exports.DEFAULT_BEDROCK_TEMPERATURE = DEFAULT_BEDROCK_TEMPERATURE;
+exports.AGAIN_BEDROCK_TEMPERATURE = AGAIN_BEDROCK_TEMPERATURE;
 exports.SOFT_CATALOG_CAP = SOFT_CATALOG_CAP;
 exports.SECOND_PASS_DEADLINE_MS = SECOND_PASS_DEADLINE_MS;
 exports.DEFAULT_MODEL_ID = DEFAULT_MODEL_ID;

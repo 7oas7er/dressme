@@ -47,6 +47,31 @@ export function lookHeadline(look, index) {
   return title ? `Look ${n} · ${title}` : `Look ${n}`;
 }
 
+/**
+ * Flatten prior look piece IDs for Suggest-again soft-exclude.
+ * Prefers look.itemIds when present; otherwise item.itemId from look.items.
+ */
+export function collectPriorSuggestItemIds(looks) {
+  const out = [];
+  const seen = new Set();
+  const list = Array.isArray(looks) ? looks : [];
+  for (let i = 0; i < list.length; i++) {
+    const look = list[i] || {};
+    const fromIds = Array.isArray(look.itemIds) ? look.itemIds : [];
+    const fromItems = (look.items || [])
+      .map((item) => (item && item.itemId ? item.itemId : ""))
+      .filter(Boolean);
+    const ids = fromIds.length ? fromIds : fromItems;
+    for (let j = 0; j < ids.length; j++) {
+      const id = String(ids[j] || "").trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
 export function lookSummary(look) {
   const items = (look && look.items) || [];
   if (!items.length) return "No pieces available for this look.";
