@@ -351,7 +351,7 @@ test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   assert.match(catalog, /renderLookCard/);
   assert.match(catalog, /fromSuggest|Back to looks|backToLooks/);
   assert.match(catalog, /suggest_incomplete_looks/);
-  assert.match(catalog, /Nothing is recorded|does not record worn/);
+  assert.doesNotMatch(catalog, /pick one mentally|Nothing is recorded/);
   assert.match(catalog, /name: "context"/);
   assert.doesNotMatch(catalog, /name: "occasion"/);
   assert.doesNotMatch(catalog, /name: "weather"/);
@@ -396,7 +396,6 @@ test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   assert.match(catalog, /Assembling looks/);
   assert.doesNotMatch(catalog, /Assembling three looks/);
   assert.match(catalog, /5 looks please/);
-  assert.match(catalog, /pick one mentally/);
   const mainSrc = fs.readFileSync(path.join(root, "web/src/main.js"), "utf8");
   assert.doesNotMatch(mainSrc, /three looks/);
   assert.match(mainSrc, /outfit looks|looks from it/);

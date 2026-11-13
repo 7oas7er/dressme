@@ -87,16 +87,60 @@ function sameIdList(a, b) {
   return true;
 }
 
+/**
+ * Natural wardrobe colour for piece nouns — prefer a common colour word
+ * extracted from Wada/fabric over a full Wada plate name as the garment adjective.
+ */
+function naturalColorWord(item) {
+  var cue = colorCueFromItem(item);
+  if (cue) return cue;
+  var wada = itemPrimaryWadaName(item);
+  if (!wada) return "";
+  var bits = String(wada)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (bits.length === 1 && COLOR_WORD_RE.test(bits[0])) {
+    return bits[0].toLowerCase();
+  }
+  return "";
+}
+
+/**
+ * Wardrobe noun phrase: colour + type (+ fabric), brand secondary in parens.
+ * Never treat brand/model as the garment noun alone ("Black Gipsy").
+ */
 function itemLabel(item) {
   var row = item || {};
-  var wada = itemPrimaryWadaName(row);
+  var color = naturalColorWord(row);
   var brand = String(row.brandModel || "").trim();
-  var type = String(row.type || row.outfitRole || "piece").trim();
-  if (brand && type && brand.toLowerCase() !== type.toLowerCase()) {
-    return (wada ? wada + " " : "") + brand;
+  var type = String(row.type || row.outfitRole || "piece").trim() || "piece";
+  var fabric = String(row.fabric || "").trim();
+  var lowerType = type.toLowerCase();
+  var lowerBrand = brand.toLowerCase();
+
+  var fabricBits = fabric
+    ? fabric.split(/\s+/).filter(function (bit) {
+        var b = bit.toLowerCase();
+        if (!b) return false;
+        if (color && b === color) return false;
+        if (lowerType.indexOf(b) >= 0) return false;
+        if (lowerBrand && lowerBrand.indexOf(b) >= 0) return false;
+        return true;
+      })
+    : [];
+  var fabricLead = fabricBits.join(" ");
+
+  var core = type;
+  if (fabricLead) core = fabricLead + " " + core;
+  if (color && !new RegExp("\\b" + color + "\\b", "i").test(core)) {
+    core = color + " " + core;
   }
-  if (wada && type) return wada + " " + type;
-  return brand || type || "piece";
+
+  if (brand && lowerBrand !== lowerType) {
+    return core + " (" + brand + ")";
+  }
+  return core;
 }
 
 function significantTokens(text) {
@@ -204,20 +248,19 @@ function shortTypeWord(item) {
   if (/\bcoat\b/.test(type)) return "coat";
   if (/\bjacket\b/.test(type)) return "jacket";
   if (/\bcardigan\b/.test(type)) return "cardigan";
+  if (/\bsweater|turtleneck|\bknit\b/.test(type)) return "sweater";
+  if (/\bjeans?\b/.test(type)) return "jeans";
   if (/\bshirt\b/.test(type)) return "shirt";
   if (/\btrousers?\b|\bpants\b|\bchinos?\b/.test(type)) return "trousers";
-  if (/\bshoe|\bboot|\bloafer|\bderby/.test(type)) return "shoes";
+  if (/\bboots?\b/.test(type)) return "boots";
+  if (/\bshoe|\bloafer|\bderby/.test(type)) return "shoes";
+  if (/\bbelt\b/.test(type)) return "belt";
   var bits = type.split(/\s+/).filter(Boolean);
   return bits.length ? bits[bits.length - 1] : "";
 }
 
 function pieceTypeLabel(item) {
-  var brand = String((item && item.brandModel) || "").trim();
-  var type = String((item && (item.type || item.outfitRole)) || "piece").trim();
-  if (brand && type && brand.toLowerCase() !== type.toLowerCase()) {
-    return brand + " " + type;
-  }
-  return brand || type || "piece";
+  return itemLabel(item);
 }
 
 function copyLooksBroken(title, rationale) {
@@ -265,8 +308,82 @@ function tokensAreColorOrTypeStub(toks) {
 }
 
 /**
- * True when the title is a bare occasion↔color/type stub — e.g.
- * "Board day blue", "blue for Dinner look", "Soft blue for Dinner".
+ * Residual post-#139 templates Frank rejected on stg smoke — e.g.
+ * "black blazer that carries Lunch", "Lunch-ready blazer",
+ * "Quiet gray blazer, Lunch cut".
+ */
+function residualTemplateIsFlat(raw, target) {
+  if (!raw || !target) return false;
+  // "{color|type…} that carries {cue}"
+  var carries = " that carries " + target;
+  var cIdx = raw.indexOf(carries);
+  if (cIdx > 0) {
+    var beforeCarries = raw.slice(0, cIdx).trim();
+    var afterCarries = raw.slice(cIdx + carries.length).trim();
+    if (
+      !afterCarries &&
+      tokensAreColorOrTypeStub(beforeCarries.split(/\s+/))
+    ) {
+      return true;
+    }
+  }
+  // "{cue} ready {type}" (hyphens already normalized to spaces)
+  var readyPrefix = target + " ready ";
+  if (raw.indexOf(readyPrefix) === 0) {
+    var afterReady = raw.slice(readyPrefix.length).trim();
+    if (tokensAreColorOrTypeStub(afterReady.split(/\s+/))) return true;
+  }
+  // "{adj?} {color?} {type?}, {cue} cut" (comma kept by normalize)
+  var commaCut = ", " + target + " cut";
+  var cutIdx = raw.indexOf(commaCut);
+  if (cutIdx > 0) {
+    var beforeComma = raw.slice(0, cutIdx).trim();
+    if (tokensAreColorOrTypeStub(beforeComma.split(/\s+/))) return true;
+  }
+  // Same without comma: "quiet gray blazer lunch cut"
+  var spaceCut = " " + target + " cut";
+  if (raw.length > spaceCut.length && raw.slice(-spaceCut.length) === spaceCut) {
+    var beforeCut = raw.slice(0, raw.length - spaceCut.length).trim();
+    if (tokensAreColorOrTypeStub(beforeCut.split(/\s+/))) return true;
+  }
+  return false;
+}
+
+/** Residual skeletons when occasion meta is missing. */
+function residualSkeletonWithoutCue(raw) {
+  if (!raw) return false;
+  var carriesMatch = raw.match(/^(.+?)\s+that carries\s+(.+)$/);
+  if (
+    carriesMatch &&
+    tokensAreColorOrTypeStub(carriesMatch[1].split(/\s+/)) &&
+    carriesMatch[2].split(/\s+/).filter(Boolean).length <= 3
+  ) {
+    return true;
+  }
+  var readyMatch = raw.match(/^(.+?)\s+ready\s+(.+)$/);
+  if (
+    readyMatch &&
+    readyMatch[1].split(/\s+/).filter(Boolean).length <= 3 &&
+    tokensAreColorOrTypeStub(readyMatch[2].split(/\s+/))
+  ) {
+    return true;
+  }
+  var cutMatch = raw.match(/^(.+?),\s*(.+?)\s+cut$/);
+  if (
+    cutMatch &&
+    tokensAreColorOrTypeStub(cutMatch[1].split(/\s+/)) &&
+    cutMatch[2].split(/\s+/).filter(Boolean).length <= 3
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * True when the title is a bare occasion↔color/type stub or residual template —
+ * e.g. "Board day blue", "blue for Dinner look", "Soft blue for Dinner",
+ * "black blazer that carries Lunch", "Lunch-ready blazer",
+ * "Quiet gray blazer, Lunch cut".
  */
 function titleLooksFlat(title, occasion) {
   var raw = normalizeTitleFlatText(title);
@@ -305,9 +422,12 @@ function titleLooksFlat(title, occasion) {
     ) {
       return true;
     }
+    if (residualSkeletonWithoutCue(raw)) return true;
     return (
       tokensAreColorOrTypeStub(raw.split(/\s+/)) &&
-      !/\b(with|ready|meets|that|carries|travels|presence|intent)\b/.test(raw)
+      !/\b(with|ready|meets|that|carries|travels|presence|intent|confidence|energy|power)\b/.test(
+        raw
+      )
     );
   }
 
@@ -316,6 +436,10 @@ function titleLooksFlat(title, occasion) {
     return true;
   }
   if (colorForTargetIsFlat(cue) || colorForTargetIsFlat(cueCore)) return true;
+  if (residualTemplateIsFlat(raw, cue) || residualTemplateIsFlat(raw, cueCore)) {
+    return true;
+  }
+  if (residualSkeletonWithoutCue(raw)) return true;
   return false;
 }
 
@@ -330,15 +454,37 @@ function lookAnchorPiece(pieces) {
 }
 
 function pieceDetail(item) {
-  var label = itemLabel(item);
-  var fabric = String((item && item.fabric) || "").trim();
-  if (
-    fabric &&
-    label.toLowerCase().indexOf(fabric.toLowerCase()) < 0
-  ) {
-    return label + " in " + fabric;
+  // itemLabel already folds colour + fabric + type (+ brand); avoid "… in fabric".
+  return itemLabel(item);
+}
+
+/**
+ * True when copy names a catalog brand/model as the garment noun without
+ * that piece's type/role (e.g. "Black Gipsy in leather" vs "black leather jacket").
+ */
+function copyLooksBrandAsNoun(title, rationale, pieces) {
+  var blob = String(title || "") + " " + String(rationale || "");
+  var lower = blob.toLowerCase();
+  if (!lower.trim()) return false;
+  for (var i = 0; i < (pieces || []).length; i++) {
+    var item = pieces[i];
+    var brand = String((item && item.brandModel) || "").trim();
+    var type = String((item && (item.type || item.outfitRole)) || "").trim();
+    if (!brand || brand.length < 3) continue;
+    if (!type || type.toLowerCase() === brand.toLowerCase()) continue;
+    if (lower.indexOf(brand.toLowerCase()) < 0) continue;
+    var typeWord = shortTypeWord(item);
+    var typeTokens = significantTokens(type);
+    var hasType = false;
+    if (typeWord && lower.indexOf(typeWord.toLowerCase()) >= 0) {
+      hasType = true;
+    }
+    for (var t = 0; !hasType && t < typeTokens.length; t++) {
+      if (lower.indexOf(typeTokens[t]) >= 0) hasType = true;
+    }
+    if (!hasType) return true;
   }
-  return label;
+  return false;
 }
 
 function uniqueNonEmpty(values) {
@@ -382,29 +528,30 @@ function rewriteLookCopy(look, byId, context, opts) {
       ? opts.index
       : Math.max(0, (parseInt(String((look && look.lookId) || "1"), 10) || 1) - 1)) %
     3;
-  // Structured fallback titles — occasion-led, rotated voice. Never bare
-  // "{shortTitle} {color}" or "{color} for {shortTitle}" (both read as stubs).
+  // Personality-led fallback titles — thematic, rotated voice. Prefer Bedrock
+  // rewrite when budget allows. Never bare "{shortTitle} {color}",
+  // "{color} for {shortTitle}", "{color} {type} that carries {cue}",
+  // "{cue}-ready {type}", or "Quiet {color} {type}, {cue} cut". Do not force
+  // the occasion word into every title.
   var cueCore = String(cue || "")
     .replace(/\s+look$/i, "")
     .trim();
   if (!cueCore) cueCore = cue;
   var titleSeed;
-  if (cueCore && color && variant === 0) {
-    titleSeed = color + " that carries " + cueCore;
-  } else if (cueCore && typeWord && variant === 1) {
-    titleSeed = cueCore + "-ready " + typeWord;
-  } else if (cueCore && color && typeWord) {
-    titleSeed = "Quiet " + color + " " + typeWord + ", " + cueCore + " cut";
-  } else if (cueCore && color) {
-    titleSeed = color + " with " + cueCore + " presence";
-  } else if (cueCore && typeWord) {
-    titleSeed = cueCore + "-ready " + typeWord;
-  } else if (cueCore) {
-    titleSeed = cueCore + " with intent";
-  } else if (color && typeWord) {
+  if (variant === 0 && color) {
+    titleSeed = "Soft power in " + color;
+  } else if (variant === 1 && typeWord) {
+    titleSeed = "Quiet " + typeWord + " confidence";
+  } else if (variant === 2 && color && typeWord) {
     titleSeed = color + " " + typeWord + " with intent";
+  } else if (color && typeWord) {
+    titleSeed = color + " " + typeWord + " with presence";
   } else if (typeWord) {
-    titleSeed = typeWord + " with intent";
+    titleSeed = typeWord + " with quiet confidence";
+  } else if (color) {
+    titleSeed = color + " with intent";
+  } else if (cueCore) {
+    titleSeed = cueCore + " with presence";
   } else {
     titleSeed = "Closet look";
   }
@@ -417,12 +564,12 @@ function rewriteLookCopy(look, byId, context, opts) {
   // Last-resort escape if a seed still trips flat detection.
   if (titleLooksFlat(title, occasion || (cue ? { shortTitle: cue } : null))) {
     title = clampTitle(
-      cueCore && typeWord
-        ? cueCore + "-ready " + typeWord
-        : cueCore
-          ? cueCore + " with intent"
-          : color && typeWord
-            ? color + " " + typeWord + " with intent"
+      color
+        ? "Soft power in " + color
+        : typeWord
+          ? "Quiet " + typeWord + " energy"
+          : cueCore
+            ? cueCore + " with presence"
             : "Closet look"
     );
   }
@@ -580,6 +727,11 @@ function rewriteLookCopy(look, byId, context, opts) {
 function syncLookCopy(look, priorIds, byId, catalog, context, opts) {
   opts = opts || {};
   var finalIds = lookItemIds(look);
+  var pieces = finalIds
+    .map(function (id) {
+      return byId && typeof byId.get === "function" ? byId.get(id) : null;
+    })
+    .filter(Boolean);
   var changed = !sameIdList(priorIds, finalIds);
   var foreign = copyMentionsForeignPieces(
     look && look.title,
@@ -594,10 +746,23 @@ function syncLookCopy(look, priorIds, byId, catalog, context, opts) {
     look && look.title,
     look && look.rationale
   );
+  var brandNoun = copyLooksBrandAsNoun(
+    look && look.title,
+    look && look.rationale,
+    pieces
+  );
   var force = Boolean(opts.force);
   // Preserve catchy first-pass AI titles when IDs/copy are still valid.
   // force=true after packing must not collapse personality to cue+color stubs.
-  if (!changed && !foreign && !broken && !flat && !formulaic && !force) {
+  if (
+    !changed &&
+    !foreign &&
+    !broken &&
+    !flat &&
+    !formulaic &&
+    !brandNoun &&
+    !force
+  ) {
     return look;
   }
   if (
@@ -606,6 +771,7 @@ function syncLookCopy(look, priorIds, byId, catalog, context, opts) {
     !broken &&
     !flat &&
     !formulaic &&
+    !brandNoun &&
     force
   ) {
     return look;
@@ -620,7 +786,9 @@ function syncLookCopy(look, priorIds, byId, catalog, context, opts) {
           ? "flat_title"
           : formulaic
             ? "formulaic_copy"
-            : "force";
+            : brandNoun
+              ? "brand_as_noun"
+              : "force";
   console.warn(
     JSON.stringify({
       event: "suggest_copy_rewrite",
@@ -667,8 +835,9 @@ function copyRewriteSystemPrompt(lookCount) {
     'Return JSON only: {"looks":[{"lookId":"1","title":"...","rationale":"..."}]} with exactly ' +
       clampLookCount(lookCount) +
       " looks.",
-    'Titles: catchy occasion-led phrases with personality (about 3–7 words, ≤48 chars) — e.g. "Soft power for the board", "Charcoal that travels", "Garden-evening layers". Never bare "{occasion} {color}" or "{color} for {occasion}" stubs like "Board day blue", "Board day navy", or "blue for Dinner look". Never lead with Wada colour name + brand. Never paste session context. Never end mid-phrase (no trailing "I would").',
+    'Titles: catchy thematic phrases with personality (about 3–7 words, ≤48 chars) — e.g. "Soft power for the board", "Charcoal that travels", "Garden-evening layers", "Client-calm charcoal". Fit the look\'s vibe; occasion may flavour a title but need not appear in every one. Never flat templates: "{occasion} {color}", "{color} for {occasion}", "{color} {type} that carries {occasion}", "{occasion}-ready {type}", "{adj} {color} {type}, {occasion} cut" — ban "Board day blue", "blue for Dinner look", "black blazer that carries Lunch", "Lunch-ready blazer", "Quiet gray blazer, Lunch cut". Never lead with Wada colour name + brand. Never paste session context. Never end mid-phrase (no trailing "I would").',
     "Rationales: 2–4 sentences with varied voice across looks. First sentence names this look's occasion/day. Then why these pieces fit that day, materials, and Wada/palette harmony — keep Wada quality without identical boilerplate.",
+    "Name pieces in natural wardrobe language: colour + type (and fabric when useful), with brand/model only as a secondary tag — e.g. \"black leather jacket (Gipsy)\" or \"black leather Gipsy jacket\". Never treat brand alone as the noun (\"Black Gipsy\", \"Black Hiltl\", \"Black Joe Merino\").",
     'Forbidden skeleton phrases: "anchors the look", "Materials stay honest", "Palette-wise,". Do not reuse the same sentence pattern on every look.',
     "Describe only the listed pieces.",
   ].join("\n");
@@ -732,11 +901,17 @@ async function rewriteLooksCopyWithBedrock(looks, byId, brief, callBedrock) {
       var title = clampTitle(row.title);
       var rationale = clampText(row.rationale, MAX_RATIONALE);
       var occ = occasionForLook(brief, look, index);
+      var pieces = lookItemIds(look)
+        .map(function (id) {
+          return byId && typeof byId.get === "function" ? byId.get(id) : null;
+        })
+        .filter(Boolean);
       if (
         !title ||
         copyLooksBroken(title, rationale) ||
         copyLooksFormulaic(title, rationale) ||
-        titleLooksFlat(title, occ)
+        titleLooksFlat(title, occ) ||
+        copyLooksBrandAsNoun(title, rationale, pieces)
       ) {
         return rewriteLookCopy(look, byId, "", {
           brief: brief,
@@ -762,6 +937,7 @@ async function rewriteLooksCopyWithBedrock(looks, byId, brief, callBedrock) {
 
 exports.clampTitle = clampTitle;
 exports.colorCueFromItem = colorCueFromItem;
+exports.copyLooksBrandAsNoun = copyLooksBrandAsNoun;
 exports.copyLooksBroken = copyLooksBroken;
 exports.copyLooksFormulaic = copyLooksFormulaic;
 exports.copyMentionsForeignPieces = copyMentionsForeignPieces;
@@ -771,6 +947,7 @@ exports.copyRewriteUserPrompt = copyRewriteUserPrompt;
 exports.itemLabel = itemLabel;
 exports.itemMentionTokens = itemMentionTokens;
 exports.lookAnchorPiece = lookAnchorPiece;
+exports.naturalColorWord = naturalColorWord;
 exports.pieceDetail = pieceDetail;
 exports.pieceTypeLabel = pieceTypeLabel;
 exports.rewriteLookCopy = rewriteLookCopy;

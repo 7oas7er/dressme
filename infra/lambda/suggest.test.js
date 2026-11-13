@@ -406,9 +406,12 @@ test("systemPrompt asks for verbose titles and 2–4 sentence rationales", funct
   assert.match(prompt, /2–4 sentences|2-4 sentences/i);
   assert.match(prompt, /catchy but full/i);
   assert.match(prompt, /Wada\/palette|palette/i);
-  assert.match(prompt, /occasion-led|Soft power|luggage|capsule/i);
+  assert.match(prompt, /thematic|Soft power|luggage|capsule/i);
   assert.match(prompt, /Board day blue|bare.*occasion.*color/i);
   assert.match(prompt, /blue for Dinner look|color.*for.*occasion/i);
+  assert.match(prompt, /that carries|Lunch-ready|Lunch cut/i);
+  assert.match(prompt, /brand-as-noun|never.*"Black Gipsy"|natural wardrobe/i);
+  assert.match(prompt, /black leather jacket \(Gipsy\)|colour \+ type/i);
 });
 
 test("rewriteLookCopy is occasion-led and never pastes raw session context", function () {
@@ -477,8 +480,10 @@ test("rewriteLookCopy is occasion-led and never pastes raw session context", fun
   assert.ok(!/I would/i.test(rewritten.title));
   assert.ok(!/I would like you to create/i.test(rewritten.rationale));
   assert.ok(!/^Dark Tyrian Blue Rooks/i.test(rewritten.title));
-  assert.match(rewritten.title, /board/i);
-  // Fallback must not collapse to bare "{shortTitle} {color}".
+  // Fallback is thematic — occasion word optional; must not be residual templates.
+  assert.ok(!/\bthat carries\b/i.test(rewritten.title), rewritten.title);
+  assert.ok(!/-ready\b/i.test(rewritten.title), rewritten.title);
+  assert.ok(!/\bcut$/i.test(rewritten.title), rewritten.title);
   assert.equal(
     suggest.titleLooksFlat(rewritten.title, brief.occasions[1]),
     false,
@@ -510,6 +515,7 @@ test("rewriteLookCopy is occasion-led and never pastes raw session context", fun
 test("titleLooksFlat catches occasion+color stubs; sync preserves catchy titles", function () {
   var board = { shortTitle: "Board day", formalityHint: "business" };
   var dinner = { shortTitle: "Dinner look", formalityHint: "smart casual" };
+  var lunch = { shortTitle: "Lunch", formalityHint: "business" };
   assert.equal(suggest.titleLooksFlat("Board day blue", board), true);
   assert.equal(suggest.titleLooksFlat("Board day black", board), true);
   assert.equal(suggest.titleLooksFlat("Board-day navy", board), true);
@@ -523,6 +529,33 @@ test("titleLooksFlat catches occasion+color stubs; sync preserves catchy titles"
     suggest.titleLooksFlat("blue for Dinner look", null),
     true
   );
+  // Residual #139 fallback / prompt templates (Frank stg smoke).
+  assert.equal(
+    suggest.titleLooksFlat("black blazer that carries Lunch", lunch),
+    true
+  );
+  assert.equal(suggest.titleLooksFlat("Lunch-ready blazer", lunch), true);
+  assert.equal(
+    suggest.titleLooksFlat("Quiet gray blazer, Lunch cut", lunch),
+    true
+  );
+  assert.equal(
+    suggest.titleLooksFlat("blue that carries Dinner", dinner),
+    true
+  );
+  assert.equal(
+    suggest.titleLooksFlat("black jacket that carries Dinner", dinner),
+    true
+  );
+  assert.equal(
+    suggest.titleLooksFlat("black blazer that carries Lunch", null),
+    true
+  );
+  assert.equal(suggest.titleLooksFlat("Lunch-ready blazer", null), true);
+  assert.equal(
+    suggest.titleLooksFlat("Quiet gray blazer, Lunch cut", null),
+    true
+  );
   assert.equal(
     suggest.titleLooksFlat("Soft power for the board", board),
     false
@@ -534,7 +567,15 @@ test("titleLooksFlat catches occasion+color stubs; sync preserves catchy titles"
     false
   );
   assert.equal(
-    suggest.titleLooksFlat("blue that carries Dinner", dinner),
+    suggest.titleLooksFlat("Client-calm charcoal", lunch),
+    false
+  );
+  assert.equal(
+    suggest.titleLooksFlat("Soft power in black", lunch),
+    false
+  );
+  assert.equal(
+    suggest.titleLooksFlat("Quiet blazer confidence", lunch),
     false
   );
 
@@ -602,7 +643,30 @@ test("titleLooksFlat catches occasion+color stubs; sync preserves catchy titles"
   );
   assert.notEqual(flat.title, "Board day blue");
   assert.equal(suggest.titleLooksFlat(flat.title, board), false, flat.title);
-  assert.match(flat.title, /board/i);
+  assert.ok(!/\bthat carries\b/i.test(flat.title), flat.title);
+  assert.ok(!/-ready\b/i.test(flat.title), flat.title);
+
+  var lunchFlat = suggest.syncLookCopy(
+    {
+      lookId: "1",
+      title: "black blazer that carries Lunch",
+      rationale:
+        "Lunch leans on a black blazer, backed by a white oxford and chinos.",
+      itemIds: ids,
+    },
+    ids,
+    byId,
+    catalog,
+    "Business lunch with potential customers. One dress is enough.",
+    { occasion: lunch, index: 0, force: true }
+  );
+  assert.notEqual(lunchFlat.title, "black blazer that carries Lunch");
+  assert.ok(!/\bthat carries\b/i.test(lunchFlat.title), lunchFlat.title);
+  assert.equal(
+    suggest.titleLooksFlat(lunchFlat.title, lunch),
+    false,
+    lunchFlat.title
+  );
 
   var dinnerFlat = suggest.syncLookCopy(
     {
@@ -638,11 +702,126 @@ test("titleLooksFlat catches occasion+color stubs; sync preserves catchy titles"
     { occasion: dinner, index: 0 }
   );
   assert.ok(!/^blue for\b/i.test(dinnerRewrite.title), dinnerRewrite.title);
+  assert.ok(!/\bthat carries\b/i.test(dinnerRewrite.title), dinnerRewrite.title);
+  assert.ok(!/-ready\b/i.test(dinnerRewrite.title), dinnerRewrite.title);
+  assert.ok(!/,\s*\w+\s+cut$/i.test(dinnerRewrite.title), dinnerRewrite.title);
   assert.equal(
     suggest.titleLooksFlat(dinnerRewrite.title, dinner),
     false,
     dinnerRewrite.title
   );
+});
+
+test("itemLabel / rewriteLookCopy prefer colour+type over brand-as-noun", function () {
+  var gipsy = {
+    itemId: "gipsy1",
+    outfitRole: "outerwear",
+    type: "leather jacket",
+    brandModel: "Gipsy",
+    fabric: "leather",
+    wadaColorIds: ["wada:v1:158"],
+  };
+  var joe = {
+    itemId: "joe1",
+    outfitRole: "base",
+    type: "merino turtleneck",
+    brandModel: "Joe Merino",
+    fabric: "merino",
+    wadaColorIds: ["wada:v1:158"],
+  };
+  var hiltl = {
+    itemId: "hiltl1",
+    outfitRole: "trousers",
+    type: "jeans",
+    brandModel: "Hiltl",
+    fabric: "denim",
+    wadaColorIds: ["wada:v1:158"],
+  };
+  var hackett = {
+    itemId: "hackett1",
+    outfitRole: "footwear",
+    type: "boots",
+    brandModel: "Hackett",
+    fabric: "leather",
+    wadaColorIds: ["wada:v1:158"],
+  };
+  var gipsyLabel = suggest.itemLabel(gipsy);
+  assert.match(gipsyLabel, /jacket/i);
+  assert.match(gipsyLabel, /leather/i);
+  assert.ok(!/^black\s+gipsy$/i.test(gipsyLabel), gipsyLabel);
+  assert.ok(!/\bin leather\b/i.test(suggest.pieceDetail(gipsy)));
+  assert.match(gipsyLabel, /Gipsy/);
+
+  var brandOnlyRationale =
+    "Dinner look leans on Black Gipsy in leather, backed by Black Joe Merino, Black Hiltl in denim, Black Hackett in leather.";
+  assert.equal(
+    suggest.copyLooksBrandAsNoun(
+      "black that carries Dinner",
+      brandOnlyRationale,
+      [gipsy, joe, hiltl, hackett]
+    ),
+    true
+  );
+  assert.equal(
+    suggest.copyLooksBrandAsNoun(
+      "black jacket that carries Dinner",
+      "Dinner look leans on a black leather jacket (Gipsy), backed by a black merino turtleneck (Joe Merino).",
+      [gipsy, joe]
+    ),
+    false
+  );
+
+  var byId = new Map(
+    [gipsy, joe, hiltl, hackett].map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var dinner = { shortTitle: "Dinner look", formalityHint: "smart casual" };
+  var rewritten = suggest.rewriteLookCopy(
+    {
+      lookId: "1",
+      title: "black that carries Dinner",
+      rationale: brandOnlyRationale,
+      itemIds: ["gipsy1", "joe1", "hiltl1", "hackett1"],
+    },
+    byId,
+    "Italian dinner + coat, Berlin Mitte hipster, cold autumn walk",
+    { occasion: dinner, index: 0 }
+  );
+  assert.ok(!/Black Gipsy/i.test(rewritten.rationale), rewritten.rationale);
+  assert.ok(!/Black Joe Merino/i.test(rewritten.rationale), rewritten.rationale);
+  assert.ok(!/Black Hiltl\b/i.test(rewritten.rationale), rewritten.rationale);
+  assert.ok(!/Black Hackett\b/i.test(rewritten.rationale), rewritten.rationale);
+  assert.match(rewritten.rationale, /jacket/i);
+  assert.match(rewritten.rationale, /jeans|turtleneck|sweater|boots/i);
+  assert.match(rewritten.rationale, /\(Gipsy\)|\(Joe Merino\)|\(Hiltl\)/);
+  assert.ok(!/^black that carries\b/i.test(rewritten.title), rewritten.title);
+  assert.ok(!/\bthat carries\b/i.test(rewritten.title), rewritten.title);
+  assert.equal(
+    suggest.titleLooksFlat(rewritten.title, dinner),
+    false,
+    rewritten.title
+  );
+
+  var synced = suggest.syncLookCopy(
+    {
+      lookId: "1",
+      title: "Soft power for dinner",
+      rationale: brandOnlyRationale,
+      itemIds: ["gipsy1", "joe1", "hiltl1", "hackett1"],
+    },
+    ["gipsy1", "joe1", "hiltl1", "hackett1"],
+    byId,
+    [gipsy, joe, hiltl, hackett],
+    "Italian dinner + coat",
+    { occasion: dinner, index: 0, force: false }
+  );
+  assert.ok(!/Black Gipsy/i.test(synced.rationale), synced.rationale);
+  assert.match(synced.rationale, /jacket/i);
+
+  var rewritePrompt = suggest.copyRewriteSystemPrompt(3);
+  assert.match(rewritePrompt, /brand alone as the noun|Black Gipsy/i);
+  assert.match(rewritePrompt, /black leather jacket \(Gipsy\)/i);
 });
 
 test("formalityRank treats black-tie like black tie (seed spelling)", function () {
@@ -997,6 +1176,14 @@ test("extractLookCount defaults, parses digits/words, and clamps 1–8", functio
   assert.equal(suggest.extractLookCount("three casual looks"), 3);
   assert.equal(suggest.extractLookCount("4 colorful suggestions"), 4);
   assert.equal(suggest.extractLookCount("five bold options"), 5);
+  // Colloquial "dress" = look/outfit ("One dress is enough").
+  assert.equal(suggest.extractLookCount("One dress is enough"), 1);
+  assert.equal(
+    suggest.extractLookCount(
+      "Business lunch with potential customers. One dress is enough."
+    ),
+    1
+  );
   assert.equal(suggest.maxTokensForLookCount(3), 512 + 3 * 280);
   assert.equal(suggest.maxTokensForLookCount(8), 512 + 8 * 280);
   assert.ok(suggest.maxTokensForLookCount(8) > suggest.maxTokensForLookCount(3));
@@ -2084,8 +2271,8 @@ test("Bedrock shortfall flags when closet cannot reach requested N", async funct
 
 test("catalogCapMeta flags when closet exceeds soft cap", function () {
   var cap = suggest.SOFT_CATALOG_CAP;
-  // Headroom for ~200+ closet + ties/hats without always truncating.
-  assert.ok(cap >= 240);
+  // Headroom for ~265-item closet without always truncating.
+  assert.ok(cap >= 300);
   var under = [];
   for (var i = 0; i < cap; i++) under.push({ itemId: "i" + i });
   var metaUnder = suggest.catalogCapMeta(under);

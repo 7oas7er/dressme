@@ -1142,10 +1142,7 @@ export function renderCatalogApp(root, { onLogout }) {
         ? data.occasions
         : null;
       state.suggest.exportStatus = "";
-      const n = state.suggest.looks.length;
-      state.status =
-        (n === 1 ? "1 look" : `${n} looks`) +
-        " — pick one mentally. Nothing is recorded in the app.";
+      state.status = "";
     } catch (err) {
       const code = err && err.message ? String(err.message) : "";
       if (code === "suggest_incomplete_looks") {

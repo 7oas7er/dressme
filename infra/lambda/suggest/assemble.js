@@ -434,9 +434,9 @@ function systemPrompt(lookCount) {
     "When trousers need a waist finish (not side-adjuster/beltless), include a belt — or suspenders/braces when the trousers' aiContext supports them.",
     "Match belt leather tone to footwear (black belt with black shoes; brown/tan/cognac belt with brown shoes). Never pair a brown belt with black shoes when a matching belt exists in the catalog.",
     "Accessories beyond waist finish remain optional — hat, scarf, jewelry, bag, neckwear, etc. Add them when they improve the look or fit the occasion.",
-    "Title and rationale must name only pieces present in that look's itemIds (use type / brandModel / Wada colour). Never describe a cardigan if the look's outer is a leather jacket.",
-    'Titles: catchy occasion-led phrases with personality (e.g. "Soft power for the board", "Charcoal that travels", "Garden-evening layers"). Never bare "{occasion} {color}" or "{color} for {occasion}" stubs like "Board day blue", "Board-day navy", or "blue for Dinner look". Never lead with Wada name + brand. Never paste or truncate session context into titles. Never end mid-phrase.',
-    "Rationales: 2–4 sentences with varied voice; first sentence names this look's occasion/day; then why pieces fit that day, materials, and palette. Do not paste session context. Do not reuse an anchors/Materials stay honest/Palette-wise skeleton on every look.",
+    "Title and rationale must name only pieces present in that look's itemIds (prefer type + Wada/common colour + fabric; brandModel secondary). Never describe a cardigan if the look's outer is a leather jacket.",
+    'Titles: catchy thematic phrases with personality (e.g. "Soft power for the board", "Charcoal that travels", "Garden-evening layers", "Client-calm charcoal"). Fit the look\'s vibe; occasion may flavour a title but need not appear in every one. Never flat templates: "{occasion} {color}", "{color} for {occasion}", "{color} {type} that carries {occasion}", "{occasion}-ready {type}", "{adj} {color} {type}, {occasion} cut" — ban "Board day blue", "blue for Dinner look", "black blazer that carries Lunch", "Lunch-ready blazer", "Quiet gray blazer, Lunch cut". Never lead with Wada name + brand. Never paste or truncate session context into titles. Never end mid-phrase.',
+    "Rationales: 2–4 sentences with varied voice; first sentence names this look's occasion/day; then why pieces fit that day, materials, and palette. Name pieces as colour + type (+ fabric), with brand only as a tag — e.g. \"black leather jacket (Gipsy)\", never \"Black Gipsy\" / brand-as-noun. Do not paste session context. Do not reuse an anchors/Materials stay honest/Palette-wise skeleton on every look.",
     "When the context lists Day 1 / Day 2 / … or distinct occasions and asks for that many looks, return one look per day/occasion in order with matching formality (board → business; casual train → smart casual).",
     "When luggage/trip limits appear (or a multi-day trip implies packing), plan a shared capsule first and reuse footwear/trousers/jackets across looks so unique counts stay within the stated (or default ≤2) limits.",
     "Never return a look that is only tops, only bottoms, or missing a bottom when trousers/jeans/shorts exist in the catalog.",
@@ -891,8 +891,8 @@ async function assembleWithBedrock(catalog, input) {
   softFormalityMismatches(completeLooks, brief, byId);
 
   // Prefer Bedrock copy rewrite after slot/packing/belt repair when budget allows.
-  // Template is the true fallback — detect formulaic skeletons so occasion-led
-  // titles alone cannot skip the rewrite pass.
+  // Template is the true fallback — detect flat/formulaic/broken copy. Do not
+  // force a rewrite merely because the title omits the occasion word.
   var localRepairs =
     ((local.repairCounts && local.repairCounts.layer) || 0) +
     ((local.repairCounts && local.repairCounts.waist) || 0) +
@@ -906,29 +906,16 @@ async function assembleWithBedrock(catalog, input) {
       occasionForLook(brief, look, index)
     );
   });
+  var brokenCopy = completeLooks.some(function (look) {
+    return copyLooksBroken(look && look.title, look && look.rationale);
+  });
   var needsCopyPass =
     packingRepairs > 0 ||
     beltRepairs > 0 ||
     localRepairs > 0 ||
     formulaicCopy ||
     flatTitles ||
-    completeLooks.some(function (look, index) {
-      if (copyLooksBroken(look && look.title, look && look.rationale)) {
-        return true;
-      }
-      var occ = occasionForLook(brief, look, index);
-      if (!occ || !occ.shortTitle) return false;
-      var title = String((look && look.title) || "").toLowerCase();
-      var keys = String(occ.shortTitle)
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .filter(function (tok) {
-          return tok.length > 2;
-        });
-      return !keys.some(function (tok) {
-        return title.indexOf(tok) >= 0;
-      });
-    });
+    brokenCopy;
   if (needsCopyPass && canOptionalBedrockPass()) {
     var bedrockCopy = await rewriteLooksCopyWithBedrock(
       completeLooks,

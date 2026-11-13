@@ -22,10 +22,10 @@ var MAX_RATIONALE = 560;
 var MAX_TITLE = 48;
 var MAX_AI_CONTEXT_PROMPT = 300;
 /**
- * Soft prompt cap — ~200+ closet with headroom for ties/hats; when exceeded,
+ * Soft prompt cap — ~265-item closet with headroom; when exceeded,
  * request-aware formality/role subsetting picks the prompt rows.
  */
-var SOFT_CATALOG_CAP = 240;
+var SOFT_CATALOG_CAP = 300;
 /**
  * Skip optional Bedrock repair/fill if the primary call already burned most of
  * the CloudFront origin_read_timeout budget (60s without quota). Keeps the
@@ -51,7 +51,8 @@ var STYLE_PACK_V1 = [
   "- Honor Frank's session context and each item's aiContext. Diversify the N looks. Closet-only — never invent IDs.",
   "- Multi-day / multi-occasion briefs: one look per named day or occasion when N matches; put that day/occasion in the title and the first rationale sentence. Soft-align formality (board → business; casual train → smart casual).",
   "- Luggage / trip reuse: when packing limits are implied, plan a shared capsule first (≤N unique footwear, trousers, jackets) and reuse across looks.",
-  "- Title and rationale must describe only the itemIds in that look (attrs + Wada names) — never name a piece that is not listed. Titles are catchy occasion-led phrases with personality (not bare occasion+color stubs like \"Board day blue\") — never lead with Wada name + brand, never paste session context, never end mid-phrase. Rationales are 2–4 thoughtful sentences (lead with this look's occasion, then materials/palette), varied voice — never reuse the same anchors/Materials stay honest/Palette-wise skeleton every look.",
+  "- Title and rationale must describe only the itemIds in that look (attrs + Wada names) — never name a piece that is not listed. Titles are catchy thematic phrases with personality (fit the look's vibe; occasion need not appear in every title) — ban flat templates like \"Board day blue\", \"blue for Dinner look\", \"black blazer that carries Lunch\", \"Lunch-ready blazer\", \"Quiet gray blazer, Lunch cut\" — never lead with Wada name + brand, never paste session context, never end mid-phrase. Rationales are 2–4 thoughtful sentences (lead with this look's occasion, then materials/palette), varied voice — never reuse the same anchors/Materials stay honest/Palette-wise skeleton every look.",
+  "- Name garments in natural wardrobe language: colour + type (fabric when useful); brand/model is secondary (\"black leather jacket (Gipsy)\" / \"black leather Gipsy jacket\"). Never brand-as-noun alone (\"Black Gipsy\", \"Black Hiltl\").",
 ].join("\n");
 
 /** Core (+ waist) slots that may appear at most once per look. */
@@ -126,7 +127,7 @@ var WORD_COUNTS = {
   ten: 10,
 };
 
-var LOOK_NOUN = "(?:looks?|outfits?|suggestions?|options?)";
+var LOOK_NOUN = "(?:looks?|outfits?|suggestions?|options?|dress(?:es)?)";
 
 /**
  * Ordered slots for a classic menswear flat-lay. Empty slots are skipped.
