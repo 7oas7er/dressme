@@ -201,10 +201,17 @@ test("classifySlot maps outfitRole/type into menswear slots", function () {
     suggest.classifySlot({ outfitRole: "overshirt", type: "overshirt" }),
     "outer"
   );
+  // Cardigan is open-layer knitwear — always outer, even with knitwear role.
   assert.equal(
     suggest.classifySlot({ outfitRole: "knitwear", type: "cardigan" }),
+    "outer"
+  );
+  assert.equal(
+    suggest.classifySlot({ outfitRole: "knitwear", type: "sweater" }),
     "base"
   );
+  assert.equal(suggest.isOpenLayerKnitwear({ type: "cardigan" }), true);
+  assert.equal(suggest.isOpenLayerKnitwear({ type: "sweater" }), false);
 });
 
 test("salvageCompetingBases keeps the first base only", function () {
@@ -1371,6 +1378,10 @@ test("systemPrompt mentions Wada colour reference and mandatory core", function 
   assert.match(prompt, /missing_waist_finish|waist finish|suspenders/i);
   assert.match(prompt, /Match belt leather tone|brown belt with black/i);
   assert.match(prompt, /cold|warm layer|garden/i);
+  assert.match(prompt, /cardigan.*shirt|open knit.*base/i);
+  assert.match(prompt, /black suit.*black (necktie|tie)|funeral|mourning/i);
+  assert.match(suggest.STYLE_PACK_V1, /Open knit layering|cardigan/i);
+  assert.match(suggest.STYLE_PACK_V1, /Black suit \+ black tie|funeral/i);
   var five = suggest.systemPrompt(5);
   assert.match(five, /exactly 5 distinct looks/);
   assert.match(five, /"lookId":"5"/);
@@ -1534,6 +1545,224 @@ test("assertLooksComplete accepts core-only and rejects competing bases", functi
     noShoesInCloset
   );
   assert.equal(okWithoutShoes.incomplete.length, 0);
+});
+
+test("cardigan / open knit requires a shirt or tee underneath (Cologne look 3)", function () {
+  var catalog = [
+    {
+      itemId: "cardigan1",
+      outfitRole: "knitwear",
+      type: "cardigan",
+      brandModel: "Charles Tyrwhitt",
+      formality: "smart casual",
+    },
+    {
+      itemId: "barb1",
+      outfitRole: "outerwear",
+      type: "waxed jacket",
+      brandModel: "Barbour",
+      formality: "casual",
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "chinos",
+      formality: "smart casual",
+    },
+    {
+      itemId: "boot1",
+      outfitRole: "footwear",
+      type: "boots",
+      formality: "casual",
+    },
+    {
+      itemId: "belt1",
+      outfitRole: "belt",
+      type: "leather belt",
+      fabric: "brown leather",
+    },
+    {
+      itemId: "shirt1",
+      outfitRole: "shirt",
+      type: "oxford",
+      formality: "smart casual",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  // Regression: cardigan + trousers + Barbour + boots + belt, no shirt.
+  var bare = suggest.lookCompleteness(
+    ["cardigan1", "pants1", "barb1", "boot1", "belt1"],
+    byId,
+    { requireFootwear: true }
+  );
+  assert.equal(bare.ok, false);
+  assert.ok(
+    bare.reasons.includes("missing_base") ||
+      bare.reasons.includes("missing_base_under_open_knit"),
+    String(bare.reasons)
+  );
+
+  var withShirt = suggest.lookCompleteness(
+    ["cardigan1", "shirt1", "pants1", "boot1", "belt1"],
+    byId,
+    { requireFootwear: true }
+  );
+  assert.equal(withShirt.ok, true);
+
+  var repaired = suggest.repairLookLocally(
+    {
+      lookId: "3",
+      itemIds: ["cardigan1", "pants1", "boot1", "belt1"],
+    },
+    byId,
+    catalog,
+    "Cologne day walk"
+  );
+  assert.ok(repaired.look.itemIds.indexOf("shirt1") >= 0);
+  assert.ok(repaired.repairs.includes("attach_base"));
+  var after = suggest.lookCompleteness(repaired.look.itemIds, byId, {
+    requireFootwear: true,
+  });
+  assert.equal(after.ok, true);
+});
+
+test("black suit + black tie rejected except funeral/mourning (Cologne look 2)", function () {
+  var catalog = [
+    {
+      itemId: "blazer1",
+      outfitRole: "outerwear",
+      type: "blazer",
+      brandModel: "Hugo Boss",
+      fabric: "black wool",
+      formality: "formal",
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "wool trousers",
+      fabric: "black wool",
+      formality: "formal",
+    },
+    {
+      itemId: "shirt1",
+      outfitRole: "shirt",
+      type: "dress shirt",
+      fabric: "white cotton",
+      formality: "formal",
+    },
+    {
+      itemId: "tie-black",
+      outfitRole: "neckwear",
+      type: "tie",
+      brandModel: "Olymp",
+      fabric: "black silk",
+      formality: "formal",
+    },
+    {
+      itemId: "tie-navy",
+      outfitRole: "neckwear",
+      type: "tie",
+      fabric: "navy silk",
+      formality: "formal",
+    },
+    {
+      itemId: "shoe1",
+      outfitRole: "footwear",
+      type: "brogues",
+      fabric: "black leather",
+      formality: "formal",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var phantomIds = ["blazer1", "pants1", "shirt1", "tie-black", "shoe1"];
+  assert.equal(suggest.lookHasBlackSuitBlackTie(phantomIds, byId), true);
+
+  var theatre = suggest.lookCompleteness(phantomIds, byId, {
+    requireFootwear: true,
+    allowBlackSuitBlackTie: false,
+  });
+  assert.equal(theatre.ok, false);
+  assert.ok(theatre.reasons.includes("black_suit_black_tie"));
+
+  var funeral = suggest.lookCompleteness(phantomIds, byId, {
+    requireFootwear: true,
+    allowBlackSuitBlackTie: true,
+  });
+  assert.equal(funeral.ok, true);
+
+  assert.equal(
+    suggest.contextAllowsBlackSuitBlackTie("Phantom of the Opera dress-up"),
+    false
+  );
+  assert.equal(
+    suggest.contextAllowsBlackSuitBlackTie("black-tie funeral in Cologne"),
+    true
+  );
+
+  var optsTheatre = suggest.completenessOptionsForLook(
+    phantomIds,
+    byId,
+    catalog,
+    "Phantom of the Opera theatre evening"
+  );
+  assert.equal(optsTheatre.allowBlackSuitBlackTie, false);
+
+  var repaired = suggest.repairLookLocally(
+    { lookId: "2", itemIds: phantomIds.slice() },
+    byId,
+    catalog,
+    "Phantom of the Opera dress-up"
+  );
+  assert.ok(repaired.look.itemIds.indexOf("tie-black") < 0);
+  assert.ok(
+    repaired.repairs.includes("swap_black_suit_tie") ||
+      repaired.repairs.includes("drop_black_suit_tie")
+  );
+  if (repaired.repairs.includes("swap_black_suit_tie")) {
+    assert.ok(repaired.look.itemIds.indexOf("tie-navy") >= 0);
+  }
+  var after = suggest.lookCompleteness(
+    repaired.look.itemIds,
+    byId,
+    suggest.completenessOptionsForLook(
+      repaired.look.itemIds,
+      byId,
+      catalog,
+      "Phantom of the Opera dress-up"
+    )
+  );
+  assert.equal(after.ok, true);
+
+  var soft = suggest.softStyleClashes(
+    [{ lookId: "2", itemIds: phantomIds }],
+    byId,
+    "funeral for a colleague"
+  );
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].rule, "black_suit_black_tie");
+  assert.equal(soft[0].allowed, true);
+});
+
+test("completenessRepairNote mentions open-knit and black-suit rules", function () {
+  var note = suggest.completenessRepairNote(
+    [
+      { lookId: "3", reasons: ["missing_base_under_open_knit"] },
+      { lookId: "2", reasons: ["black_suit_black_tie"] },
+    ],
+    3
+  );
+  assert.match(note, /missing_base_under_open_knit/);
+  assert.match(note, /cardigan|shirt|tee/i);
+  assert.match(note, /black_suit_black_tie/);
+  assert.match(note, /funeral|mourning|coloured|textured/i);
 });
 
 test("clampTitle strips quotes and clamps length", function () {

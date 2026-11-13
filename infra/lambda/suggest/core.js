@@ -44,6 +44,8 @@ var STYLE_PACK_V1 = [
   "- Classic menswear: match occasion formality; keep shoe–trouser relationships coherent; avoid costume stacking.",
   "- Function: fabrics/weights vs weather — open-weave/linen lose in cold; waxed/wool suit damp evening outdoors.",
   "- Completeness: every look needs base + bottom (+ footwear when shoes exist). Accessories when context warrants.",
+  "- Open knit layering: a cardigan (or similar open knitwear mid-layer) is never the sole top — always include a shirt, tee, polo, or equivalent closed base underneath.",
+  "- Black suit + black tie: never pair a black suit (black blazer/suit jacket + black trousers) with a black tie unless the context clearly is a funeral or mourning. For theatre / dress-up / dinner, prefer a coloured or textured tie, or no tie with a dress shirt + blazer.",
   "- Slot uniqueness: at most one base, one bottom, one footwear, and one outer/mid-layer per look — never two shoes or two jackets.",
   "- Cold or outdoor evening / garden / patio: prefer a warm layer (coat, blazer, cardigan, knit overshirt) when the catalog has one.",
   "- Waist finish: looped trousers need a belt, or suspenders/braces when the trousers' aiContext supports them; side-adjuster / beltless trousers are exempt. Prefer belt for casual; suspenders OK when dressy or trousers only support suspenders. Match belt leather tone to footwear (black with black; brown/tan/cognac with brown shoes) — never brown belt with black shoes when a matching belt exists. At most one belt (or one suspenders).",
@@ -70,6 +72,11 @@ var FORMALITY_RANK = {
 
 var COLD_OUTDOOR_RE =
   /\b(cold|cool|chilly|frosty|freezing|winter)\b|\bgarden\b|\bpatio\b|\bterrace\b|\boutdoors?\b|\boutside\b|\bevening\b.{0,48}\b(outdoor|outside|garden|patio|terrace)\b|\b(outdoor|outside|garden|patio|terrace)\b.{0,48}\b(evening|night|cold|cool|chilly)\b/i;
+/** Open-front knit mid-layers that need a shirt/tee underneath (not a sole top). */
+var OPEN_LAYER_KNIT_RE = /\bcardigan\b|\bopen[-\s]?knit\b|\bknit\s+jacket\b/i;
+/** Funeral / mourning — only context that allows black suit + black necktie. */
+var FUNERAL_MOURNING_RE =
+  /\b(funeral|mourning|memorial\s+service|\bwake\b|in\s+memoriam)\b/i;
 var SIDE_ADJUSTER_RE =
   /side[-\s]?adjusters?|side[-\s]?tabs?|\bno\s+belt\b|beltless/i;
 var SUSPENDER_CAPABLE_RE =
@@ -245,6 +252,14 @@ var ROLE_MATCH_PRIORITY = [
 ];
 
 
+/**
+ * Cardigan / open knit mid-layers — always outer, never the sole "base" top.
+ * Closed sweaters/turtlenecks stay base via knitwear role.
+ */
+function isOpenLayerKnitwear(item) {
+  return OPEN_LAYER_KNIT_RE.test(itemRoleTypeText(item));
+}
+
 function classifySlot(item) {
   var role = String(item.outfitRole || "")
     .toLowerCase()
@@ -255,6 +270,9 @@ function classifySlot(item) {
   var tokens = role
     ? role.split(/[^a-z0-9]+/).filter(Boolean)
     : [];
+
+  // Open knit mid-layers layer over a shirt — never classify as base alone.
+  if (isOpenLayerKnitwear(item)) return "outer";
 
   // Prefer outfitRole. Exact full-string match first (any slot order).
   for (var i = 0; i < SLOT_DEFS.length; i++) {
@@ -359,6 +377,7 @@ exports.resetDepsForTests = resetDepsForTests;
 exports.bedrockClient = bedrockClient;
 exports.classifySlot = classifySlot;
 exports.formalityRank = formalityRank;
+exports.isOpenLayerKnitwear = isOpenLayerKnitwear;
 exports.isUniqueSlot = isUniqueSlot;
 exports.itemRoleTypeText = itemRoleTypeText;
 exports.itemSearchText = itemSearchText;
@@ -370,6 +389,8 @@ exports.slotDefById = slotDefById;
 exports.WORD_COUNTS = WORD_COUNTS;
 exports.LOOK_NOUN = LOOK_NOUN;
 exports.COLD_OUTDOOR_RE = COLD_OUTDOOR_RE;
+exports.OPEN_LAYER_KNIT_RE = OPEN_LAYER_KNIT_RE;
+exports.FUNERAL_MOURNING_RE = FUNERAL_MOURNING_RE;
 exports.SIDE_ADJUSTER_RE = SIDE_ADJUSTER_RE;
 exports.SUSPENDER_CAPABLE_RE = SUSPENDER_CAPABLE_RE;
 exports.BELT_ITEM_RE = BELT_ITEM_RE;
@@ -381,6 +402,10 @@ exports.LEATHER_TONE_FAMILIES = LEATHER_TONE_FAMILIES;
 exports.BROKEN_COPY_RE = BROKEN_COPY_RE;
 function contextNeedsColdLayer(context) {
   return COLD_OUTDOOR_RE.test(String(context || ""));
+}
+
+function contextAllowsBlackSuitBlackTie(context) {
+  return FUNERAL_MOURNING_RE.test(String(context || ""));
 }
 
 
@@ -445,6 +470,7 @@ function itemPrimaryWadaName(item) {
 
 exports.FORMULAIC_COPY_RES = FORMULAIC_COPY_RES;
 exports.contextNeedsColdLayer = contextNeedsColdLayer;
+exports.contextAllowsBlackSuitBlackTie = contextAllowsBlackSuitBlackTie;
 exports.lookItemIds = lookItemIds;
 exports.catalogById = catalogById;
 exports.parseJsonObject = parseJsonObject;
