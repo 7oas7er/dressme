@@ -2084,8 +2084,8 @@ test("Bedrock shortfall flags when closet cannot reach requested N", async funct
 
 test("catalogCapMeta flags when closet exceeds soft cap", function () {
   var cap = suggest.SOFT_CATALOG_CAP;
-  // Headroom for ~200+ closet + ties/hats without always truncating.
-  assert.ok(cap >= 240);
+  // Headroom for ~265-item closet without always truncating.
+  assert.ok(cap >= 300);
   var under = [];
   for (var i = 0; i < cap; i++) under.push({ itemId: "i" + i });
   var metaUnder = suggest.catalogCapMeta(under);

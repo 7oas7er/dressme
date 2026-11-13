@@ -22,10 +22,10 @@ var MAX_RATIONALE = 560;
 var MAX_TITLE = 48;
 var MAX_AI_CONTEXT_PROMPT = 300;
 /**
- * Soft prompt cap — ~200+ closet with headroom for ties/hats; when exceeded,
+ * Soft prompt cap — ~265-item closet with headroom; when exceeded,
  * request-aware formality/role subsetting picks the prompt rows.
  */
-var SOFT_CATALOG_CAP = 240;
+var SOFT_CATALOG_CAP = 300;
 /**
  * Skip optional Bedrock repair/fill if the primary call already burned most of
  * the CloudFront origin_read_timeout budget (60s without quota). Keeps the
