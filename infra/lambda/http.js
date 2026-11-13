@@ -1,23 +1,59 @@
 "use strict";
 
-function corsHeaders() {
-  return {
-    "access-control-allow-origin": "*",
+/**
+ * Site origins allowed for browser CORS (match media bucket CORS + both envs).
+ * Override with comma-separated CORS_ALLOWED_ORIGINS when needed.
+ */
+var DEFAULT_ALLOWED_ORIGINS = [
+  "https://dressme.7oas7er.com",
+  "https://dressme-stg.7oas7er.com",
+  "http://127.0.0.1:4173",
+  "http://localhost:4173",
+  "http://127.0.0.1:5173",
+  "http://localhost:5173",
+];
+
+function allowedOrigins() {
+  var raw = process.env.CORS_ALLOWED_ORIGINS;
+  if (raw && String(raw).trim()) {
+    return String(raw)
+      .split(",")
+      .map(function (s) {
+        return s.trim();
+      })
+      .filter(Boolean);
+  }
+  return DEFAULT_ALLOWED_ORIGINS.slice();
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin || typeof origin !== "string") return false;
+  return allowedOrigins().indexOf(origin) !== -1;
+}
+
+function corsHeaders(event) {
+  var headers = {
     "access-control-allow-methods": "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
     "access-control-allow-headers":
       "authorization,content-type,x-id-token,x-amz-content-sha256",
     "cache-control": "no-store",
+    vary: "Origin",
   };
+  var origin = getHeader(event, "origin");
+  if (isAllowedOrigin(origin)) {
+    headers["access-control-allow-origin"] = origin;
+  }
+  return headers;
 }
 
-function json(statusCode, body) {
+function json(statusCode, body, event) {
   return {
     statusCode: statusCode,
     headers: Object.assign(
       {
         "content-type": "application/json; charset=utf-8",
       },
-      corsHeaders()
+      corsHeaders(event)
     ),
     body: statusCode === 204 ? "" : JSON.stringify(body),
   };
@@ -79,6 +115,9 @@ function getQuery(event) {
   return (event && event.queryStringParameters) || {};
 }
 
+exports.DEFAULT_ALLOWED_ORIGINS = DEFAULT_ALLOWED_ORIGINS;
+exports.allowedOrigins = allowedOrigins;
+exports.isAllowedOrigin = isAllowedOrigin;
 exports.corsHeaders = corsHeaders;
 exports.json = json;
 exports.getMethod = getMethod;

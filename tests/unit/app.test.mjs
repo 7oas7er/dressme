@@ -382,9 +382,9 @@ test("suggest outfits flow and photos-only look cards (UC-04–06)", () => {
   assert.match(apiSrc, /\/api\/suggest/);
   assert.match(apiSrc, /suggestOutfits/);
   assert.match(apiSrc, /context/);
-  // Dual-write occasion until stg Lambda zip is applied (missing_occasion).
-  assert.match(apiSrc, /occasion:\s*context/);
-  assert.match(catalog, /missing_occasion/);
+  // Context-only Suggest body (legacy occasion dual-write / shim dropped).
+  assert.doesNotMatch(apiSrc, /occasion:\s*context/);
+  assert.match(catalog, /missing_context/);
   assert.match(styles, /\.look-pieces/);
   assert.match(styles, /\.look-wada-swatch|\.look-piece-col/);
   assert.match(styles, /\.look-rationale/);

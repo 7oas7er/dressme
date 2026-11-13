@@ -16,7 +16,6 @@ var MAX_LOOK_COUNT = 8;
 /** @deprecated Prefer DEFAULT_LOOK_COUNT — kept for callers/tests. */
 var LOOK_COUNT = DEFAULT_LOOK_COUNT;
 var MAX_CONTEXT = 480;
-var MAX_LEGACY_FIELD = 240;
 /** Room for 2–4 thoughtful advice sentences after copy sync. */
 var MAX_RATIONALE = 560;
 var MAX_TITLE = 48;
@@ -345,7 +344,6 @@ exports.MIN_LOOK_COUNT = MIN_LOOK_COUNT;
 exports.MAX_LOOK_COUNT = MAX_LOOK_COUNT;
 exports.LOOK_COUNT = LOOK_COUNT;
 exports.MAX_CONTEXT = MAX_CONTEXT;
-exports.MAX_LEGACY_FIELD = MAX_LEGACY_FIELD;
 exports.MAX_RATIONALE = MAX_RATIONALE;
 exports.MAX_TITLE = MAX_TITLE;
 exports.MAX_AI_CONTEXT_PROMPT = MAX_AI_CONTEXT_PROMPT;

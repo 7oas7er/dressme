@@ -430,18 +430,29 @@ async function getItemRecord(userId, itemId) {
   return result.Item || null;
 }
 
+/**
+ * Query all ITEM# rows for a user, paging past DynamoDB's 1 MB response cap.
+ */
 async function listItemRecords(userId) {
-  var result = await docClient().send(
-    new QueryCommand({
+  var items = [];
+  var startKey = undefined;
+  do {
+    var input = {
       TableName: tableName(),
       KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
       ExpressionAttributeValues: {
         ":pk": pkForUser(userId),
         ":sk": "ITEM#",
       },
-    })
-  );
-  return result.Items || [];
+    };
+    if (startKey) input.ExclusiveStartKey = startKey;
+    var result = await docClient().send(new QueryCommand(input));
+    if (result.Items && result.Items.length) {
+      items = items.concat(result.Items);
+    }
+    startKey = result.LastEvaluatedKey;
+  } while (startKey);
+  return items;
 }
 
 async function listItems(user, query) {
@@ -878,17 +889,7 @@ async function confirmPhotos(user, itemId, body) {
 }
 
 async function backfillThumbs(user) {
-  var result = await docClient().send(
-    new QueryCommand({
-      TableName: tableName(),
-      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
-      ExpressionAttributeValues: {
-        ":pk": pkForUser(user.sub),
-        ":sk": "ITEM#",
-      },
-    })
-  );
-  var rows = result.Items || [];
+  var rows = await listItemRecords(user.sub);
   var processed = 0;
   var skipped = 0;
   var failed = 0;
