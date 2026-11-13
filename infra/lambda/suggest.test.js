@@ -1380,8 +1380,10 @@ test("systemPrompt mentions Wada colour reference and mandatory core", function 
   assert.match(prompt, /cold|warm layer|garden/i);
   assert.match(prompt, /cardigan.*shirt|open knit.*base/i);
   assert.match(prompt, /black suit.*black (necktie|tie)|funeral|mourning/i);
+  assert.match(prompt, /Cool outdoor walking|sweater.*under|polo.*tee/i);
   assert.match(suggest.STYLE_PACK_V1, /Open knit layering|cardigan/i);
   assert.match(suggest.STYLE_PACK_V1, /Black suit \+ black tie|funeral/i);
+  assert.match(suggest.STYLE_PACK_V1, /Cool outdoor walking|mid-layer/i);
   var five = suggest.systemPrompt(5);
   assert.match(five, /exactly 5 distinct looks/);
   assert.match(five, /"lookId":"5"/);
@@ -1395,6 +1397,47 @@ test("contextNeedsColdLayer detects cold/outdoor garden cues", function () {
   );
   assert.equal(suggest.contextNeedsColdLayer("hot indoor office"), false);
   assert.equal(suggest.contextNeedsColdLayer(""), false);
+  assert.equal(
+    suggest.contextNeedsColdLayer("explore Cologne in 10°C autumn weather"),
+    true
+  );
+});
+
+test("lookNeedsWarmInsulation: cool outdoor walk vs indoor theatre", function () {
+  var cologne =
+    "Day 1: explore Cologne in 10°C autumn weather. Day 2: Phantom of the Opera dress-up theatre.";
+  assert.equal(
+    suggest.lookNeedsWarmInsulation(
+      cologne,
+      { lookId: "1" },
+      0
+    ),
+    true
+  );
+  assert.equal(
+    suggest.lookNeedsWarmInsulation(
+      cologne,
+      { lookId: "2" },
+      1
+    ),
+    false
+  );
+  assert.equal(
+    suggest.lookNeedsWarmInsulation(
+      "explore the city on a cool autumn walk — 1 look",
+      { lookId: "1" },
+      0
+    ),
+    true
+  );
+  assert.equal(
+    suggest.lookNeedsWarmInsulation(
+      "Phantom of the Opera dress-up",
+      { lookId: "1" },
+      0
+    ),
+    false
+  );
 });
 
 test("waist finish heuristics: side-adjusters exempt; suspenders capable", function () {
@@ -1756,6 +1799,7 @@ test("completenessRepairNote mentions open-knit and black-suit rules", function 
     [
       { lookId: "3", reasons: ["missing_base_under_open_knit"] },
       { lookId: "2", reasons: ["black_suit_black_tie"] },
+      { lookId: "1", reasons: ["insufficient_insulation_for_cool_outdoor"] },
     ],
     3
   );
@@ -1763,6 +1807,151 @@ test("completenessRepairNote mentions open-knit and black-suit rules", function 
   assert.match(note, /cardigan|shirt|tee/i);
   assert.match(note, /black_suit_black_tie/);
   assert.match(note, /funeral|mourning|coloured|textured/i);
+  assert.match(note, /insufficient_insulation_for_cool_outdoor/);
+  assert.match(note, /sweater|mid-layer|polo/i);
+});
+
+test("cool outdoor walk rejects thin polo under coat; swaps to sweater (Cologne look 1)", function () {
+  var catalog = [
+    {
+      itemId: "polo1",
+      outfitRole: "shirt",
+      type: "polo",
+      fabric: "merino",
+      brandModel: "John Smedley",
+      formality: "smart casual",
+    },
+    {
+      itemId: "tee1",
+      outfitRole: "shirt",
+      type: "tee",
+      fabric: "merino",
+      formality: "casual",
+    },
+    {
+      itemId: "sweater1",
+      outfitRole: "knitwear",
+      type: "sweater",
+      fabric: "merino wool",
+      formality: "smart casual",
+    },
+    {
+      itemId: "barb1",
+      outfitRole: "outerwear",
+      type: "waxed jacket",
+      brandModel: "Barbour Beaufort",
+      formality: "casual",
+    },
+    {
+      itemId: "pants1",
+      outfitRole: "trousers",
+      type: "jeans",
+      formality: "casual",
+    },
+    {
+      itemId: "boot1",
+      outfitRole: "footwear",
+      type: "boots",
+      formality: "casual",
+    },
+    {
+      itemId: "belt1",
+      outfitRole: "belt",
+      type: "leather belt",
+      fabric: "brown leather",
+    },
+  ];
+  var byId = new Map(
+    catalog.map(function (row) {
+      return [row.itemId, row];
+    })
+  );
+  var ctx = "explore Cologne in 10°C autumn weather — city walk outdoors";
+  var thinIds = ["polo1", "pants1", "barb1", "boot1", "belt1"];
+
+  assert.equal(suggest.isThinBaseLayer(byId.get("polo1")), true);
+  assert.equal(suggest.isThinBaseLayer(byId.get("tee1")), true);
+  assert.equal(suggest.isWarmInsulationPiece(byId.get("sweater1")), true);
+  assert.equal(suggest.isWarmInsulationPiece(byId.get("barb1")), false);
+
+  var opts = suggest.completenessOptionsForLook(
+    thinIds,
+    byId,
+    catalog,
+    ctx,
+    { lookId: "1", itemIds: thinIds },
+    0
+  );
+  assert.equal(opts.requireWarmInsulation, true);
+
+  var thin = suggest.lookCompleteness(thinIds, byId, opts);
+  assert.equal(thin.ok, false);
+  assert.ok(
+    thin.reasons.includes("insufficient_insulation_for_cool_outdoor"),
+    String(thin.reasons)
+  );
+
+  var warmIds = ["sweater1", "pants1", "barb1", "boot1", "belt1"];
+  var warm = suggest.lookCompleteness(
+    warmIds,
+    byId,
+    suggest.completenessOptionsForLook(
+      warmIds,
+      byId,
+      catalog,
+      ctx,
+      { lookId: "1", itemIds: warmIds },
+      0
+    )
+  );
+  assert.equal(warm.ok, true);
+
+  var theatreCtx = "Phantom of the Opera dress-up theatre evening";
+  var theatreOpts = suggest.completenessOptionsForLook(
+    thinIds,
+    byId,
+    catalog,
+    theatreCtx,
+    { lookId: "2", itemIds: thinIds },
+    0
+  );
+  assert.equal(theatreOpts.requireWarmInsulation, false);
+
+  var repaired = suggest.repairLookLocally(
+    { lookId: "1", itemIds: thinIds.slice() },
+    byId,
+    catalog,
+    ctx,
+    new Set(),
+    0
+  );
+  assert.ok(repaired.repairs.includes("swap_warm_insulation_base"));
+  assert.ok(repaired.look.itemIds.indexOf("sweater1") >= 0);
+  assert.ok(repaired.look.itemIds.indexOf("polo1") < 0);
+  var after = suggest.lookCompleteness(
+    repaired.look.itemIds,
+    byId,
+    suggest.completenessOptionsForLook(
+      repaired.look.itemIds,
+      byId,
+      catalog,
+      ctx,
+      repaired.look,
+      0
+    )
+  );
+  assert.equal(after.ok, true);
+
+  // Merino tee + Barbour is also too thin for cool outdoor.
+  var teeLook = suggest.lookCompleteness(
+    ["tee1", "pants1", "barb1", "boot1", "belt1"],
+    byId,
+    opts
+  );
+  assert.equal(teeLook.ok, false);
+  assert.ok(
+    teeLook.reasons.includes("insufficient_insulation_for_cool_outdoor")
+  );
 });
 
 test("clampTitle strips quotes and clamps length", function () {

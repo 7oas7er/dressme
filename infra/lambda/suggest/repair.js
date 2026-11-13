@@ -51,6 +51,9 @@ var nowMs = core.nowMs;
 var resetDepsForTests = core.resetDepsForTests;
 var slotDefById = core.slotDefById;
 var contextNeedsColdLayer = core.contextNeedsColdLayer;
+var isThinBaseLayer = core.isThinBaseLayer;
+var isWarmInsulationPiece = core.isWarmInsulationPiece;
+var isWarmClosedBase = core.isWarmClosedBase;
 var lookItemIds = core.lookItemIds;
 var catalogById = core.catalogById;
 var parseJsonObject = core.parseJsonObject;
@@ -62,6 +65,7 @@ var contextCue = brief.contextCue;
 var extractLookCount = brief.extractLookCount;
 var formalityHintFromText = brief.formalityHintFromText;
 var inferOccasionFromText = brief.inferOccasionFromText;
+var lookNeedsWarmInsulation = brief.lookNeedsWarmInsulation;
 var maxTokensForLookCount = brief.maxTokensForLookCount;
 var occasionForLook = brief.occasionForLook;
 var parseCountToken = brief.parseCountToken;
@@ -143,6 +147,40 @@ function lookHasOpenLayerKnit(ids, byId) {
 function lookHasUnderLayerBase(ids, byId) {
   for (var i = 0; i < (ids || []).length; i++) {
     if (isUnderLayerBase(byId.get(ids[i]) || {})) return true;
+  }
+  return false;
+}
+
+function lookHasWarmInsulation(ids, byId) {
+  for (var i = 0; i < (ids || []).length; i++) {
+    if (isWarmInsulationPiece(byId.get(ids[i]) || {})) return true;
+  }
+  return false;
+}
+
+function findLookThinBase(ids, byId) {
+  for (var i = 0; i < (ids || []).length; i++) {
+    var record = byId.get(ids[i]);
+    if (record && isThinBaseLayer(record) && classifySlot(record) === "base") {
+      return record;
+    }
+  }
+  return null;
+}
+
+function catalogHasWarmClosedBase(catalog) {
+  for (var i = 0; i < (catalog || []).length; i++) {
+    var item = catalog[i];
+    if (item && isWarmClosedBase(item) && classifySlot(item) === "base") {
+      return true;
+    }
+  }
+  return false;
+}
+
+function catalogHasWarmInsulation(catalog) {
+  for (var i = 0; i < (catalog || []).length; i++) {
+    if (isWarmInsulationPiece(catalog[i])) return true;
   }
   return false;
 }
@@ -526,6 +564,14 @@ function lookCompleteness(itemIds, byId, options) {
   ) {
     reasons.push("missing_base_under_open_knit");
   }
+  // Cool outdoor walk: outerwear over a thin polo/tee/shirt needs a warm mid/knit.
+  if (
+    opts.requireWarmInsulation &&
+    lookHasOuterLayer(itemIds, byId) &&
+    !lookHasWarmInsulation(itemIds, byId)
+  ) {
+    reasons.push("insufficient_insulation_for_cool_outdoor");
+  }
   // Black suit + black necktie — hard reject unless funeral/mourning context.
   if (
     !opts.allowBlackSuitBlackTie &&
@@ -536,7 +582,7 @@ function lookCompleteness(itemIds, byId, options) {
   return { ok: reasons.length === 0, reasons: reasons };
 }
 
-function completenessOptionsForLook(ids, byId, catalog, context) {
+function completenessOptionsForLook(ids, byId, catalog, context, look, index) {
   var trousers = findLookTrousers(ids, byId);
   var requireWaistFinish = false;
   if (trousers && trousersNeedWaistFinish(trousers)) {
@@ -549,6 +595,9 @@ function completenessOptionsForLook(ids, byId, catalog, context) {
     requireFootwear: catalogHasFootwear(catalog),
     requireColdLayer:
       contextNeedsColdLayer(context) && catalogHasSlot(catalog, "outer"),
+    requireWarmInsulation:
+      lookNeedsWarmInsulation(context, look, index) &&
+      catalogHasWarmInsulation(catalog),
     requireWaistFinish: requireWaistFinish,
     allowBlackSuitBlackTie: contextAllowsBlackSuitBlackTie(context),
   };
@@ -563,7 +612,14 @@ function assertLooksComplete(looks, byId, catalog, context) {
   for (var i = 0; i < (looks || []).length; i++) {
     var look = looks[i];
     var ids = lookItemIds(look);
-    var opts = completenessOptionsForLook(ids, byId, catalog, context);
+    var opts = completenessOptionsForLook(
+      ids,
+      byId,
+      catalog,
+      context,
+      look,
+      i
+    );
     var result = lookCompleteness(ids, byId, opts);
     if (!result.ok) {
       incomplete.push({
@@ -759,7 +815,7 @@ function repairBeltFootwearMatch(looks, byId, catalog) {
  * Deterministic attach repairs for core gaps, cold layer, and waist finish.
  * Returns { look, repairs: string[] }.
  */
-function repairLookLocally(look, byId, catalog, context, globalUsed) {
+function repairLookLocally(look, byId, catalog, context, globalUsed, index) {
   var ids = lookItemIds(look).slice();
   // Empty model/pad looks are dropped + backfilled from unused pieces — do not
   // clone a full core onto blanks just to hit N.
@@ -769,7 +825,14 @@ function repairLookLocally(look, byId, catalog, context, globalUsed) {
   var used = new Set(globalUsed || []);
   for (var u = 0; u < ids.length; u++) used.add(ids[u]);
   var repairs = [];
-  var opts = completenessOptionsForLook(ids, byId, catalog, context);
+  var opts = completenessOptionsForLook(
+    ids,
+    byId,
+    catalog,
+    context,
+    look,
+    index
+  );
   var result = lookCompleteness(ids, byId, opts);
 
   function attach(predicate, reason) {
@@ -800,7 +863,7 @@ function repairLookLocally(look, byId, catalog, context, globalUsed) {
     }, "attach_footwear");
   }
 
-  opts = completenessOptionsForLook(ids, byId, catalog, context);
+  opts = completenessOptionsForLook(ids, byId, catalog, context, look, index);
   result = lookCompleteness(ids, byId, opts);
   if (result.reasons.indexOf("black_suit_black_tie") >= 0) {
     var swapped = false;
@@ -837,7 +900,7 @@ function repairLookLocally(look, byId, catalog, context, globalUsed) {
     );
   }
 
-  opts = completenessOptionsForLook(ids, byId, catalog, context);
+  opts = completenessOptionsForLook(ids, byId, catalog, context, look, index);
   result = lookCompleteness(ids, byId, opts);
   if (result.reasons.indexOf("missing_layer_for_cold") >= 0) {
     if (
@@ -854,7 +917,64 @@ function repairLookLocally(look, byId, catalog, context, globalUsed) {
     }
   }
 
-  opts = completenessOptionsForLook(ids, byId, catalog, context);
+  opts = completenessOptionsForLook(ids, byId, catalog, context, look, index);
+  result = lookCompleteness(ids, byId, opts);
+  if (result.reasons.indexOf("insufficient_insulation_for_cool_outdoor") >= 0) {
+    var replaceBase =
+      findLookThinBase(ids, byId) ||
+      (function () {
+        for (var bi = 0; bi < ids.length; bi++) {
+          var rec = byId.get(ids[bi]);
+          if (
+            rec &&
+            classifySlot(rec) === "base" &&
+            !isWarmInsulationPiece(rec)
+          ) {
+            return rec;
+          }
+        }
+        return null;
+      })();
+    var warmBase = pickUnusedCandidate(catalog, used, function (item) {
+      return isWarmClosedBase(item) && classifySlot(item) === "base";
+    });
+    if (replaceBase && warmBase) {
+      var fromId = String(replaceBase.itemId);
+      var toId = String(warmBase.itemId);
+      for (var wi = 0; wi < ids.length; wi++) {
+        if (String(ids[wi]) === fromId) {
+          ids[wi] = toId;
+          used.add(toId);
+          repairs.push("swap_warm_insulation_base");
+          console.warn(
+            JSON.stringify({
+              event: "suggest_warm_insulation_repair",
+              lookId: look.lookId,
+              action: "swap",
+              from: fromId,
+              to: toId,
+            })
+          );
+          break;
+        }
+      }
+    } else if (
+      !replaceBase &&
+      attach(function (item) {
+        return isWarmClosedBase(item) && classifySlot(item) === "base";
+      }, "attach_warm_insulation")
+    ) {
+      console.warn(
+        JSON.stringify({
+          event: "suggest_warm_insulation_repair",
+          lookId: look.lookId,
+          action: "attach",
+        })
+      );
+    }
+  }
+
+  opts = completenessOptionsForLook(ids, byId, catalog, context, look, index);
   result = lookCompleteness(ids, byId, opts);
   if (result.reasons.indexOf("missing_waist_finish") >= 0) {
     var trousers = findLookTrousers(ids, byId);
@@ -890,20 +1010,26 @@ function repairLookLocally(look, byId, catalog, context, globalUsed) {
 function repairLooksLocally(looks, byId, catalog, context) {
   var used = usedIdsFromLooks(looks);
   var out = [];
-  var repairCounts = { layer: 0, waist: 0, core: 0 };
+  var repairCounts = { layer: 0, waist: 0, core: 0, insulation: 0 };
   for (var i = 0; i < (looks || []).length; i++) {
     var repaired = repairLookLocally(
       looks[i],
       byId,
       catalog,
       context,
-      used
+      used,
+      i
     );
     for (var r = 0; r < repaired.repairs.length; r++) {
       var code = repaired.repairs[r];
       if (code === "attach_layer_for_cold") repairCounts.layer += 1;
       else if (code === "attach_waist_finish") repairCounts.waist += 1;
-      else repairCounts.core += 1;
+      else if (
+        code === "swap_warm_insulation_base" ||
+        code === "attach_warm_insulation"
+      ) {
+        repairCounts.insulation += 1;
+      } else repairCounts.core += 1;
     }
     var ids = lookItemIds(repaired.look);
     for (var j = 0; j < ids.length; j++) used.add(ids[j]);
@@ -917,7 +1043,14 @@ function filterCompleteLooks(looks, byId, catalog, context) {
   for (var i = 0; i < (looks || []).length; i++) {
     var look = looks[i];
     var ids = lookItemIds(look);
-    var opts = completenessOptionsForLook(ids, byId, catalog, context);
+    var opts = completenessOptionsForLook(
+      ids,
+      byId,
+      catalog,
+      context,
+      look,
+      i
+    );
     var result = lookCompleteness(ids, byId, opts);
     if (result.ok && ids.length) {
       kept.push(look);
@@ -1076,7 +1209,10 @@ exports.catalogHasBelt = catalogHasBelt;
 exports.catalogHasFootwear = catalogHasFootwear;
 exports.catalogHasSlot = catalogHasSlot;
 exports.catalogHasSuspenders = catalogHasSuspenders;
+exports.catalogHasWarmClosedBase = catalogHasWarmClosedBase;
+exports.catalogHasWarmInsulation = catalogHasWarmInsulation;
 exports.completenessOptionsForLook = completenessOptionsForLook;
+exports.findLookThinBase = findLookThinBase;
 exports.enforceSlotUniqueness = enforceSlotUniqueness;
 exports.filterCompleteLooks = filterCompleteLooks;
 exports.filterRandomLooksComplete = filterRandomLooksComplete;
@@ -1090,7 +1226,10 @@ exports.isBlackNecktie = isBlackNecktie;
 exports.isOpenLayerKnitwear = isOpenLayerKnitwear;
 exports.isSuitJacketLike = isSuitJacketLike;
 exports.isSuspendersItem = isSuspendersItem;
+exports.isThinBaseLayer = isThinBaseLayer;
 exports.isUnderLayerBase = isUnderLayerBase;
+exports.isWarmClosedBase = isWarmClosedBase;
+exports.isWarmInsulationPiece = isWarmInsulationPiece;
 exports.itemColorBlob = itemColorBlob;
 exports.itemLooksBlack = itemLooksBlack;
 exports.leatherToneFamily = leatherToneFamily;
@@ -1100,6 +1239,7 @@ exports.lookHasOpenLayerKnit = lookHasOpenLayerKnit;
 exports.lookHasOuterLayer = lookHasOuterLayer;
 exports.lookHasUnderLayerBase = lookHasUnderLayerBase;
 exports.lookHasWaistFinish = lookHasWaistFinish;
+exports.lookHasWarmInsulation = lookHasWarmInsulation;
 exports.softStyleClashes = softStyleClashes;
 exports.packingSummary = packingSummary;
 exports.pickUnusedCandidate = pickUnusedCandidate;
