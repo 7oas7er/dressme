@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildSuggestExportPayload,
   collagePhotoUrl,
+  collectPriorSuggestItemIds,
   exportItemForSuggest,
   lookHeadline,
   lookSummary,
@@ -147,7 +148,19 @@ test("buildSuggestExportPayload shapes session for hillclimb paste", () => {
   assert.equal(withPacking.occasions[0].shortTitle, "Train-to-dinner");
 });
 
-test("suggestOutfits posts context only", async () => {
+test("collectPriorSuggestItemIds flattens look items and dedupes", () => {
+  assert.deepEqual(
+    collectPriorSuggestItemIds([
+      { itemIds: ["a", "b"], items: [{ itemId: "a" }, { itemId: "c" }] },
+      { items: [{ itemId: "b" }, { itemId: "d" }] },
+    ]),
+    ["a", "b", "d"]
+  );
+  assert.deepEqual(collectPriorSuggestItemIds([]), []);
+  assert.deepEqual(collectPriorSuggestItemIds(null), []);
+});
+
+test("suggestOutfits posts context only on first suggest", async () => {
   const calls = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options = {}) => {
@@ -174,6 +187,40 @@ test("suggestOutfits posts context only", async () => {
     assert.equal(body.context, "opera tonight, rainy");
     assert.equal(body.occasion, undefined);
     assert.equal(body.weather, undefined);
+    assert.equal(body.excludeItemIds, undefined);
+    assert.equal(body.previousSuggestionId, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("suggestOutfits posts excludeItemIds and previousSuggestionId on again", async () => {
+  const calls = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({
+          engine: "bedrock",
+          looks: [],
+          suggestionId: "sid-2",
+        });
+      },
+    };
+  };
+  try {
+    await suggestOutfits({
+      context: "opera tonight, rainy",
+      excludeItemIds: ["blazer-1", "tie-2", ""],
+      previousSuggestionId: "sid-1",
+    });
+    const body = JSON.parse(calls[0].options.body);
+    assert.equal(body.context, "opera tonight, rainy");
+    assert.deepEqual(body.excludeItemIds, ["blazer-1", "tie-2"]);
+    assert.equal(body.previousSuggestionId, "sid-1");
   } finally {
     globalThis.fetch = originalFetch;
   }

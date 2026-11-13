@@ -252,7 +252,8 @@ function lookHasDualNeckwear(ids, byId) {
  * Prefer the necktie/bow tie whose formality is closest to the look + context.
  * Stable earliest-index tie-break among equals.
  */
-function pickPreferredNeckwearId(ids, byId, context) {
+function pickPreferredNeckwearId(ids, byId, context, softExclude) {
+  var exclude = softExcludeSet(softExclude);
   var candidates = [];
   for (var i = 0; i < (ids || []).length; i++) {
     var record =
@@ -272,12 +273,21 @@ function pickPreferredNeckwearId(ids, byId, context) {
     var row = candidates[c];
     var score = formalityRank(row.record && row.record.formality);
     var match = target > 0 ? -Math.abs(score - target) : -row.index;
+    var excluded = isSoftExcluded(exclude, row.id) ? 1 : 0;
     if (
       !best ||
       match > best.match ||
-      (match === best.match && row.index < best.index)
+      (match === best.match && excluded < best.excluded) ||
+      (match === best.match &&
+        excluded === best.excluded &&
+        row.index < best.index)
     ) {
-      best = { id: row.id, match: match, index: row.index };
+      best = {
+        id: row.id,
+        match: match,
+        excluded: excluded,
+        index: row.index,
+      };
     }
   }
   return best ? best.id : candidates[0].id;
@@ -329,7 +339,23 @@ function catalogHasSuspenders(catalog) {
   return false;
 }
 
-function enforceSlotUniqueness(looks, byId) {
+function softExcludeSet(softExclude) {
+  if (!softExclude) return null;
+  if (softExclude instanceof Set) {
+    return softExclude.size ? softExclude : null;
+  }
+  if (Array.isArray(softExclude)) {
+    return softExclude.length ? new Set(softExclude.map(String)) : null;
+  }
+  return null;
+}
+
+function isSoftExcluded(softExclude, id) {
+  return Boolean(softExclude && softExclude.has(String(id)));
+}
+
+function enforceSlotUniqueness(looks, byId, softExclude) {
+  var exclude = softExcludeSet(softExclude);
   var out = [];
   for (var i = 0; i < (looks || []).length; i++) {
     var look = looks[i] || {};
@@ -351,17 +377,31 @@ function enforceSlotUniqueness(looks, byId) {
       var score = formalityRank(record && record.formality);
       var match =
         targetFormality > 0 ? -Math.abs(score - targetFormality) : -j;
+      var excluded = isSoftExcluded(exclude, id) ? 1 : 0;
       var prev = bestBySlot[slot];
       if (!prev) {
-        bestBySlot[slot] = { id: id, match: match, index: j };
+        bestBySlot[slot] = {
+          id: id,
+          match: match,
+          excluded: excluded,
+          index: j,
+        };
         continue;
       }
       if (
         match > prev.match ||
-        (match === prev.match && j < prev.index)
+        (match === prev.match && excluded < prev.excluded) ||
+        (match === prev.match &&
+          excluded === prev.excluded &&
+          j < prev.index)
       ) {
         dropped.push(prev.id);
-        bestBySlot[slot] = { id: id, match: match, index: j };
+        bestBySlot[slot] = {
+          id: id,
+          match: match,
+          excluded: excluded,
+          index: j,
+        };
       } else {
         dropped.push(id);
       }
@@ -714,16 +754,35 @@ function usedIdsFromLooks(looks) {
   return used;
 }
 
-function pickUnusedCandidate(catalog, usedIds, predicate) {
-  var fresh = [];
-  var any = [];
+/**
+ * Prefer candidates that are unused in this response and not soft-excluded
+ * from a prior Suggest-again click. Soft-excluded IDs remain available when
+ * the closet cannot complete a look without them.
+ */
+function pickUnusedCandidate(catalog, usedIds, predicate, softExclude) {
+  var exclude = softExcludeSet(softExclude);
+  var freshOpen = [];
+  var anyOpen = [];
+  var freshSoft = [];
+  var anySoft = [];
   for (var i = 0; i < (catalog || []).length; i++) {
     var item = catalog[i];
     if (!item || !item.itemId || !predicate(item)) continue;
-    any.push(item);
-    if (!usedIds.has(String(item.itemId))) fresh.push(item);
+    var id = String(item.itemId);
+    var used = usedIds && usedIds.has(id);
+    var soft = isSoftExcluded(exclude, id);
+    if (!used && !soft) freshOpen.push(item);
+    else if (!soft) anyOpen.push(item);
+    else if (!used) freshSoft.push(item);
+    else anySoft.push(item);
   }
-  var pool = fresh.length ? fresh : any;
+  var pool = freshOpen.length
+    ? freshOpen
+    : anyOpen.length
+      ? anyOpen
+      : freshSoft.length
+        ? freshSoft
+        : anySoft;
   return pool.length ? pool[0] : null;
 }
 
@@ -739,7 +798,16 @@ function footwearFormality(ids, byId) {
   return "";
 }
 
-function pickWaistFinish(catalog, usedIds, trousers, ids, byId, context) {
+function pickWaistFinish(
+  catalog,
+  usedIds,
+  trousers,
+  ids,
+  byId,
+  context,
+  softExclude
+) {
+  var exclude = softExcludeSet(softExclude);
   var dressy = /\b(dress|formal|black\s*tie|opera|wedding|ceremony)\b/i.test(
     String(context || "")
   );
@@ -747,7 +815,12 @@ function pickWaistFinish(catalog, usedIds, trousers, ids, byId, context) {
     trousersSuspenderCapable(trousers) &&
     (dressy || !catalogHasBelt(catalog));
   if (preferSuspenders) {
-    var suspenders = pickUnusedCandidate(catalog, usedIds, isSuspendersItem);
+    var suspenders = pickUnusedCandidate(
+      catalog,
+      usedIds,
+      isSuspendersItem,
+      exclude
+    );
     if (suspenders) return suspenders;
   }
   var shoeFormality = footwearFormality(ids, byId);
@@ -760,6 +833,9 @@ function pickWaistFinish(catalog, usedIds, trousers, ids, byId, context) {
     var aFresh = usedIds.has(String(a.itemId)) ? 1 : 0;
     var bFresh = usedIds.has(String(b.itemId)) ? 1 : 0;
     if (aFresh !== bFresh) return aFresh - bFresh;
+    var aSoft = isSoftExcluded(exclude, a.itemId) ? 1 : 0;
+    var bSoft = isSoftExcluded(exclude, b.itemId) ? 1 : 0;
+    if (aSoft !== bSoft) return aSoft - bSoft;
     if (footwear) {
       var aTone = beltFootwearMatchScore(a, footwear);
       var bTone = beltFootwearMatchScore(b, footwear);
@@ -784,7 +860,12 @@ function pickWaistFinish(catalog, usedIds, trousers, ids, byId, context) {
   });
   if (belts.length) return belts[0];
   if (trousersSuspenderCapable(trousers)) {
-    return pickUnusedCandidate(catalog, usedIds, isSuspendersItem);
+    return pickUnusedCandidate(
+      catalog,
+      usedIds,
+      isSuspendersItem,
+      exclude
+    );
   }
   return null;
 }
@@ -889,7 +970,16 @@ function repairBeltFootwearMatch(looks, byId, catalog) {
  * Deterministic attach repairs for core gaps, cold layer, and waist finish.
  * Returns { look, repairs: string[] }.
  */
-function repairLookLocally(look, byId, catalog, context, globalUsed, index) {
+function repairLookLocally(
+  look,
+  byId,
+  catalog,
+  context,
+  globalUsed,
+  index,
+  softExclude
+) {
+  var exclude = softExcludeSet(softExclude);
   var ids = lookItemIds(look).slice();
   // Empty model/pad looks are dropped + backfilled from unused pieces — do not
   // clone a full core onto blanks just to hit N.
@@ -910,7 +1000,7 @@ function repairLookLocally(look, byId, catalog, context, globalUsed, index) {
   var result = lookCompleteness(ids, byId, opts);
 
   function attach(predicate, reason) {
-    var pick = pickUnusedCandidate(catalog, used, predicate);
+    var pick = pickUnusedCandidate(catalog, used, predicate, exclude);
     if (!pick) return false;
     ids.push(String(pick.itemId));
     used.add(String(pick.itemId));
@@ -941,13 +1031,18 @@ function repairLookLocally(look, byId, catalog, context, globalUsed, index) {
   result = lookCompleteness(ids, byId, opts);
   if (result.reasons.indexOf("black_suit_black_tie") >= 0) {
     var swapped = false;
-    var nonBlackTie = pickUnusedCandidate(catalog, used, function (item) {
-      return (
-        classifySlot(item) === "neckwear" &&
-        /\btie\b/i.test(itemRoleTypeText(item)) &&
-        !itemLooksBlack(item)
-      );
-    });
+    var nonBlackTie = pickUnusedCandidate(
+      catalog,
+      used,
+      function (item) {
+        return (
+          classifySlot(item) === "neckwear" &&
+          /\btie\b/i.test(itemRoleTypeText(item)) &&
+          !itemLooksBlack(item)
+        );
+      },
+      exclude
+    );
     var nextIds = [];
     for (var ti = 0; ti < ids.length; ti++) {
       var tieRec = byId.get(ids[ti]);
@@ -977,7 +1072,7 @@ function repairLookLocally(look, byId, catalog, context, globalUsed, index) {
   opts = completenessOptionsForLook(ids, byId, catalog, context, look, index);
   result = lookCompleteness(ids, byId, opts);
   if (result.reasons.indexOf("dual_neckwear") >= 0) {
-    var keepNeck = pickPreferredNeckwearId(ids, byId, context);
+    var keepNeck = pickPreferredNeckwearId(ids, byId, context, exclude);
     var keptOne = false;
     var dualNext = [];
     for (var ni = 0; ni < ids.length; ni++) {
@@ -1037,9 +1132,14 @@ function repairLookLocally(look, byId, catalog, context, globalUsed, index) {
         }
         return null;
       })();
-    var warmBase = pickUnusedCandidate(catalog, used, function (item) {
-      return isWarmClosedBase(item) && classifySlot(item) === "base";
-    });
+    var warmBase = pickUnusedCandidate(
+      catalog,
+      used,
+      function (item) {
+        return isWarmClosedBase(item) && classifySlot(item) === "base";
+      },
+      exclude
+    );
     if (replaceBase && warmBase) {
       var fromId = String(replaceBase.itemId);
       var toId = String(warmBase.itemId);
@@ -1081,7 +1181,15 @@ function repairLookLocally(look, byId, catalog, context, globalUsed, index) {
   if (result.reasons.indexOf("missing_waist_finish") >= 0) {
     var trousers = findLookTrousers(ids, byId);
     var finish = trousers
-      ? pickWaistFinish(catalog, used, trousers, ids, byId, context)
+      ? pickWaistFinish(
+          catalog,
+          used,
+          trousers,
+          ids,
+          byId,
+          context,
+          exclude
+        )
       : null;
     if (finish) {
       ids.push(String(finish.itemId));
@@ -1109,7 +1217,8 @@ function repairLookLocally(look, byId, catalog, context, globalUsed, index) {
   return { look: next, repairs: repairs };
 }
 
-function repairLooksLocally(looks, byId, catalog, context) {
+function repairLooksLocally(looks, byId, catalog, context, softExclude) {
+  var exclude = softExcludeSet(softExclude);
   var used = usedIdsFromLooks(looks);
   var out = [];
   var repairCounts = { layer: 0, waist: 0, core: 0, insulation: 0 };
@@ -1120,7 +1229,8 @@ function repairLooksLocally(looks, byId, catalog, context) {
       catalog,
       context,
       used,
-      i
+      i,
+      exclude
     );
     for (var r = 0; r < repaired.repairs.length; r++) {
       var code = repaired.repairs[r];
@@ -1170,9 +1280,111 @@ function filterCompleteLooks(looks, byId, catalog, context) {
 }
 
 /**
+ * Soft-swap previously suggested itemIds for same-slot alternatives when the
+ * closet has a formality-capable peer. Reuse is allowed when no peer exists
+ * (completeness / packing). Returns { looks, swaps }.
+ */
+function softDiversifyFromExclude(looks, byId, catalog, softExclude) {
+  var exclude = softExcludeSet(softExclude);
+  if (!exclude) {
+    return { looks: looks || [], swaps: 0 };
+  }
+  var swaps = 0;
+  var nextLooks = (looks || []).map(function (look) {
+    return Object.assign({}, look, { itemIds: lookItemIds(look).slice() });
+  });
+
+  for (var li = 0; li < nextLooks.length; li++) {
+    var ids = nextLooks[li].itemIds;
+    var inLook = Object.create(null);
+    for (var u = 0; u < ids.length; u++) inLook[String(ids[u])] = true;
+    var targetFormality = lookTargetFormality(ids, byId);
+
+    for (var j = 0; j < ids.length; j++) {
+      var currentId = String(ids[j]);
+      if (!isSoftExcluded(exclude, currentId)) continue;
+      var current = byId.get(currentId);
+      var slot = classifySlot(current || {});
+      if (!slot) continue;
+      var currentRank = formalityRank(current && current.formality);
+      var currentMatch =
+        targetFormality > 0
+          ? -Math.abs(currentRank - targetFormality)
+          : 0;
+
+      var best = null;
+      var bestMatch = currentMatch;
+      for (var c = 0; c < (catalog || []).length; c++) {
+        var cand = catalog[c];
+        if (!cand || !cand.itemId) continue;
+        var candId = String(cand.itemId);
+        if (inLook[candId] || isSoftExcluded(exclude, candId)) continue;
+        if (classifySlot(cand) !== slot) continue;
+        var candRank = formalityRank(cand.formality);
+        var candMatch =
+          targetFormality > 0
+            ? -Math.abs(candRank - targetFormality)
+            : 0;
+        if (
+          !best ||
+          candMatch > bestMatch ||
+          (candMatch === bestMatch &&
+            String(cand.createdAt || "").localeCompare(
+              String((best && best.createdAt) || "")
+            ) < 0)
+        ) {
+          // Only swap when formality fit is at least as good.
+          if (candMatch >= currentMatch) {
+            best = cand;
+            bestMatch = candMatch;
+          }
+        }
+      }
+      if (!best) continue;
+      var toId = String(best.itemId);
+      delete inLook[currentId];
+      inLook[toId] = true;
+      ids[j] = toId;
+      swaps += 1;
+      console.warn(
+        JSON.stringify({
+          event: "suggest_soft_exclude_swap",
+          lookId: nextLooks[li].lookId,
+          slot: slot,
+          from: currentId,
+          to: toId,
+        })
+      );
+    }
+    nextLooks[li].itemIds = ids;
+  }
+
+  for (var i = 0; i < nextLooks.length; i++) {
+    var look = nextLooks[i];
+    if (looks[i] && looks[i].items && !looks[i].itemIds) {
+      look.items = look.itemIds
+        .map(function (id) {
+          return byId.get(id);
+        })
+        .filter(Boolean);
+      delete look.itemIds;
+    }
+  }
+
+  return { looks: nextLooks, swaps: swaps };
+}
+
+/**
  * Deterministic fill looks to top up toward N using unused catalog pieces.
  */
-function backfillLooksDeterministic(existing, catalog, context, lookCount) {
+function backfillLooksDeterministic(
+  existing,
+  catalog,
+  context,
+  lookCount,
+  softExclude
+) {
+  var exclude = softExcludeSet(softExclude);
   var byId = catalogById(catalog);
   var need = clampLookCount(lookCount) - (existing || []).length;
   if (need <= 0) return existing || [];
@@ -1189,6 +1401,7 @@ function backfillLooksDeterministic(existing, catalog, context, lookCount) {
   var generated = getAssemble().assembleRandomLooks(leftoverCatalog, {
     lookCount: need,
     random: Math.random,
+    softExclude: exclude,
   });
   var asIds = generated.map(function (look, index) {
     return {
@@ -1203,8 +1416,14 @@ function backfillLooksDeterministic(existing, catalog, context, lookCount) {
     };
   });
   var prior = asIds.map(lookItemIds);
-  var repaired = repairLooksLocally(asIds, byId, allCatalog, context);
-  repaired.looks = enforceSlotUniqueness(repaired.looks, byId);
+  var repaired = repairLooksLocally(
+    asIds,
+    byId,
+    allCatalog,
+    context,
+    exclude
+  );
+  repaired.looks = enforceSlotUniqueness(repaired.looks, byId, exclude);
   repaired.looks = syncLooksCopy(
     repaired.looks,
     prior,
@@ -1349,6 +1568,8 @@ exports.lookHasUnderLayerBase = lookHasUnderLayerBase;
 exports.lookHasWaistFinish = lookHasWaistFinish;
 exports.lookHasWarmInsulation = lookHasWarmInsulation;
 exports.softStyleClashes = softStyleClashes;
+exports.softDiversifyFromExclude = softDiversifyFromExclude;
+exports.softExcludeSet = softExcludeSet;
 exports.packingSummary = packingSummary;
 exports.pickUnusedCandidate = pickUnusedCandidate;
 exports.pickWaistFinish = pickWaistFinish;
