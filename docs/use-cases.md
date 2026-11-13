@@ -2,8 +2,8 @@
 
 Derived from the frozen Product Canvas (Project store).
 
-**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference; amended 2026-11-09 for UC-05 photos-only look cards + Wada plate; amended 2026-11-09 drop free-text color; Later amended 2026-11-13 for UC-32–33 shopping support).  
-Last updated: 2026-11-13 (Europe/Berlin; shopping advice from gaps + candidate try-on)
+**Status:** Locked — Must list is the **v1 scope contract** (confirmed 2026-10-25; amended 2026-10-26 for UC-18, UC-19; amended 2026-11-05 for UC-07, UC-20–23; amended 2026-11-06 for UC-05 Option D + UC-24 demoted; amended 2026-11-07 for UC-25 add-time AI assist + UC-04 Bedrock text suggest / UC-09 rationale in the same slice; amended 2026-11-09 for UC-26–28 Sanzo Wada color reference; amended 2026-11-09 for UC-05 photos-only look cards + Wada plate; amended 2026-11-09 drop free-text color; Later amended 2026-11-13 for UC-32–33 shopping support; Later amended 2026-11-13 for UC-34 look feedback).  
+Last updated: 2026-11-13 (Europe/Berlin; look feedback personalizes Suggest)
 
 Synced from Project store use cases where they diverge; Must list below is authoritative for this repo.
 
@@ -103,3 +103,6 @@ As Frank, I can ask DressMe what to buy next — e.g. “recommend shoes I’m m
 
 ### UC-33 — Candidate piece try-on with closet
 As Frank, when considering a purchase (in a shop or on a web shop), I share a **photo of a candidate piece**; DressMe generates outfit looks that **pair that candidate with existing wardrobe items** (photos-only look cards in the spirit of UC-05 where practical) so I can judge fit and complementarity before buying. The candidate is **not** added to the catalog unless I later run UC-01. Distinct from UC-12 (near-duplicate / “too close to what I own” warning). **Later / post-MVP.**
+
+### UC-34 — Look feedback (rating + notes)
+As Frank, after a Suggest run (UC-04 / UC-05), I can rate each generated look with a **1–5 star** score and optional **free-text** note. DressMe stores that feedback and the Suggest engine uses it to **personalize future recommendations** (prefer what I like, avoid what I reject). Distinct from UC-06 (no in-app feedback in v1) and UC-14 (worn / like / reject + wear history). **Later / post-MVP.**
