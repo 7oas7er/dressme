@@ -147,7 +147,7 @@ test("buildSuggestExportPayload shapes session for hillclimb paste", () => {
   assert.equal(withPacking.occasions[0].shortTitle, "Train-to-dinner");
 });
 
-test("suggestOutfits posts context and dual-writes occasion for deploy window", async () => {
+test("suggestOutfits posts context only", async () => {
   const calls = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options = {}) => {
@@ -172,8 +172,7 @@ test("suggestOutfits posts context and dual-writes occasion for deploy window", 
     assert.equal(calls[0].url, "/api/suggest");
     const body = JSON.parse(calls[0].options.body);
     assert.equal(body.context, "opera tonight, rainy");
-    // Dual-write: live Lambda may still require occasion until TF apply.
-    assert.equal(body.occasion, "opera tonight, rainy");
+    assert.equal(body.occasion, undefined);
     assert.equal(body.weather, undefined);
   } finally {
     globalThis.fetch = originalFetch;

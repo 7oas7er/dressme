@@ -114,12 +114,9 @@ export function backfillThumbs() {
 /**
  * UC-04: outfit suggestions from the catalog (Bedrock or random).
  * Server parses look count from `context` (default 3, clamp 1–8).
- * Prefer `context`. Also echo `occasion` so a pre-apply Lambda that still
- * requires occasion (missing_occasion) works until Frank applies the new zip.
- * New Lambda prefers `context` and keeps an occasion→context shim.
  */
 export function suggestOutfits({ context, engine } = {}) {
-  const body = { context, occasion: context };
+  const body = { context };
   if (engine) body.engine = engine;
   return request("/api/suggest", {
     method: "POST",

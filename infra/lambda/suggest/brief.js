@@ -16,7 +16,6 @@ var LOOK_COUNT = core.LOOK_COUNT;
 var LOOK_NOUN = core.LOOK_NOUN;
 var MAX_AI_CONTEXT_PROMPT = core.MAX_AI_CONTEXT_PROMPT;
 var MAX_CONTEXT = core.MAX_CONTEXT;
-var MAX_LEGACY_FIELD = core.MAX_LEGACY_FIELD;
 var MAX_LOOK_COUNT = core.MAX_LOOK_COUNT;
 var MAX_RATIONALE = core.MAX_RATIONALE;
 var MAX_TITLE = core.MAX_TITLE;
@@ -366,20 +365,11 @@ function resolveEngine(body) {
 }
 
 /**
- * Resolve free-text context. Prefer `context`; legacy shim concatenates
- * occasion + optional weather when context is absent (one deploy window).
+ * Resolve free-text context from the Suggest body (`context` only).
+ * Legacy occasion/weather shim removed once SPA + Lambdas used context.
  */
 function resolveContext(body) {
-  var direct = clampText(body && body.context, MAX_CONTEXT);
-  if (direct) return direct;
-
-  var occasion = clampText(body && body.occasion, MAX_LEGACY_FIELD);
-  var weather = clampText(body && body.weather, MAX_LEGACY_FIELD);
-  if (!occasion) return "";
-  if (weather) {
-    return clampText(occasion + "; " + weather, MAX_CONTEXT);
-  }
-  return occasion;
+  return clampText(body && body.context, MAX_CONTEXT);
 }
 
 /**
