@@ -91,8 +91,8 @@ locals {
   # Cold weekly wardrobe copies (inventory + Dynamo dump + media sync); outside live media.
   backup_bucket_name          = "${local.name_prefix}-backup-bucket"
   wardrobe_backup_policy_name = "${local.name_prefix}-wardrobe-backup-policy"
-  cognito_user_pool_name                = "${local.name_prefix}-user-pool"
-  cognito_client_name                   = "${local.name_prefix}-spa-client"
+  cognito_user_pool_name      = "${local.name_prefix}-user-pool"
+  cognito_client_name         = "${local.name_prefix}-spa-client"
   # Cognito hosted UI domain prefix must be globally unique in the region.
   cognito_domain_prefix = "7oas7er-dressme-${var.environment}"
   cognito_auth_domain   = "https://${local.cognito_domain_prefix}.auth.${data.aws_region.current.region}.amazoncognito.com"
