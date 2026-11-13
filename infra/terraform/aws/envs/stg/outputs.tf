@@ -68,6 +68,16 @@ output "media_bucket_name" {
   value       = module.site.media_bucket_name
 }
 
+output "backup_bucket_name" {
+  description = "Staging private bucket for weekly wardrobe cold backups."
+  value       = module.site.backup_bucket_name
+}
+
+output "wardrobe_backup_policy_arn" {
+  description = "IAM policy for local wardrobe backup scripts (stg)."
+  value       = module.site.wardrobe_backup_policy_arn
+}
+
 output "cognito_user_pool_id" {
   description = "Staging Cognito user pool id."
   value       = module.site.cognito_user_pool_id

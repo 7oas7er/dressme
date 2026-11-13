@@ -4,6 +4,11 @@ resource "aws_s3_bucket" "media" {
   tags = {
     Name = local.media_bucket_name
   }
+
+  # Match health-bucket posture: block casual terraform destroy of photos + versions.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_ownership_controls" "media" {
