@@ -11,6 +11,7 @@ var BELT_ITEM_RE = core.BELT_ITEM_RE;
 var BROKEN_COPY_RE = core.BROKEN_COPY_RE;
 var COLD_OUTDOOR_RE = core.COLD_OUTDOOR_RE;
 var COLOR_WORD_RE = core.COLOR_WORD_RE;
+var OPEN_LAYER_KNIT_RE = core.OPEN_LAYER_KNIT_RE;
 var DEFAULT_LOOK_COUNT = core.DEFAULT_LOOK_COUNT;
 var DEFAULT_MODEL_ID = core.DEFAULT_MODEL_ID;
 var DEFAULT_PACKING_LIMIT = core.DEFAULT_PACKING_LIMIT;
@@ -37,8 +38,10 @@ var UNIQUE_SLOTS = core.UNIQUE_SLOTS;
 var WORD_COUNTS = core.WORD_COUNTS;
 var bedrockClient = core.bedrockClient;
 var classifySlot = core.classifySlot;
+var contextAllowsBlackSuitBlackTie = core.contextAllowsBlackSuitBlackTie;
 var deps = core.deps;
 var formalityRank = core.formalityRank;
+var isOpenLayerKnitwear = core.isOpenLayerKnitwear;
 var isUniqueSlot = core.isUniqueSlot;
 var itemRoleTypeText = core.itemRoleTypeText;
 var itemSearchText = core.itemSearchText;
@@ -117,6 +120,83 @@ function lookHasWaistFinish(ids, byId) {
     if (isBeltItem(record) || isSuspendersItem(record)) return true;
   }
   return false;
+}
+
+/** Closed base suitable under a cardigan (shirt/tee/polo/sweater — not open knit). */
+function isUnderLayerBase(item) {
+  if (!item || isOpenLayerKnitwear(item)) return false;
+  if (classifySlot(item) === "base") return true;
+  var text = itemRoleTypeText(item).toLowerCase();
+  return (
+    /\b(shirt|tee|t-shirt|polo|oxford|blouse|turtleneck|sweater)\b/.test(text) &&
+    !OPEN_LAYER_KNIT_RE.test(text)
+  );
+}
+
+function lookHasOpenLayerKnit(ids, byId) {
+  for (var i = 0; i < (ids || []).length; i++) {
+    if (isOpenLayerKnitwear(byId.get(ids[i]) || {})) return true;
+  }
+  return false;
+}
+
+function lookHasUnderLayerBase(ids, byId) {
+  for (var i = 0; i < (ids || []).length; i++) {
+    if (isUnderLayerBase(byId.get(ids[i]) || {})) return true;
+  }
+  return false;
+}
+
+function itemLooksBlack(item) {
+  if (!item) return false;
+  var wada = String(itemPrimaryWadaName(item) || "").toLowerCase();
+  if (/\bblack\b/.test(wada)) return true;
+  var blob = itemColorBlob(item).toLowerCase();
+  var m = blob.match(COLOR_WORD_RE);
+  return Boolean(m && String(m[1] || "").toLowerCase() === "black");
+}
+
+function isSuitJacketLike(item) {
+  var text = itemRoleTypeText(item).toLowerCase();
+  if (/\b(leather|denim|bomber|field|field\s*jacket|harrington|biker)\b/.test(text)) {
+    return false;
+  }
+  return (
+    /\bblazer\b/.test(text) ||
+    /\bsuit\s*jacket\b/.test(text) ||
+    (/\bjacket\b/.test(text) && /\bsuit\b/.test(text))
+  );
+}
+
+function isBlackNecktie(item) {
+  if (!item || classifySlot(item) !== "neckwear") return false;
+  var text = itemRoleTypeText(item).toLowerCase();
+  if (!/\btie\b/.test(text)) return false;
+  return itemLooksBlack(item);
+}
+
+/**
+ * Black blazer/suit jacket + black trousers + black necktie (funeral-only pairing).
+ */
+function lookHasBlackSuitBlackTie(ids, byId) {
+  var blackSuitJacket = false;
+  var blackTrousers = false;
+  var blackTie = false;
+  for (var i = 0; i < (ids || []).length; i++) {
+    var record = byId.get(ids[i]);
+    if (!record) continue;
+    var slot = classifySlot(record);
+    if (slot === "outer" && isSuitJacketLike(record) && itemLooksBlack(record)) {
+      blackSuitJacket = true;
+    }
+    if (slot === "trousers" && itemLooksBlack(record)) {
+      blackTrousers = true;
+    }
+    if (isBlackNecktie(record)) {
+      blackTie = true;
+    }
+  }
+  return blackSuitJacket && blackTrousers && blackTie;
 }
 
 function findLookTrousers(ids, byId) {
@@ -439,6 +519,20 @@ function lookCompleteness(itemIds, byId, options) {
   if (opts.requireWaistFinish && !lookHasWaistFinish(itemIds, byId)) {
     reasons.push("missing_waist_finish");
   }
+  // Cardigan / open knit mid-layer without a shirt/tee (or equivalent) underneath.
+  if (
+    lookHasOpenLayerKnit(itemIds, byId) &&
+    !lookHasUnderLayerBase(itemIds, byId)
+  ) {
+    reasons.push("missing_base_under_open_knit");
+  }
+  // Black suit + black necktie — hard reject unless funeral/mourning context.
+  if (
+    !opts.allowBlackSuitBlackTie &&
+    lookHasBlackSuitBlackTie(itemIds, byId)
+  ) {
+    reasons.push("black_suit_black_tie");
+  }
   return { ok: reasons.length === 0, reasons: reasons };
 }
 
@@ -456,6 +550,7 @@ function completenessOptionsForLook(ids, byId, catalog, context) {
     requireColdLayer:
       contextNeedsColdLayer(context) && catalogHasSlot(catalog, "outer"),
     requireWaistFinish: requireWaistFinish,
+    allowBlackSuitBlackTie: contextAllowsBlackSuitBlackTie(context),
   };
 }
 
@@ -686,9 +781,12 @@ function repairLookLocally(look, byId, catalog, context, globalUsed) {
     return true;
   }
 
-  if (result.reasons.indexOf("missing_base") >= 0) {
+  if (
+    result.reasons.indexOf("missing_base") >= 0 ||
+    result.reasons.indexOf("missing_base_under_open_knit") >= 0
+  ) {
     attach(function (item) {
-      return classifySlot(item) === "base";
+      return isUnderLayerBase(item);
     }, "attach_base");
   }
   if (result.reasons.indexOf("missing_trousers") >= 0) {
@@ -700,6 +798,43 @@ function repairLookLocally(look, byId, catalog, context, globalUsed) {
     attach(function (item) {
       return classifySlot(item) === "footwear";
     }, "attach_footwear");
+  }
+
+  opts = completenessOptionsForLook(ids, byId, catalog, context);
+  result = lookCompleteness(ids, byId, opts);
+  if (result.reasons.indexOf("black_suit_black_tie") >= 0) {
+    var swapped = false;
+    var nonBlackTie = pickUnusedCandidate(catalog, used, function (item) {
+      return (
+        classifySlot(item) === "neckwear" &&
+        /\btie\b/i.test(itemRoleTypeText(item)) &&
+        !itemLooksBlack(item)
+      );
+    });
+    var nextIds = [];
+    for (var ti = 0; ti < ids.length; ti++) {
+      var tieRec = byId.get(ids[ti]);
+      if (isBlackNecktie(tieRec || {})) {
+        if (nonBlackTie && !swapped) {
+          nextIds.push(String(nonBlackTie.itemId));
+          used.add(String(nonBlackTie.itemId));
+          swapped = true;
+          repairs.push("swap_black_suit_tie");
+        } else {
+          repairs.push("drop_black_suit_tie");
+        }
+        continue;
+      }
+      nextIds.push(ids[ti]);
+    }
+    ids = nextIds;
+    console.warn(
+      JSON.stringify({
+        event: "suggest_black_suit_black_tie_repair",
+        lookId: look.lookId,
+        action: swapped ? "swap" : "drop",
+      })
+    );
   }
 
   opts = completenessOptionsForLook(ids, byId, catalog, context);
@@ -910,6 +1045,29 @@ function filterRandomLooksComplete(looks, catalog) {
 }
 
 
+function softStyleClashes(looks, byId, context) {
+  var clashes = [];
+  for (var i = 0; i < (looks || []).length; i++) {
+    var ids = lookItemIds(looks[i]);
+    if (lookHasBlackSuitBlackTie(ids, byId)) {
+      clashes.push({
+        lookId: looks[i] && looks[i].lookId,
+        rule: "black_suit_black_tie",
+        allowed: contextAllowsBlackSuitBlackTie(context),
+      });
+    }
+  }
+  if (clashes.length) {
+    console.warn(
+      JSON.stringify({
+        event: "suggest_style_soft_clash",
+        clashes: clashes,
+      })
+    );
+  }
+  return clashes;
+}
+
 exports.assertLooksComplete = assertLooksComplete;
 exports.backfillLooksDeterministic = backfillLooksDeterministic;
 exports.beltFootwearMatchScore = beltFootwearMatchScore;
@@ -928,12 +1086,21 @@ exports.findLookTrousers = findLookTrousers;
 exports.findSlotIdInLook = findSlotIdInLook;
 exports.footwearFormality = footwearFormality;
 exports.isBeltItem = isBeltItem;
+exports.isBlackNecktie = isBlackNecktie;
+exports.isOpenLayerKnitwear = isOpenLayerKnitwear;
+exports.isSuitJacketLike = isSuitJacketLike;
 exports.isSuspendersItem = isSuspendersItem;
+exports.isUnderLayerBase = isUnderLayerBase;
 exports.itemColorBlob = itemColorBlob;
+exports.itemLooksBlack = itemLooksBlack;
 exports.leatherToneFamily = leatherToneFamily;
 exports.lookCompleteness = lookCompleteness;
+exports.lookHasBlackSuitBlackTie = lookHasBlackSuitBlackTie;
+exports.lookHasOpenLayerKnit = lookHasOpenLayerKnit;
 exports.lookHasOuterLayer = lookHasOuterLayer;
+exports.lookHasUnderLayerBase = lookHasUnderLayerBase;
 exports.lookHasWaistFinish = lookHasWaistFinish;
+exports.softStyleClashes = softStyleClashes;
 exports.packingSummary = packingSummary;
 exports.pickUnusedCandidate = pickUnusedCandidate;
 exports.pickWaistFinish = pickWaistFinish;
