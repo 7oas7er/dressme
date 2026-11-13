@@ -46,6 +46,7 @@ var STYLE_PACK_V1 = [
   "- Completeness: every look needs base + bottom (+ footwear when shoes exist). Accessories when context warrants.",
   "- Open knit layering: a cardigan (or similar open knitwear mid-layer) is never the sole top — always include a shirt, tee, polo, or equivalent closed base underneath.",
   "- Black suit + black tie: never pair a black suit (black blazer/suit jacket + black trousers) with a black tie unless the context clearly is a funeral or mourning. For theatre / dress-up / dinner, prefer a coloured or textured tie, or no tie with a dress shirt + blazer.",
+  "- Neckwear: at most one necktie or bow tie per look — never both, and never two ties. Prefer the piece whose formality best matches the occasion (formal evening → keep one formal neckwear piece).",
   "- Slot uniqueness: at most one base, one bottom, one footwear, and one outer/mid-layer per look — never two shoes or two jackets.",
   "- Cold or outdoor evening / garden / patio: prefer a warm layer (coat, blazer, cardigan, knit overshirt) when the catalog has one.",
   "- Cool outdoor walking (≤~14°C, autumn/fall, chilly city walk / explore outdoors): do not ship a polo, tee, or light shirt alone under a jacket/coat — prefer a warm mid-layer (sweater, turtleneck, fleece, flannel, cardigan over a closed base). Indoor-only / theatre / dress-up looks are exempt.",
