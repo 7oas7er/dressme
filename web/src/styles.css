@@ -227,7 +227,14 @@ label {
   flex: 1 1 220px;
 }
 
-/* UC-07: foldable attribute filters (folded by default) above the grid. */
+/* UC-07 + UC-29: Filters / Arrange control bar above the grid. */
+.catalog-control-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
 .filter-fold {
   display: grid;
   gap: 0.75rem;
@@ -238,7 +245,8 @@ label {
   min-height: 2.75rem;
 }
 
-.filter-bar {
+.filter-bar,
+.arrange-bar {
   display: grid;
   gap: 0.75rem;
   padding: 0.85rem 0.9rem;
@@ -247,7 +255,8 @@ label {
   background: rgba(255, 255, 255, 0.55);
 }
 
-.filter-grid {
+.filter-grid,
+.arrange-grid {
   display: grid;
   gap: 0.75rem;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -265,8 +274,44 @@ label {
   font-size: 0.85rem;
 }
 
+.arrange-sort-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.arrange-sort-row select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.arrange-dir-toggle {
+  flex: 0 0 auto;
+  min-width: 4.5rem;
+  min-height: 2.75rem;
+}
+
 .filter-actions {
   justify-content: flex-end;
+}
+
+.catalog-groups {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.catalog-group {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.catalog-group-heading {
+  margin: 0;
+  padding: 0 0 0.35rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .catalog-grid {
@@ -1184,6 +1229,7 @@ button.linkish:hover {
   .form-sticky-actions button,
   .edit-photo .photo-remove,
   .filter-fold-toggle,
+  .arrange-dir-toggle,
   .topbar-actions button {
     min-height: 3rem;
     padding: 0.85rem 1.1rem;
